@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill:*)",
+      "Bash(cmd.exe /c \"taskkill /PID 40648 /F\")",
+      "Bash(pip install:*)"
+    ]
+  }
+}
