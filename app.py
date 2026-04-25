@@ -82,12 +82,14 @@ st.markdown("""
 # Maps the many different column names DSPs use → our standard internal names.
 # Add more aliases here as you encounter new DSP export formats.
 COLUMN_MAP = {
-    # Campaign (high-level grouping)
+    # Campaign / Brand (high-level grouping)
     "campaign":                    "campaign",
     "campaign name":               "campaign",
     "campaign_name":               "campaign",
     "insertion order":             "campaign",
     "advertiser":                  "campaign",
+    "brand name":                  "campaign",
+    "brand":                       "campaign",
 
     # Line item (more granular — used for the top-10 line items chart)
     "line item":                   "line_item",
@@ -315,7 +317,7 @@ def _right_insights(slide, insights_text):
     - Total text capped at 800 characters; truncates with '...' if longer
     - Text box is tall enough to fill the right column (5.2" tall)
     """
-    _textbox(slide, 8.2, 1.2, 4.85, 0.3, "Campaign Insights",
+    _textbox(slide, 8.2, 1.2, 4.85, 0.3, "Brand Insights",
              9, bold=True, color=_CYAN)
 
     txb = slide.shapes.add_textbox(Inches(8.2), Inches(1.55), Inches(4.85), Inches(5.2))
@@ -492,7 +494,7 @@ def build_pptx(file_info, total_impressions, total_clicks, total_spend,
     if not camp_summary.empty:
         cols = [c for c in ["campaign", "impressions", "clicks", "spend_usd", "ctr", "cpm"]
                 if c in camp_summary.columns]
-        col_labels = {"campaign": "Campaign", "impressions": "Impressions",
+        col_labels = {"campaign": "Brand", "impressions": "Impressions",
                       "clicks": "Clicks", "spend_usd": "Spend", "ctr": "CTR", "cpm": "CPM"}
         col_widths = {"campaign": 3.5, "impressions": 1.7, "clicks": 1.3,
                       "spend_usd": 1.6, "ctr": 1.3, "cpm": 1.3}
@@ -559,9 +561,9 @@ def build_pptx(file_info, total_impressions, total_clicks, total_spend,
                      "No campaign data available.", 8, color=_GREY)
 
     chart_slides = [
-        ("Impressions by Campaign",      buf_impressions, insights_fn),
-        ("CTR by Campaign",              buf_ctr_chart,   insights_fn),
-        ("Total Spend by Campaign",      buf_spend_chart, recs_fn),
+        ("Impressions by Brand",          buf_impressions, insights_fn),
+        ("CTR by Brand",                 buf_ctr_chart,   insights_fn),
+        ("Total Spend by Brand",         buf_spend_chart, recs_fn),
         ("Top 10 Line Items",            buf_line_items,  recs_fn),
         ("Impressions by Device Type",   buf_device,      recs_fn),
         ("Impressions by Environment",   buf_environment, recs_fn),
@@ -699,7 +701,7 @@ else:
 
     # Chart 1 — Total impressions by campaign
     with r1_left:
-        st.markdown("**Impressions by Campaign**")
+        st.markdown("**Impressions by Brand**")
         if "impressions" in df_all.columns and "campaign" in df_all.columns:
             c1 = (df_all.groupby("campaign")["impressions"]
                   .sum().reset_index()
@@ -723,7 +725,7 @@ else:
 
     # Chart 2 — CTR by campaign (sorted highest to lowest)
     with r1_right:
-        st.markdown("**CTR by Campaign**")
+        st.markdown("**CTR by Brand**")
         if "ctr" in df_all.columns and "campaign" in df_all.columns:
             c2 = (df_all.groupby("campaign")["ctr"]
                   .mean().reset_index()
@@ -753,7 +755,7 @@ else:
 
     # Chart 3 — Total spend by campaign
     with r2_left:
-        st.markdown("**Total Spend by Campaign**")
+        st.markdown("**Total Spend by Brand**")
         if "spend_usd" in df_all.columns and "campaign" in df_all.columns:
             c3 = (df_all.groupby("campaign")["spend_usd"]
                   .sum().reset_index()
@@ -865,7 +867,7 @@ else:
             no_data_msg("No environment column found in this export.<br>Add an 'Environment' column to your CSV.")
 
     # ── AI Insights ───────────────────────────────────────────────────────────
-    st.subheader("AI Campaign Insights")
+    st.subheader("AI Brand Insights")
 
     # Get the Anthropic API key — check Streamlit secrets first, then env var
     api_key = (
@@ -880,7 +882,7 @@ else:
             "Streamlit secrets or environment variables to enable AI insights."
         )
     elif "campaign" not in df_all.columns:
-        st.info("A 'campaign' column is required to generate per-campaign insights.")
+        st.info("A 'Campaign Name' or 'Brand Name' column is required to generate per-brand insights.")
     else:
         # Build an aggregated summary per campaign (recalculate from totals, not averages)
         has_spend  = "spend_usd"   in df_all.columns
@@ -899,9 +901,9 @@ else:
         # Includes campaign-level totals AND a campaign × environment breakdown
         # when an environment column is present (gives Claude the Web/App/YouTube split).
         def format_summary_table(df):
-            lines = ["=== Campaign Totals ==="]
+            lines = ["=== Brand Totals ==="]
             for _, r in camp_summary.iterrows():
-                parts = [f"Campaign: {r['campaign']}"]
+                parts = [f"Brand: {r['campaign']}"]
                 if "impressions" in r and pd.notna(r["impressions"]):
                     parts.append(f"Impressions: {int(r['impressions']):,}")
                 if "clicks" in r and pd.notna(r["clicks"]):
@@ -914,20 +916,22 @@ else:
                     parts.append(f"CPM: ${r['cpm']:,.2f}")
                 lines.append(" | ".join(parts))
 
-            # Per-environment breakdown — only when the environment column exists
-            if "environment" in df.columns:
-                lines.append("\n=== Breakdown by Campaign and Environment ===")
-                env_agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"]
-                           if c in df.columns}
-                env_df = df.groupby(["campaign", "environment"]).agg(**env_agg).reset_index()
-                if "impressions" in env_df.columns and "clicks" in env_df.columns:
-                    env_df["ctr"] = env_df["clicks"] / env_df["impressions"]
-                if "impressions" in env_df.columns and "spend_usd" in env_df.columns:
-                    env_df["cpm"] = env_df["spend_usd"] / env_df["impressions"] * 1000
-                if "clicks" in env_df.columns and "spend_usd" in env_df.columns:
-                    env_df["cpc"] = env_df["spend_usd"] / env_df["clicks"]
-                for _, r in env_df.iterrows():
-                    parts = [f"Campaign: {r['campaign']} | Environment: {r['environment']}"]
+            # Helper: aggregate a dimension column and append formatted rows to lines
+            def _add_breakdown(label_col, section_title, label_key):
+                if label_col not in df.columns:
+                    return
+                lines.append(f"\n=== {section_title} ===")
+                agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"]
+                       if c in df.columns}
+                grp = df.groupby(["campaign", label_col]).agg(**agg).reset_index()
+                if "impressions" in grp.columns and "clicks" in grp.columns:
+                    grp["ctr"] = grp["clicks"] / grp["impressions"]
+                if "impressions" in grp.columns and "spend_usd" in grp.columns:
+                    grp["cpm"] = grp["spend_usd"] / grp["impressions"] * 1000
+                if "clicks" in grp.columns and "spend_usd" in grp.columns:
+                    grp["cpc"] = grp["spend_usd"] / grp["clicks"]
+                for _, r in grp.iterrows():
+                    parts = [f"Brand: {r['campaign']} | {label_key}: {r[label_col]}"]
                     if "impressions" in r and pd.notna(r["impressions"]):
                         parts.append(f"Impressions: {int(r['impressions']):,}")
                     if "clicks" in r and pd.notna(r["clicks"]):
@@ -942,10 +946,21 @@ else:
                         parts.append(f"CPC: ${r['cpc']:,.2f}")
                     lines.append(" | ".join(parts))
 
+            # Breakdown by Environment (Web, App, YouTube, etc.)
+            _add_breakdown("environment", "Breakdown by Brand and Environment", "Environment")
+
+            # Breakdown by Insertion Order / Line Item name
+            _add_breakdown("line_item", "Breakdown by Brand and Line Item / Creative", "Line Item")
+
+            # Breakdown by Device Type
+            _add_breakdown("device_type", "Breakdown by Brand and Device Type", "Device Type")
+
             return "\n".join(lines)
 
         all_campaigns_text = format_summary_table(df_all)
         campaign_list = camp_summary["campaign"].tolist()
+        # Store brand names in session_state so other pages (e.g. Brand Memory) can read them
+        st.session_state["campaign_list"] = campaign_list
 
         # System prompt — analyst persona, structured output required
         SYSTEM_PROMPT = (
@@ -958,51 +973,73 @@ else:
 
         def stream_insight(campaign_name: str, all_data: str, brand_context: str = ""):
             """
-            Stream per-campaign analysis broken down by environment (Web, App, YouTube).
+            Stream per-brand analysis using the standard Display / Video / YouTube
+            insertion-order structure. Brand memory is injected as an override block
+            at the end of the prompt so it takes priority over all default instructions.
             Yields text chunks from the Claude API.
-            If brand_context is provided it is injected into the prompt.
             """
             client_ai = anthropic.Anthropic(api_key=api_key)
 
-            # Build the brand instruction block when brand memory exists.
-            # Placed at the very top of the prompt so the AI reads it first.
+            # Default structure: Campaign Overview + three insertion-order sections.
+            # The AI skips any section whose insertion order is absent from the data.
+            default_structure = (
+                f"**{campaign_name} - Campaign Overview**\n"
+                f"Summarise overall campaign performance. Focus on total Revenue (Spend) "
+                f"and total Impressions for this brand. Keep to 2-3 sentences.\n\n"
+                f"**Display**\n"
+                f"Summarise performance for the Display insertion order, focusing on "
+                f"average CPM. Then identify:\n"
+                f"- Best performing Line Item by CPM (state exact CPM, CPC, CTR)\n"
+                f"- Worst performing Line Item by CPM (state exact CPM, CPC, CTR)\n"
+                f"- Best performing Creative by CPM (state exact CPM, CPC, CTR)\n"
+                f"- Worst performing Creative by CPM (state exact CPM, CPC, CTR)\n"
+                f"If no Display insertion order data exists for this brand, omit this "
+                f"section entirely — do not mention it at all.\n\n"
+                f"**Video**\n"
+                f"Summarise performance for the Video insertion order, focusing on CPV "
+                f"and VTR. Then identify:\n"
+                f"- Best performing Line Item by CPV (state exact CPV, VTR)\n"
+                f"- Worst performing Line Item by CPV (state exact CPV, VTR)\n"
+                f"- Best performing Creative by CPV (state exact CPV, VTR)\n"
+                f"- Worst performing Creative by CPV (state exact CPV, VTR)\n"
+                f"If no Video insertion order data exists for this brand, omit this "
+                f"section entirely — do not mention it at all.\n\n"
+                f"**YouTube**\n"
+                f"Summarise performance for the YouTube insertion order, focusing on CPV "
+                f"and VTR. Then identify:\n"
+                f"- Best performing Line Item by CPV (state exact CPV, VTR)\n"
+                f"- Worst performing Line Item by CPV (state exact CPV, VTR)\n"
+                f"- Best performing Creative by CPV (state exact CPV, VTR)\n"
+                f"- Worst performing Creative by CPV (state exact CPV, VTR)\n"
+                f"If no YouTube insertion order data exists for this brand, omit this "
+                f"section entirely — do not mention it at all."
+            )
+
+            # Brand memory override — appended after the default instructions so it
+            # takes explicit priority. Only included when brand context exists.
             if brand_context:
-                brand_section = (
-                    f"You are generating insights for {campaign_name}.\n\n"
-                    f"Before writing anything, read these brand instructions carefully. "
-                    f"They are mandatory and must be reflected in every section of your response:\n\n"
-                    f"{brand_context}\n\n"
-                    f"Do not proceed until you have internalized the above. "
-                    f"Every insight you write must directly reflect these instructions.\n\n"
+                override_section = (
+                    f"\n\nBRAND MEMORY OVERRIDE — These instructions take priority over "
+                    f"all default instructions above. Where there is any conflict, always "
+                    f"follow these brand-specific instructions instead:\n\n"
+                    f"{brand_context}"
                 )
             else:
-                brand_section = ""
+                override_section = ""
 
             prompt = (
-                f"{brand_section}"
                 f"Here is the full performance data for all campaigns in this report:\n\n"
                 f"{all_data}\n\n"
-                f"Write the analysis for the '{campaign_name}' campaign using exactly "
+                f"Write the analysis for the '{campaign_name}' brand using exactly "
                 f"this structure and these headings (use ** for bold):\n\n"
-                f"**Web**\n"
-                f"Focus on CTR and CPC as primary KPIs and CPM as secondary. Comment on "
-                f"performance and what the numbers suggest. If Web data is not available "
-                f"for this campaign, omit this section entirely — do not mention it at all.\n\n"
-                f"**App**\n"
-                f"Focus on CTR and CPC as primary KPIs and CPM as secondary. Comment on "
-                f"performance and what the numbers suggest. If App data is not available "
-                f"for this campaign, omit this section entirely — do not mention it at all.\n\n"
-                f"**YouTube**\n"
-                f"Focus on CPV and VTR (View-Through-Rate) as primary KPIs. Comment on "
-                f"performance and what the numbers suggest. If YouTube data is not available "
-                f"for this campaign, omit this section entirely — do not mention it at all.\n\n"
-                f"Keep each section to 2-3 sentences. Use only the data provided — "
-                f"do not invent numbers."
+                f"{default_structure}"
+                f"{override_section}\n\n"
+                f"Use only the data provided — do not invent numbers."
             )
 
             with client_ai.messages.stream(
                 model="claude-sonnet-4-6",
-                max_tokens=500,
+                max_tokens=1200,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:

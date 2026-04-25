@@ -1,0 +1,32 @@
+Brand Name,Insertion Order Name,Line Item Name,Creative Name,Device Type,Impressions,Clicks,Conversions,Video Views,Revenue (USD),Platform Fee (USD),CPM (USD),CPC (USD),CPV (USD),CTR (%),CR (%),VTR (%)
+KFC,Display,Prospecting - Broad,KFC_Display_Banner_300x250,Desktop,1456000,3123,178,0,21840.00,2184.00,15.00,6.99,0.00,0.21,5.70,0.00
+KFC,Display,Prospecting - Broad,KFC_Display_Banner_728x90,Mobile,1123000,4234,212,0,16845.00,1684.50,15.00,3.98,0.00,0.38,5.01,0.00
+KFC,Display,Retargeting - Site Visitors,KFC_Display_Retarget_300x250,Desktop,345000,2987,367,0,6900.00,690.00,20.00,2.31,0.00,0.87,12.29,0.00
+KFC,Display,Retargeting - Site Visitors,KFC_Display_Retarget_160x600,Mobile,212000,1876,245,0,4240.00,424.00,20.00,2.26,0.00,0.88,13.02,0.00
+KFC,Display,Retargeting - Offer Engagers,KFC_Display_Retarget_Offer_300x250,Mobile,178000,2134,298,0,3560.00,356.00,20.00,1.67,0.00,1.20,13.97,0.00
+KFC,Video,Pre-roll - Broad,KFC_Video_15s_Brand,Desktop,876000,1123,78,634000,26280.00,2628.00,30.00,23.40,0.04,0.13,6.95,72.38
+KFC,Video,Pre-roll - Broad,KFC_Video_30s_Brand,Mobile,654000,987,65,445000,19620.00,1962.00,30.00,19.88,0.04,0.15,6.64,68.05
+KFC,Video,Retargeting - Video Viewers,KFC_Video_Retarget_15s,Desktop,234000,876,112,189000,7020.00,702.00,30.00,8.01,0.04,0.37,12.82,80.77
+KFC,YouTube,YouTube Pre-roll - Broad,KFC_YouTube_30s_Summer,Desktop,987000,1345,89,798000,29610.00,2961.00,30.00,22.01,0.04,0.14,6.38,80.85
+KFC,YouTube,YouTube Pre-roll - Broad,KFC_YouTube_15s_Summer,Mobile,765000,1123,67,589000,22950.00,2295.00,30.00,20.44,0.04,0.15,6.93,76.99
+KFC,YouTube,YouTube Retargeting - Viewers,KFC_YouTube_Retarget_15s,Mobile,234000,987,134,198000,7020.00,702.00,30.00,7.11,0.04,0.42,13.59,84.62
+Coke,Display,Awareness - Broad Display,Coke_Display_Banner_300x250,Desktop,2567000,4123,198,0,30804.00,3080.40,12.00,7.47,0.00,0.16,4.80,0.00
+Coke,Display,Awareness - Broad Display,Coke_Display_Banner_970x250,Desktop,1987000,3234,156,0,23844.00,2384.40,12.00,7.37,0.00,0.16,4.82,0.00
+Coke,Display,Awareness - Mobile Display,Coke_Display_Banner_320x50,Mobile,2345000,6789,312,0,28140.00,2814.00,12.00,4.15,0.00,0.29,4.60,0.00
+Coke,Display,Retargeting - Engagers,Coke_Display_Retarget_300x250,Desktop,456000,3456,423,0,9120.00,912.00,20.00,2.64,0.00,0.76,12.24,0.00
+Coke,Video,Pre-roll - Awareness,Coke_Video_30s_Brand,Desktop,1234000,1876,123,934000,37020.00,3702.00,30.00,19.72,0.04,0.15,6.18,75.69
+Coke,Video,Pre-roll - Awareness,Coke_Video_15s_Brand,Mobile,987000,2234,145,756000,29610.00,2961.00,30.00,13.25,0.04,0.23,6.12,76.60
+Coke,Video,Retargeting - Video Viewers,Coke_Video_Retarget_15s,Desktop,345000,1234,167,278000,10350.00,1035.00,30.00,8.39,0.04,0.36,13.52,80.58
+Coke,YouTube,YouTube Pre-roll - Broad,Coke_YouTube_30s_Festive,Desktop,1567000,2123,134,1234000,47010.00,4701.00,30.00,22.14,0.04,0.14,6.31,78.75
+Coke,YouTube,YouTube Pre-roll - Broad,Coke_YouTube_15s_Festive,Mobile,1234000,1876,112,987000,37020.00,3702.00,30.00,19.72,0.04,0.15,6.18,79.98
+Coke,YouTube,YouTube Retargeting - Viewers,Coke_YouTube_Retarget_15s,Mobile,345000,1456,189,289000,10350.00,1035.00,30.00,7.10,0.04,0.42,13.59,83.77
+Kmart,Display,Prospecting - Broad,Kmart_Display_Banner_300x250,Desktop,1876000,2987,167,0,18760.00,1876.00,10.00,6.28,0.00,0.16,5.60,0.00
+Kmart,Display,Prospecting - Broad,Kmart_Display_Banner_728x90,Mobile,1567000,4567,234,0,15670.00,1567.00,10.00,3.43,0.00,0.29,4.84,0.00
+Kmart,Display,Retargeting - Site Visitors,Kmart_Display_Retarget_300x250,Desktop,456000,3678,456,0,9120.00,912.00,20.00,2.48,0.00,0.81,12.45,0.00
+Kmart,Display,Retargeting - Cart Abandoners,Kmart_Display_Retarget_Cart_300x250,Mobile,234000,2876,378,0,4680.00,468.00,20.00,1.63,0.00,1.23,14.03,0.00
+Kmart,Video,Pre-roll - Promotions,Kmart_Video_15s_Sale,Desktop,987000,1456,98,756000,19740.00,1974.00,20.00,13.56,0.02,0.15,6.74,76.59
+Kmart,Video,Pre-roll - Promotions,Kmart_Video_30s_Brand,Mobile,765000,1234,87,567000,15300.00,1530.00,20.00,12.40,0.02,0.16,7.05,74.12
+Kmart,Video,Retargeting - Video Viewers,Kmart_Video_Retarget_15s,Desktop,234000,987,134,189000,4680.00,468.00,20.00,4.74,0.02,0.42,13.59,80.77
+Kmart,YouTube,YouTube Pre-roll - Broad,Kmart_YouTube_30s_Brand,Desktop,1234000,1678,112,987000,24680.00,2468.00,20.00,14.71,0.02,0.14,6.68,79.98
+Kmart,YouTube,YouTube Pre-roll - Broad,Kmart_YouTube_15s_Sale,Mobile,987000,1456,98,798000,19740.00,1974.00,20.00,13.56,0.02,0.15,6.74,80.85
+Kmart,YouTube,YouTube Retargeting - Viewers,Kmart_YouTube_Retarget_15s,Mobile,345000,1234,167,278000,6900.00,690.00,20.00,5.59,0.02,0.36,13.59,80.58

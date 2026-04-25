@@ -70,10 +70,17 @@ st.markdown(
 bm = load_brand_memory()
 bm_names = list(bm.keys())
 
+# Pull brand names from the CSV currently loaded in the main app (if any).
+# The main app stores these in session_state["campaign_list"] when files are uploaded.
+csv_brands = st.session_state.get("campaign_list", [])
+
+# Merge: saved brands first, then any CSV brands not already in brand_memory
+all_brand_options = bm_names + [b for b in csv_brands if b not in bm_names]
+
 # ── Add entry form ────────────────────────────────────────────────────────────
 st.subheader("Add Entry")
 
-bm_options  = ["+ Add new brand"] + bm_names
+bm_options  = ["+ Add new brand"] + all_brand_options
 bm_selected = st.selectbox("Select brand", bm_options, key="bm_select")
 
 if bm_selected == "+ Add new brand":
