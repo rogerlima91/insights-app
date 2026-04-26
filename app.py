@@ -432,17 +432,16 @@ def _chart_slide(prs, lay_content, title, buf_chart, fill_right_fn):
 
 def build_pptx(file_info, total_impressions, total_clicks, total_spend,
                avg_ctr, avg_cpm, camp_summary, insights_text,
-               buf_impressions, buf_ctr_chart, buf_spend_chart,
-               buf_line_items, buf_device, buf_environment):
+               buf_spend_chart, buf_cpm_chart, buf_best_li, buf_worst_li):
     """
     Builds and returns a BytesIO .pptx using template.pptx.pptx as the base.
 
     Slides:
       1. Title — dark navy, app name, date, source files
       2. Executive Summary — 5 metric cards + campaign breakdown table
-      3–8. One slide per chart (only included if that chart was rendered):
-           Impressions by Campaign, CTR by Campaign, Spend by Campaign,
-           Top 10 Line Items, Device Type, Environment
+      3–6. One slide per chart (only included if that chart was rendered):
+           Spend by Brand, CPM by Brand,
+           Best Line Items by CPM, Worst Line Items by CPM
            Each slide: chart left 60%, insights/recommendations right 40%
 
     The template provides DV colors, Arial fonts, the logo, and the
@@ -561,12 +560,10 @@ def build_pptx(file_info, total_impressions, total_clicks, total_spend,
                      "No campaign data available.", 8, color=_GREY)
 
     chart_slides = [
-        ("Impressions by Brand",          buf_impressions, insights_fn),
-        ("CTR by Brand",                 buf_ctr_chart,   insights_fn),
-        ("Total Spend by Brand",         buf_spend_chart, recs_fn),
-        ("Top 10 Line Items",            buf_line_items,  recs_fn),
-        ("Impressions by Device Type",   buf_device,      recs_fn),
-        ("Impressions by Environment",   buf_environment, recs_fn),
+        ("Total Spend by Brand",                buf_spend_chart, recs_fn),
+        ("CPM by Brand",                        buf_cpm_chart,   recs_fn),
+        ("Best Performing Line Items by CPM",   buf_best_li,     recs_fn),
+        ("Worst Performing Line Items by CPM",  buf_worst_li,    recs_fn),
     ]
 
     for title, buf, fill_fn in chart_slides:
@@ -675,20 +672,28 @@ else:
     # ── Charts ────────────────────────────────────────────────────────────────
     st.subheader("Performance Charts")
 
-    # Colour palette — consistent across all charts
+    # Colour palette — one colour per brand, consistent across all charts
     PALETTE = [CYAN, GREEN, PURPLE, MAGENTA, NAVY,
                "#f59e0b", "#ef4444", "#3b82f6", "#10b981", "#f97316"]
 
-    # Helper: remove top/right spines and style axes consistently
+    # Shared sizing constants applied to every chart so they all look the same
+    _TICK_FS = 11     # font size for axis tick labels
+    _LABEL_FS = 12    # font size for axis / unit labels
+    _BAR_FS  = 10     # font size for data labels printed on/above bars
+    _BAR_W   = 0.5    # width of vertical bars  (matplotlib default is 0.8)
+    _BAR_H   = 0.55   # height of horizontal bars
+    _FIG_W   = 7
+    _FIG_H   = 4.8
+
     def style_ax(ax):
+        """Apply consistent spine, grid and tick styling to every chart axis."""
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["left"].set_color("#d1d5db")
         ax.spines["bottom"].set_color("#d1d5db")
-        ax.tick_params(colors="#6b7280", labelsize=8)
+        ax.tick_params(colors="#374151", labelsize=_TICK_FS, length=3)
         ax.set_axisbelow(True)
 
-    # Helper: show a "column not available" placeholder inside a Streamlit column
     def no_data_msg(msg):
         st.markdown(
             f"<div style='text-align:center;padding:40px;color:#9ca3af;"
@@ -696,82 +701,43 @@ else:
             unsafe_allow_html=True,
         )
 
-    # ── Row 1: Impressions by campaign | CTR by campaign ──────────────────────
+    def trunc(s, n=32):
+        """Truncate a string to n characters for axis labels."""
+        return s[:n] + "…" if len(str(s)) > n else str(s)
+
+    # ── Row 1: Spend by Brand | CPM by Brand ──────────────────────────────────
     r1_left, r1_right = st.columns(2)
 
-    # Chart 1 — Total impressions by campaign
+    # Chart 1 — Total Spend by Brand
     with r1_left:
-        st.markdown("**Impressions by Brand**")
-        if "impressions" in df_all.columns and "campaign" in df_all.columns:
-            c1 = (df_all.groupby("campaign")["impressions"]
-                  .sum().reset_index()
-                  .sort_values("impressions", ascending=False))
-            colors1 = [PALETTE[i % len(PALETTE)] for i in range(len(c1))]
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.bar(c1["campaign"], c1["impressions"], color=colors1, edgecolor="white")
-            ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K"))
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, color="#e5e7eb")
-            style_ax(ax)
-            plt.xticks(rotation=20, ha="right", fontsize=8)
-            plt.tight_layout()
-            st.pyplot(fig)
-            buf_impr = io.BytesIO()
-            fig.savefig(buf_impr, format="png", dpi=150, bbox_inches="tight")
-            buf_impr.seek(0)
-            st.session_state["chart_impressions"] = buf_impr
-            plt.close(fig)
-        else:
-            no_data_msg("No campaign or impressions column found.")
-
-    # Chart 2 — CTR by campaign (sorted highest to lowest)
-    with r1_right:
-        st.markdown("**CTR by Brand**")
-        if "ctr" in df_all.columns and "campaign" in df_all.columns:
-            c2 = (df_all.groupby("campaign")["ctr"]
-                  .mean().reset_index()
-                  .sort_values("ctr", ascending=False))
-            colors2 = [PALETTE[i % len(PALETTE)] for i in range(len(c2))]
-            fig, ax = plt.subplots(figsize=(6, 4))
-            bars = ax.bar(c2["campaign"], c2["ctr"] * 100, color=colors2, edgecolor="white")
-            ax.bar_label(bars, fmt="%.2f%%", padding=3, fontsize=7.5, color="#374151")
-            ax.set_ylabel("Avg CTR (%)", fontsize=8, color="#6b7280")
-            ax.set_ylim(0, c2["ctr"].max() * 100 * 1.25)
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, color="#e5e7eb")
-            style_ax(ax)
-            plt.xticks(rotation=20, ha="right", fontsize=8)
-            plt.tight_layout()
-            st.pyplot(fig)
-            # Capture chart image for PPTX export before closing the figure
-            buf_ctr = io.BytesIO()
-            fig.savefig(buf_ctr, format="png", dpi=150, bbox_inches="tight")
-            buf_ctr.seek(0)
-            st.session_state["chart_ctr"] = buf_ctr
-            plt.close(fig)
-        else:
-            no_data_msg("No campaign or CTR data found.")
-
-    # ── Row 2: Spend by campaign | Top 10 line items by impressions ───────────
-    r2_left, r2_right = st.columns(2)
-
-    # Chart 3 — Total spend by campaign
-    with r2_left:
         st.markdown("**Total Spend by Brand**")
         if "spend_usd" in df_all.columns and "campaign" in df_all.columns:
-            c3 = (df_all.groupby("campaign")["spend_usd"]
+            c1 = (df_all.groupby("campaign")["spend_usd"]
                   .sum().reset_index()
                   .sort_values("spend_usd", ascending=False))
-            colors3 = [PALETTE[i % len(PALETTE)] for i in range(len(c3))]
-            fig, ax = plt.subplots(figsize=(6, 4))
-            bars = ax.bar(c3["campaign"], c3["spend_usd"], color=colors3, edgecolor="white")
-            ax.bar_label(bars, labels=[f"${v:,.0f}" for v in c3["spend_usd"]], padding=3, fontsize=7.5, color="#374151")
-            ax.set_ylabel("Total Spend (USD)", fontsize=8, color="#6b7280")
-            ax.set_ylim(0, c3["spend_usd"].max() * 1.2)
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, color="#e5e7eb")
+            colors1 = [PALETTE[i % len(PALETTE)] for i in range(len(c1))]
+            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            bars = ax.bar(c1["campaign"], c1["spend_usd"],
+                          color=colors1, edgecolor="white", linewidth=1.5, width=_BAR_W)
+
+            # Format y-axis as $K or $M
+            ax.yaxis.set_major_formatter(
+                mticker.FuncFormatter(
+                    lambda x, _: f"${x/1e6:.1f}M" if x >= 1e6 else f"${x/1e3:.0f}K"
+                )
+            )
+            # Data labels above each bar
+            ax.bar_label(bars,
+                         labels=[f"${v/1e6:.2f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
+                                 for v in c1["spend_usd"]],
+                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
+            ax.set_ylabel("Total Spend (USD)", fontsize=_LABEL_FS, color="#374151")
+            ax.set_ylim(0, c1["spend_usd"].max() * 1.28)
+            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
             style_ax(ax)
-            plt.xticks(rotation=20, ha="right", fontsize=8)
+            plt.xticks(rotation=20, ha="right", fontsize=_TICK_FS)
             plt.tight_layout()
             st.pyplot(fig)
-            # Capture chart image for PPTX export before closing the figure
             buf_spend = io.BytesIO()
             fig.savefig(buf_spend, format="png", dpi=150, bbox_inches="tight")
             buf_spend.seek(0)
@@ -780,91 +746,137 @@ else:
         else:
             no_data_msg("No campaign or spend column found.")
 
-    # Chart 4 — Top 10 line items by impressions (horizontal bar)
-    with r2_right:
-        st.markdown("**Top 10 Line Items by Impressions**")
-        # Use line_item column if available, fall back to campaign
-        li_col = "line_item" if "line_item" in df_all.columns else "campaign"
-        if "impressions" in df_all.columns:
-            c4 = (df_all.groupby(li_col)["impressions"]
-                  .sum().reset_index()
-                  .sort_values("impressions", ascending=True)
-                  .tail(10))   # tail after ascending sort = top 10, largest at top
-            colors4 = [PALETTE[i % len(PALETTE)] for i in range(len(c4))]
-            fig, ax = plt.subplots(figsize=(6, 4))
-            hbars = ax.barh(c4[li_col], c4["impressions"], color=colors4, edgecolor="white", height=0.6)
-            ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x/1e6:.1f}M" if x >= 1e6 else f"{x/1e3:.0f}K"))
-            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.6, color="#e5e7eb")
+    # Chart 2 — CPM by Brand (recalculated from totals for accuracy)
+    with r1_right:
+        st.markdown("**CPM by Brand**")
+        if not camp_summary.empty and "cpm" in camp_summary.columns:
+            c2 = (camp_summary[["campaign", "cpm"]]
+                  .dropna()
+                  .sort_values("cpm", ascending=False))
+            colors2 = [PALETTE[i % len(PALETTE)] for i in range(len(c2))]
+            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            bars = ax.bar(c2["campaign"], c2["cpm"],
+                          color=colors2, edgecolor="white", linewidth=1.5, width=_BAR_W)
+
+            ax.yaxis.set_major_formatter(
+                mticker.FuncFormatter(lambda x, _: f"${x:,.2f}")
+            )
+            ax.bar_label(bars,
+                         labels=[f"${v:,.2f}" for v in c2["cpm"]],
+                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
+            ax.set_ylabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
+            ax.set_ylim(0, c2["cpm"].max() * 1.28)
+            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
             style_ax(ax)
-            plt.yticks(fontsize=8)
+            plt.xticks(rotation=20, ha="right", fontsize=_TICK_FS)
             plt.tight_layout()
             st.pyplot(fig)
-            buf_li = io.BytesIO()
-            fig.savefig(buf_li, format="png", dpi=150, bbox_inches="tight")
-            buf_li.seek(0)
-            st.session_state["chart_line_items"] = buf_li
+            buf_cpm = io.BytesIO()
+            fig.savefig(buf_cpm, format="png", dpi=150, bbox_inches="tight")
+            buf_cpm.seek(0)
+            st.session_state["chart_cpm"] = buf_cpm
             plt.close(fig)
         else:
-            no_data_msg("No impressions column found.")
+            no_data_msg("Spend and impressions data needed to calculate CPM.")
 
-    # ── Row 3: Device type pie | Environment pie ───────────────────────────────
-    r3_left, r3_right = st.columns(2)
-
-    # Shared pie chart style settings
-    PIE_KWARGS = dict(
-        autopct="%1.1f%%",
-        startangle=140,
-        pctdistance=0.78,
-        wedgeprops={"edgecolor": "white", "linewidth": 1.5},
+    # ── Row 2: Best / Worst line items by CPM ─────────────────────────────────
+    # Brand filter options — "All Brands" + each individual brand
+    _li_brands = ["All Brands"] + (
+        camp_summary["campaign"].tolist() if not camp_summary.empty else []
     )
+    # Column to group by — prefer line_item, fall back to campaign
+    li_col = "line_item" if "line_item" in df_all.columns else "campaign"
 
-    # Chart 5 — Impressions split by device type
-    with r3_left:
-        st.markdown("**Impressions by Device Type**")
-        if "device_type" in df_all.columns and "impressions" in df_all.columns:
-            c5 = (df_all.groupby("device_type")["impressions"]
-                  .sum().reset_index()
-                  .sort_values("impressions", ascending=False))
-            colors5 = [PALETTE[i % len(PALETTE)] for i in range(len(c5))]
-            fig, ax = plt.subplots(figsize=(6, 4))
-            wedges, texts, autotexts = ax.pie(
-                c5["impressions"], labels=c5["device_type"], colors=colors5, **PIE_KWARGS
-            )
-            for t in texts:     t.set_fontsize(8);  t.set_color("#374151")
-            for at in autotexts: at.set_fontsize(7.5); at.set_color("white"); at.set_fontweight("bold")
+    r2_left, r2_right = st.columns(2)
+
+    # Chart 3 — Best performing line items by CPM (lowest CPM = most cost-efficient)
+    with r2_left:
+        st.markdown("**Best Performing Line Items by CPM**")
+        li_brand_best = st.selectbox(
+            "Filter by brand", _li_brands, key="li_best_brand",
+        )
+        if "spend_usd" in df_all.columns and "impressions" in df_all.columns:
+            df_li = df_all.copy()
+            # Apply brand filter if one is selected
+            if li_brand_best != "All Brands" and "campaign" in df_li.columns:
+                df_li = df_li[df_li["campaign"] == li_brand_best]
+            agg_li = (df_li.groupby(li_col)
+                      .agg(spend_usd=("spend_usd", "sum"),
+                           impressions=("impressions", "sum"))
+                      .reset_index())
+            # Only keep rows with enough impressions to give a meaningful CPM
+            agg_li = agg_li[agg_li["impressions"] > 0].copy()
+            agg_li["cpm"] = agg_li["spend_usd"] / agg_li["impressions"] * 1000
+            # Best = lowest CPM; take 10, then reverse so best is at the top of the chart
+            top_best = (agg_li.sort_values("cpm", ascending=True)
+                        .head(10)
+                        .sort_values("cpm", ascending=False))
+            labels_best = [trunc(s) for s in top_best[li_col]]
+            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            hbars = ax.barh(labels_best, top_best["cpm"],
+                            color=CYAN, edgecolor="white", linewidth=1.5, height=_BAR_H)
+
+            ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.2f}"))
+            ax.bar_label(hbars,
+                         labels=[f"${v:,.2f}" for v in top_best["cpm"]],
+                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
+            ax.set_xlabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
+            ax.set_xlim(0, top_best["cpm"].max() * 1.3)
+            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
+            style_ax(ax)
+            plt.yticks(fontsize=_TICK_FS)
             plt.tight_layout()
             st.pyplot(fig)
-            buf_dev = io.BytesIO()
-            fig.savefig(buf_dev, format="png", dpi=150, bbox_inches="tight")
-            buf_dev.seek(0)
-            st.session_state["chart_device"] = buf_dev
+            buf_best_li = io.BytesIO()
+            fig.savefig(buf_best_li, format="png", dpi=150, bbox_inches="tight")
+            buf_best_li.seek(0)
+            st.session_state["chart_best_li"] = buf_best_li
             plt.close(fig)
         else:
-            no_data_msg("No device_type column found in this export.<br>Add a 'Device Type' column to your CSV.")
+            no_data_msg("Spend and impressions data needed to calculate CPM.")
 
-    # Chart 6 — Impressions split by environment (Web, App, YouTube, etc.)
-    with r3_right:
-        st.markdown("**Impressions by Environment**")
-        if "environment" in df_all.columns and "impressions" in df_all.columns:
-            c6 = (df_all.groupby("environment")["impressions"]
-                  .sum().reset_index()
-                  .sort_values("impressions", ascending=False))
-            colors6 = [PALETTE[i % len(PALETTE)] for i in range(len(c6))]
-            fig, ax = plt.subplots(figsize=(6, 4))
-            wedges, texts, autotexts = ax.pie(
-                c6["impressions"], labels=c6["environment"], colors=colors6, **PIE_KWARGS
-            )
-            for t in texts:     t.set_fontsize(8);  t.set_color("#374151")
-            for at in autotexts: at.set_fontsize(7.5); at.set_color("white"); at.set_fontweight("bold")
+    # Chart 4 — Worst performing line items by CPM (highest CPM = least efficient)
+    with r2_right:
+        st.markdown("**Worst Performing Line Items by CPM**")
+        li_brand_worst = st.selectbox(
+            "Filter by brand", _li_brands, key="li_worst_brand",
+        )
+        if "spend_usd" in df_all.columns and "impressions" in df_all.columns:
+            df_li2 = df_all.copy()
+            # Apply brand filter if one is selected
+            if li_brand_worst != "All Brands" and "campaign" in df_li2.columns:
+                df_li2 = df_li2[df_li2["campaign"] == li_brand_worst]
+            agg_li2 = (df_li2.groupby(li_col)
+                       .agg(spend_usd=("spend_usd", "sum"),
+                            impressions=("impressions", "sum"))
+                       .reset_index())
+            agg_li2 = agg_li2[agg_li2["impressions"] > 0].copy()
+            agg_li2["cpm"] = agg_li2["spend_usd"] / agg_li2["impressions"] * 1000
+            # Worst = highest CPM; keep descending so worst sits at the top of the chart
+            top_worst = agg_li2.sort_values("cpm", ascending=False).head(10)
+            labels_worst = [trunc(s) for s in top_worst[li_col]]
+            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            hbars = ax.barh(labels_worst, top_worst["cpm"],
+                            color=MAGENTA, edgecolor="white", linewidth=1.5, height=_BAR_H)
+
+            ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.2f}"))
+            ax.bar_label(hbars,
+                         labels=[f"${v:,.2f}" for v in top_worst["cpm"]],
+                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
+            ax.set_xlabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
+            ax.set_xlim(0, top_worst["cpm"].max() * 1.3)
+            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
+            style_ax(ax)
+            plt.yticks(fontsize=_TICK_FS)
             plt.tight_layout()
             st.pyplot(fig)
-            buf_env = io.BytesIO()
-            fig.savefig(buf_env, format="png", dpi=150, bbox_inches="tight")
-            buf_env.seek(0)
-            st.session_state["chart_environment"] = buf_env
+            buf_worst_li = io.BytesIO()
+            fig.savefig(buf_worst_li, format="png", dpi=150, bbox_inches="tight")
+            buf_worst_li.seek(0)
+            st.session_state["chart_worst_li"] = buf_worst_li
             plt.close(fig)
         else:
-            no_data_msg("No environment column found in this export.<br>Add an 'Environment' column to your CSV.")
+            no_data_msg("Spend and impressions data needed to calculate CPM.")
 
     # ── AI Insights ───────────────────────────────────────────────────────────
     st.subheader("AI Brand Insights")
@@ -1231,12 +1243,10 @@ else:
         avg_cpm           = avg_cpm,
         camp_summary      = camp_summary,
         insights_text     = _insights,
-        buf_impressions   = st.session_state.get("chart_impressions"),
-        buf_ctr_chart     = st.session_state.get("chart_ctr"),
         buf_spend_chart   = st.session_state.get("chart_spend"),
-        buf_line_items    = st.session_state.get("chart_line_items"),
-        buf_device        = st.session_state.get("chart_device"),
-        buf_environment   = st.session_state.get("chart_environment"),
+        buf_cpm_chart     = st.session_state.get("chart_cpm"),
+        buf_best_li       = st.session_state.get("chart_best_li"),
+        buf_worst_li      = st.session_state.get("chart_worst_li"),
     )
 
     st.sidebar.download_button(

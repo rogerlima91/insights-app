@@ -1,1 +1,12 @@
-{}
+{
+  "KFC": {
+    "entries": [
+      {
+        "type": "transcript",
+        "timestamp": "2026-04-25 20:56",
+        "text": "Meeting transcript (saved 2026-04-25 20:56, file: 'Recording.m4a'):\n\nFor KFC, I want to know how much revenue each device type is generating for the current campaigns."
+      }
+    ],
+    "rationale": "Meeting transcript (saved 2026-04-25 20:56, file: 'Recording.m4a'):\n\nFor KFC, I want to know how much revenue each device type is generating for the current campaigns."
+  }
+}
