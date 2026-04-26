@@ -239,3 +239,39 @@ OPENAI_API_KEY = "sk-proj-..."
 | `ANTHROPIC_API_KEY` | app.py | Claude insights generation + PPTX slide content |
 | `OPENAI_API_KEY` | pages/brand_memory.py (Tab 3) | Whisper transcription |
 | Google OAuth | pages/brand_memory.py (Tab 2) | Gmail search — credentials.json + token.json |
+
+---
+
+## Deployment
+
+### Streamlit Cloud
+The app is deployed (or being prepared for deployment) on Streamlit Cloud.
+
+**What works on Cloud:**
+- CSV upload, charts, AI insights (Claude), PPTX export
+- Brand Memory manual entries
+- Meeting Transcription (Whisper) — requires `OPENAI_API_KEY` in Cloud secrets
+
+**What does NOT work on Cloud — Gmail (Email Context tab):**
+The Gmail integration uses `InstalledAppFlow.run_local_server()` which opens a browser window on the local machine to complete OAuth. This cannot work on Streamlit Cloud because there is no local browser on a cloud server. The tab will load but authentication will fail.
+- **Workaround:** Use the Email Context tab locally only; save emails to Brand Memory before deploying, so the context is already in `brand_memory.json`
+- **Future fix:** Would require replacing `InstalledAppFlow` with a server-side OAuth flow using `st.query_params` to handle the redirect
+
+**Pre-deployment checklist:**
+- [ ] Push latest code to GitHub
+- [ ] Add secrets in Streamlit Cloud dashboard: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+- [ ] Confirm `credentials.json`, `token.json`, `.streamlit/secrets.toml` are NOT in the repo (all in `.gitignore`)
+- [ ] `brand_memory.json` can be committed if you want brand context to be available at deploy time
+
+**requirements.txt** includes all required packages:
+```
+streamlit
+pandas
+matplotlib
+python-pptx
+anthropic
+openai
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+```
