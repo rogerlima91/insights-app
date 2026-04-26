@@ -17,9 +17,9 @@ It processes that data to generate performance charts, AI-written insights, and 
 ## Tech Stack
 - **pandas** — all data loading, cleaning, and analysis (always use pandas, never raw Python lists/dicts for data work)
 - **matplotlib** — charts and visualisations
-- **python-pptx** — PowerPoint export
+- **python-pptx** — PowerPoint export (built from scratch, no template file)
 - **Streamlit** — interactive dashboard and multi-page UI
-- **anthropic** — Claude API for AI-generated insights
+- **anthropic** — Claude API for AI-generated insights and PPTX content
 - **openai** — Whisper API for meeting transcription
 - **google-api-python-client** — Gmail integration for email context
 
@@ -29,7 +29,7 @@ It processes that data to generate performance charts, AI-written insights, and 
 3. End every script with a **confirmation print message** (e.g. `print("Done. Report exported.")`)
 4. Keep code **simple and readable** — no clever one-liners, no unnecessary abstractions
 5. Column names from DSP exports vary — always check and normalise headers early in any script
-6. After every significant change, automatically run `git add .` and `git commit` with a descriptive message summarising what was changed and why
+6. After every significant change or completed feature, automatically run `git add .` and `git commit` with a descriptive commit message — do this without asking for confirmation
 
 ## Key Ad Tech Metrics to Know
 - **CTR** = clicks / impressions
@@ -50,14 +50,13 @@ insights-app/
 ├── brand_memory.json           ← Stores brand context for AI insights
 ├── credentials.json            ← Google OAuth credentials (never commit)
 ├── token.json                  ← Google OAuth token (never commit)
-├── template.pptx.pptx          ← PowerPoint template (DV brand colours/fonts)
 ├── requirements.txt
 ├── .env                        ← Local environment variables
-├── .gitignore                  ← Excludes credentials.json, token.json
+├── .gitignore                  ← Excludes credentials.json, token.json, secrets.toml
+├── .streamlit/
+│   └── secrets.toml            ← API keys (never commit)
 ├── pages/
-│   ├── brand_memory.py         ← Manage brand context entries
-│   ├── email_context.py        ← Search Gmail and save email context to brands
-│   └── meeting_transcription.py← Transcribe meeting recordings via Whisper
+│   └── brand_memory.py         ← Brand Memory page with three tabs (see below)
 ├── data/                       ← Raw CSV exports from DSPs go here
 ├── outputs/                    ← Generated PowerPoint and chart files
 └── utils/                      ← Helper scripts (currently unused)
@@ -72,19 +71,19 @@ insights-app/
 2. Detects DSP source automatically from column names
 3. Normalises all column names to internal standard names (see Column Map below)
 4. Displays summary metrics (Impressions, Clicks, Spend, CTR, CPM)
-5. Renders six performance charts
+5. Renders four performance charts
 6. Generates AI insights per brand using Claude (with Brand Memory applied)
-7. Exports a branded PowerPoint report
+7. Exports a PowerPoint report via the sidebar Generate Report button
 
 ### Charts
-| # | Title | Type |
-|---|-------|------|
-| 1 | Impressions by Brand | Bar |
-| 2 | CTR by Brand | Bar |
-| 3 | Total Spend by Brand | Bar |
-| 4 | Top 10 Line Items by Impressions | Horizontal bar |
-| 5 | Impressions by Device Type | Pie |
-| 6 | Impressions by Environment | Pie |
+| # | Title | Type | Notes |
+|---|-------|------|-------|
+| 1 | Total Spend by Brand | Vertical bar | Y-axis formatted as $K / $M |
+| 2 | CPM by Brand | Vertical bar | Recalculated from totals |
+| 3 | Best Performing Line Items by CPM | Horizontal bar | Lowest CPM = most efficient; brand filter dropdown |
+| 4 | Worst Performing Line Items by CPM | Horizontal bar | Highest CPM = least efficient; brand filter dropdown |
+
+All charts share consistent styling: Calibri-equivalent fonts, 11pt tick labels, 12pt axis labels, 10pt bold data labels, bar width 0.5, solid colours from the brand palette.
 
 ### AI Insights structure (per brand)
 Every brand gets this fixed section structure:
@@ -106,20 +105,40 @@ The prompt receives four aggregated breakdowns (when columns exist):
 ### Session state keys set by app.py
 | Key | Contents |
 |-----|----------|
-| `campaign_list` | List of brand names from the current upload — read by Brand Memory and Meeting Transcription pages |
-| `chart_impressions` | PNG buffer for PPTX |
-| `chart_ctr` | PNG buffer for PPTX |
-| `chart_spend` | PNG buffer for PPTX |
-| `chart_line_items` | PNG buffer for PPTX |
-| `chart_device` | PNG buffer for PPTX |
-| `chart_environment` | PNG buffer for PPTX |
+| `campaign_list` | List of brand names from the current upload — read by Brand Memory page |
+| `chart_spend` | PNG buffer — Spend by Brand |
+| `chart_cpm` | PNG buffer — CPM by Brand |
+| `chart_best_li` | PNG buffer — Best Line Items by CPM (reflects active brand filter) |
+| `chart_worst_li` | PNG buffer — Worst Line Items by CPM (reflects active brand filter) |
 | `insights_triggered` | Boolean — whether Generate Insights has been clicked |
-| `insights_text` | Dict of `{brand_name: insight_text}` for PPTX |
-| `insights_overall` | Overall summary + recommendations text for PPTX |
+| `insights_text` | Dict of `{brand_name: insight_text}` |
+| `insights_overall` | Overall summary + recommendations text |
+| `pptx_report` | BytesIO buffer of the generated PPTX — set after Generate Report is clicked |
 
 ### PowerPoint export
-Uses `template.pptx.pptx` as the base (DV navy/cyan brand colours, Arial font).
-Slides: Title → Executive Summary → one slide per chart (chart left 60%, insights/recs right 40%).
+Built entirely from scratch using python-pptx — no template file required.
+
+**Dark premium template:**
+- Background: `#0D1B2A` dark navy
+- Primary text: `#FFFFFF` white
+- Secondary text: `#A8B2BC` light grey
+- Accent: `#00A8E8` electric blue
+- Font: Calibri throughout
+- Footer: "Insights App" bottom-left, slide number bottom-right
+
+**Export flow:**
+1. Click **📊 Generate Report** in sidebar → AI generates all slide content (10–30s)
+2. Click **📥 Download Report (.pptx)** → saves `YYYY-MM-DD_campaign_report.pptx`
+
+**Slide structure:**
+| Slide | Title | Content |
+|-------|-------|---------|
+| 1 | Campaign Performance Summary | 3 KPI cards (Impressions, Revenue, Brands) + Revenue by Brand chart + AI best/worst insight |
+| 2 per brand | [Brand] — Performance Breakdown | Display / Video / YouTube columns, max 3 bullets each, citing CPM/CPV/VTR |
+| 3 per brand | [Brand] — Recommendations | 5 action-verb bullets with specific line item / metric references |
+| Last | Budget Shift Recommendations | Table: Brand \| Best IO \| Recommendation (positive actions in blue) |
+
+All slide text is generated via synchronous Anthropic API calls at export time.
 
 ---
 
@@ -146,14 +165,30 @@ CTR and CPM are always recalculated from raw numbers rather than using DSP-provi
 
 ## Page: pages/brand_memory.py
 
-### What it does
+This is a single Streamlit page containing three tabs.
+
+### Tab 1 — 📋 Brand Memory
 - Stores brand context (objectives, KPIs, instructions) that the AI reads when generating insights
 - Brand memory is matched to campaigns using **partial/case-insensitive matching** — e.g. key `"Nike"` matches campaign `"Nike Summer 2024"`
-- Each brand can have multiple entries (manual notes, email context, transcripts), each individually deletable
-
-### UI
+- Each brand can have multiple entries (manual notes, emails, transcripts), each individually deletable
 - **Add Entry form** — select existing brand or create new; text area adds a new dated entry
-- **Saved Brands view** — shows each entry as a card with type badge, date, and Delete button
+- **Saved Brands view** — each entry shown as a card with type badge, date, and Delete button
+- Brands are auto-deleted when their last entry is removed
+
+### Tab 2 — 📧 Email Context
+- Searches the user's Gmail for emails related to a brand
+- Displays results in a checkbox table (checkbox | date | sender | subject | snippet)
+- Saves selected emails individually to Brand Memory (one entry per email)
+- **Search logic:** brand name picker + keyword multi-select (12 defaults) + custom keywords
+- **Name expansion:** each word > 3 chars is OR'd into the Gmail query (e.g. `"Coke Festive Campaign"` → searches `"Coke Festive Campaign" OR "Coke" OR "Festive" OR "Campaign"`)
+- **Auth:** OAuth2 via `credentials.json`; token cached in `token.json`; scope `gmail.readonly`
+
+### Tab 3 — 🎙 Meeting Transcription
+- Accepts audio/video upload (mp3, mp4, wav, m4a, webm, max 25 MB)
+- Sends to OpenAI Whisper (`whisper-1`) for transcription
+- Displays full transcript in a scrollable box
+- Shows an audio player and a Download Audio button after transcription
+- Saves transcript to Brand Memory as a `"transcript"` entry
 
 ### brand_memory.json structure
 ```json
@@ -190,46 +225,9 @@ CTR and CPM are always recalculated from raw numbers rather than using DSP-provi
 
 ---
 
-## Page: pages/email_context.py
-
-### What it does
-- Searches the user's Gmail for emails related to a brand
-- Displays results in a checkbox table (checkbox | date | sender | subject | snippet)
-- Saves selected emails individually to Brand Memory (one entry per email)
-
-### Search logic
-- Brand name picker: dropdown of saved brands + "Type a new name"
-- Keyword filter: multi-select from 12 defaults (reporting, insights, KPI, strategy, objectives, brief, performance, targets, goals, optimisation, budget, creative) + free-text custom keywords
-- **Name expansion:** brand name is split by spaces and each word > 3 characters is OR'd into the Gmail query. E.g. `"Coke Festive Campaign"` searches for `("Coke Festive Campaign" OR "Coke" OR "Festive" OR "Campaign")`
-- Gmail query format: `"brand terms" (keyword1 OR keyword2 OR ...)`
-
-### Auth
-- OAuth2 via `credentials.json` (Google Cloud project)
-- Token saved to `token.json` after first login — subsequent runs are silent
-- Scope: `gmail.readonly` (read-only, never sends or modifies)
-
-### Saving
-- Each selected email becomes its own `"email"` entry in `brand_memory.json`
-- Save brand dropdown lets you consolidate emails under any existing brand (e.g. save "Coke" search results under "Coke Festive Campaign")
-
----
-
-## Page: pages/meeting_transcription.py
-
-### What it does
-- Accepts an audio/video upload (mp3, mp4, wav, m4a, webm, max 25 MB)
-- Sends to OpenAI Whisper (`whisper-1`) for transcription
-- Displays full transcript in a scrollable box
-- Saves transcript to Brand Memory as a `"transcript"` entry
-
-### Brand selector
-- Dropdown of saved brands + CSV brands from `session_state["campaign_list"]` + "Type a new brand name"
-
----
-
 ## API Keys
 All keys are loaded from **Streamlit secrets first, then environment variables**.
-Secrets file location: `.streamlit/secrets.toml`
+Secrets file: `.streamlit/secrets.toml` (never commit this file).
 
 ```toml
 ANTHROPIC_API_KEY = "sk-ant-..."
@@ -238,6 +236,6 @@ OPENAI_API_KEY = "sk-proj-..."
 
 | Key | Used by | Purpose |
 |-----|---------|---------|
-| `ANTHROPIC_API_KEY` | app.py | Claude insights generation |
-| `OPENAI_API_KEY` | meeting_transcription.py | Whisper transcription |
-| Google OAuth | email_context.py | Gmail search (credentials.json + token.json) |
+| `ANTHROPIC_API_KEY` | app.py | Claude insights generation + PPTX slide content |
+| `OPENAI_API_KEY` | pages/brand_memory.py (Tab 3) | Whisper transcription |
+| Google OAuth | pages/brand_memory.py (Tab 2) | Gmail search — credentials.json + token.json |
