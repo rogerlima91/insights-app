@@ -28,40 +28,92 @@ MAGENTA = "#c70099"
 # STYLE LOCK: Do not remove or modify this CSS block.
 st.markdown("""
 <style>
-    /* Base font and body text */
+    /* ── Base font and body ─────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: system-ui, "Inter", -apple-system, "Segoe UI", sans-serif;
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 15px;
         color: #374151;
     }
-    /* Page background */
+
+    /* ── Page background ────────────────────────────────────────── */
     .stApp {
-        background-color: #F8F9FA;
+        background-color: #F3F4F6;
     }
-    /* Sidebar — white with right border */
+
+    /* ── Sidebar — purple SaaS style ────────────────────────────── */
     [data-testid="stSidebar"] {
-        background-color: #FFFFFF !important;
-        border-right: 1px solid #E5E7EB;
+        background-color: #7C3AED !important;
+        border-right: none !important;
     }
-    /* All headings */
+    /* All text inside sidebar: white */
+    [data-testid="stSidebar"] *,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] small {
+        color: #FFFFFF !important;
+    }
+    /* Sidebar headings — white, no left border */
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4 {
+        color: #FFFFFF !important;
+        border-left: none !important;
+        padding-left: 0 !important;
+        margin-top: 1rem !important;
+    }
+    /* Sidebar nav links */
+    [data-testid="stSidebarNav"] a span {
+        color: rgba(255,255,255,0.80) !important;
+        font-weight: 500;
+    }
+    [data-testid="stSidebarNav"] a:hover span {
+        color: #FFFFFF !important;
+    }
+    /* Active page — white pill with purple text */
+    [data-testid="stSidebarNavLink"][aria-selected="true"],
+    [data-testid="stSidebarNav"] a[aria-current="page"] {
+        background: #FFFFFF !important;
+        border-radius: 20px !important;
+    }
+    [data-testid="stSidebarNavLink"][aria-selected="true"] span,
+    [data-testid="stSidebarNav"] a[aria-current="page"] span {
+        color: #7C3AED !important;
+        font-weight: 700 !important;
+    }
+    /* Sidebar selectbox input */
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div {
+        background: rgba(255,255,255,0.15) !important;
+        border-color: rgba(255,255,255,0.35) !important;
+    }
+    /* Sidebar divider */
+    [data-testid="stSidebar"] hr {
+        border-color: rgba(255,255,255,0.25) !important;
+    }
+
+    /* ── Main area headings ──────────────────────────────────────── */
     h1, h2, h3, h4, h5, h6 {
         font-weight: 700 !important;
         color: #111827 !important;
     }
-    /* Section headers — blue left border accent */
     h2, h3 {
-        border-left: 4px solid #2563EB !important;
-        padding-left: 10px !important;
+        margin-top: 2rem !important;
+        padding-top: 0.25rem !important;
         border-bottom: none !important;
         padding-bottom: 0 !important;
-        margin-top: 1.4rem !important;
+        border-left: none !important;
+        padding-left: 0 !important;
     }
-    /* KPI metric cards */
+
+    /* ── KPI metric cards ───────────────────────────────────────── */
     [data-testid="metric-container"] {
         background: #FFFFFF;
-        border: 1px solid #E5E7EB;
-        border-radius: 12px;
+        border: none;
+        border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        border-top: 4px solid #7C3AED;
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
@@ -71,17 +123,44 @@ st.markdown("""
         letter-spacing: 0.05em;
     }
     [data-testid="metric-container"] [data-testid="stMetricValue"] {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 700;
         color: #111827;
     }
-    /* File upload box */
+
+    /* ── Chart cards — white card around each chart image ───────── */
+    .element-container:has([data-testid="stImage"]) {
+        background: #FFFFFF;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    /* ── Primary buttons — purple ───────────────────────────────── */
+    .stButton > button[kind="primary"],
+    [data-testid="baseButton-primary"] {
+        background-color: #7C3AED !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 15px !important;
+        padding: 0.5rem 1.25rem !important;
+    }
+    .stButton > button[kind="primary"]:hover,
+    [data-testid="baseButton-primary"]:hover {
+        background-color: #6D28D9 !important;
+    }
+
+    /* ── File upload box ─────────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #2563EB !important;
+        border: 2px dashed #7C3AED !important;
         border-radius: 12px;
         padding: 10px;
+        background: #FFFFFF;
     }
-    /* DSP source badges */
+
+    /* ── DSP source badges ───────────────────────────────────────── */
     .source-badge {
         display: inline-block;
         padding: 2px 10px;
@@ -731,10 +810,11 @@ Only include brands from the data. Cite actual numbers. No extra text.""",
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.markdown(
-    "<div style='padding:8px 0 12px 0;'>"
-    "<span style='font-size:20px;font-weight:700;color:#2563EB;font-family:system-ui,sans-serif;'>"
+    "<div style='padding:8px 0 14px 0;'>"
+    "<span style='font-size:22px;font-weight:700;color:#FFFFFF;"
+    "font-family:Inter,system-ui,sans-serif;letter-spacing:-0.01em;'>"
     "Insights App</span></div>"
-    "<hr style='border:none;border-top:1px solid #E5E7EB;margin:0 0 12px 0;'>",
+    "<hr style='border:none;border-top:1px solid rgba(255,255,255,0.25);margin:0 0 14px 0;'>",
     unsafe_allow_html=True,
 )
 st.sidebar.subheader("Loaded Files")

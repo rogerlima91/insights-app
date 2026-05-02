@@ -23,32 +23,96 @@ st.set_page_config(page_title="Brand Memory", layout="wide")
 # STYLE LOCK: Do not remove or modify this CSS block.
 st.markdown("""
 <style>
+    /* ── Base font and body ─────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: system-ui, "Inter", -apple-system, "Segoe UI", sans-serif;
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 15px;
         color: #374151;
     }
+
+    /* ── Page background ────────────────────────────────────────── */
     .stApp {
-        background-color: #F8F9FA;
+        background-color: #F3F4F6;
     }
+
+    /* ── Sidebar — purple SaaS style ────────────────────────────── */
     [data-testid="stSidebar"] {
-        background-color: #FFFFFF !important;
-        border-right: 1px solid #E5E7EB;
+        background-color: #7C3AED !important;
+        border-right: none !important;
     }
+    [data-testid="stSidebar"] *,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] small {
+        color: #FFFFFF !important;
+    }
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4 {
+        color: #FFFFFF !important;
+        border-left: none !important;
+        padding-left: 0 !important;
+        margin-top: 1rem !important;
+    }
+    [data-testid="stSidebarNav"] a span {
+        color: rgba(255,255,255,0.80) !important;
+        font-weight: 500;
+    }
+    [data-testid="stSidebarNav"] a:hover span {
+        color: #FFFFFF !important;
+    }
+    [data-testid="stSidebarNavLink"][aria-selected="true"],
+    [data-testid="stSidebarNav"] a[aria-current="page"] {
+        background: #FFFFFF !important;
+        border-radius: 20px !important;
+    }
+    [data-testid="stSidebarNavLink"][aria-selected="true"] span,
+    [data-testid="stSidebarNav"] a[aria-current="page"] span {
+        color: #7C3AED !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: rgba(255,255,255,0.25) !important;
+    }
+
+    /* ── Main area headings ──────────────────────────────────────── */
     h1, h2, h3, h4, h5, h6 {
         font-weight: 700 !important;
         color: #111827 !important;
     }
     h2, h3 {
-        border-left: 4px solid #2563EB !important;
-        padding-left: 10px !important;
+        margin-top: 2rem !important;
+        padding-top: 0.25rem !important;
         border-bottom: none !important;
         padding-bottom: 0 !important;
-        margin-top: 1.4rem !important;
+        border-left: none !important;
+        padding-left: 0 !important;
     }
+
+    /* ── Primary buttons — purple ───────────────────────────────── */
+    .stButton > button[kind="primary"],
+    [data-testid="baseButton-primary"] {
+        background-color: #7C3AED !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 15px !important;
+        padding: 0.5rem 1.25rem !important;
+    }
+    .stButton > button[kind="primary"]:hover,
+    [data-testid="baseButton-primary"]:hover {
+        background-color: #6D28D9 !important;
+    }
+
+    /* ── File upload box ─────────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #2563EB !important;
+        border: 2px dashed #7C3AED !important;
         border-radius: 12px;
         padding: 10px;
+        background: #FFFFFF;
     }
 </style>
 """, unsafe_allow_html=True)
