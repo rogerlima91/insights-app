@@ -7,6 +7,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import plotly.graph_objects as go
 import anthropic
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -128,8 +129,8 @@ st.markdown("""
         color: #111827;
     }
 
-    /* ── Chart cards — white card around each chart image ───────── */
-    .element-container:has([data-testid="stImage"]) {
+    /* ── Chart cards — wrap Plotly chart output in white card ───── */
+    .element-container:has([data-testid="stPlotlyChart"]) {
         background: #FFFFFF;
         border-radius: 12px;
         padding: 16px;
@@ -914,25 +915,6 @@ else:
     PALETTE = ["#2563EB", "#60A5FA", "#93C5FD", "#1D4ED8", "#3B82F6",
                "#7C3AED", "#A78BFA", "#10B981", "#F59E0B", "#EF4444"]
 
-    # Shared sizing constants applied to every chart so they all look the same
-    _TICK_FS = 11     # font size for axis tick labels
-    _LABEL_FS = 12    # font size for axis / unit labels
-    _BAR_FS  = 10     # font size for data labels printed on/above bars
-    _BAR_W   = 0.5    # width of vertical bars  (matplotlib default is 0.8)
-    _BAR_H   = 0.55   # height of horizontal bars
-    _FIG_W   = 7
-    _FIG_H   = 4.8
-
-    def style_ax(ax):
-        """Apply consistent spine, grid and tick styling to every chart axis."""
-        ax.set_facecolor("#FFFFFF")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_color("#E5E7EB")
-        ax.spines["bottom"].set_color("#E5E7EB")
-        ax.tick_params(colors="#374151", labelsize=_TICK_FS, length=3)
-        ax.set_axisbelow(True)
-
     def no_data_msg(msg):
         st.markdown(
             f"<div style='text-align:center;padding:40px;color:#9ca3af;"
@@ -943,6 +925,46 @@ else:
     def trunc(s, n=32):
         """Truncate a string to n characters for axis labels."""
         return s[:n] + "…" if len(str(s)) > n else str(s)
+
+    def apply_chart_style(fig, xaxis_title="", yaxis_title="", horizontal=False):
+        """
+        Apply consistent white-card styling to every Plotly chart.
+        horizontal=True swaps which axis gets the grid.
+        """
+        fig.update_layout(
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FFFFFF",
+            font=dict(family="Inter, system-ui, sans-serif", size=13, color="#374151"),
+            margin=dict(t=36, b=56, l=70, r=24),
+            showlegend=False,
+            hoverlabel=dict(
+                bgcolor="#FFFFFF",
+                font_size=13,
+                font_family="Inter, system-ui, sans-serif",
+                bordercolor="#E5E7EB",
+            ),
+        )
+        # X-axis styling
+        fig.update_xaxes(
+            showgrid=horizontal,          # grid on x only for horizontal bar charts
+            gridcolor="#F3F4F6",
+            gridwidth=1,
+            linecolor="#E5E7EB",
+            tickfont=dict(size=11, color="#374151"),
+            title_text=xaxis_title,
+            title_font=dict(size=12, color="#374151"),
+        )
+        # Y-axis styling
+        fig.update_yaxes(
+            showgrid=not horizontal,      # grid on y only for vertical bar charts
+            gridcolor="#F3F4F6",
+            gridwidth=1,
+            linecolor="#E5E7EB",
+            tickfont=dict(size=11, color="#374151"),
+            title_text=yaxis_title,
+            title_font=dict(size=12, color="#374151"),
+        )
+        return fig
 
     # ── Row 1: Spend by Brand | CPM by Brand ──────────────────────────────────
     r1_left, r1_right = st.columns(2)
@@ -955,34 +977,30 @@ else:
                   .sum().reset_index()
                   .sort_values("spend_usd", ascending=False))
             colors1 = [PALETTE[i % len(PALETTE)] for i in range(len(c1))]
-            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
-            fig.patch.set_facecolor("#FFFFFF")
-            bars = ax.bar(c1["campaign"], c1["spend_usd"],
-                          color=colors1, edgecolor="white", linewidth=1.5, width=_BAR_W)
 
-            # Format y-axis as $K or $M
-            ax.yaxis.set_major_formatter(
-                mticker.FuncFormatter(
-                    lambda x, _: f"${x/1e6:.1f}M" if x >= 1e6 else f"${x/1e3:.0f}K"
-                )
+            # Human-readable label for each bar and tooltip
+            spend_labels = [
+                f"${v/1e6:.2f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
+                for v in c1["spend_usd"]
+            ]
+            fig = go.Figure(go.Bar(
+                x=c1["campaign"],
+                y=c1["spend_usd"],
+                marker_color=colors1,
+                text=spend_labels,
+                textposition="outside",
+                textfont=dict(size=10, color="#374151"),
+                customdata=spend_labels,
+                hovertemplate="<b>%{x}</b><br>Spend: %{customdata}<extra></extra>",
+            ))
+            fig.update_layout(
+                bargap=0.45,
+                yaxis_range=[0, c1["spend_usd"].max() * 1.28],
             )
-            # Data labels above each bar
-            ax.bar_label(bars,
-                         labels=[f"${v/1e6:.2f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
-                                 for v in c1["spend_usd"]],
-                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
-            ax.set_ylabel("Total Spend (USD)", fontsize=_LABEL_FS, color="#374151")
-            ax.set_ylim(0, c1["spend_usd"].max() * 1.28)
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
-            style_ax(ax)
-            plt.xticks(rotation=20, ha="right", fontsize=_TICK_FS)
-            plt.tight_layout()
-            st.pyplot(fig)
-            buf_spend = io.BytesIO()
-            fig.savefig(buf_spend, format="png", dpi=150, bbox_inches="tight")
-            buf_spend.seek(0)
-            st.session_state["chart_spend"] = buf_spend
-            plt.close(fig)
+            # Y-axis: SI prefix ticks ($300k, $1.2M)
+            fig.update_yaxes(tickprefix="$", tickformat=".2s")
+            apply_chart_style(fig, yaxis_title="Total Spend (USD)")
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
         else:
             no_data_msg("No campaign or spend column found.")
 
@@ -994,29 +1012,25 @@ else:
                   .dropna()
                   .sort_values("cpm", ascending=False))
             colors2 = [PALETTE[i % len(PALETTE)] for i in range(len(c2))]
-            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
-            fig.patch.set_facecolor("#FFFFFF")
-            bars = ax.bar(c2["campaign"], c2["cpm"],
-                          color=colors2, edgecolor="white", linewidth=1.5, width=_BAR_W)
 
-            ax.yaxis.set_major_formatter(
-                mticker.FuncFormatter(lambda x, _: f"${x:,.2f}")
+            cpm_labels = [f"${v:,.2f}" for v in c2["cpm"]]
+            fig = go.Figure(go.Bar(
+                x=c2["campaign"],
+                y=c2["cpm"],
+                marker_color=colors2,
+                text=cpm_labels,
+                textposition="outside",
+                textfont=dict(size=10, color="#374151"),
+                customdata=cpm_labels,
+                hovertemplate="<b>%{x}</b><br>CPM: %{customdata}<extra></extra>",
+            ))
+            fig.update_layout(
+                bargap=0.45,
+                yaxis_range=[0, c2["cpm"].max() * 1.28],
             )
-            ax.bar_label(bars,
-                         labels=[f"${v:,.2f}" for v in c2["cpm"]],
-                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
-            ax.set_ylabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
-            ax.set_ylim(0, c2["cpm"].max() * 1.28)
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
-            style_ax(ax)
-            plt.xticks(rotation=20, ha="right", fontsize=_TICK_FS)
-            plt.tight_layout()
-            st.pyplot(fig)
-            buf_cpm = io.BytesIO()
-            fig.savefig(buf_cpm, format="png", dpi=150, bbox_inches="tight")
-            buf_cpm.seek(0)
-            st.session_state["chart_cpm"] = buf_cpm
-            plt.close(fig)
+            fig.update_yaxes(tickprefix="$", tickformat=",.2f")
+            apply_chart_style(fig, yaxis_title="CPM (USD)")
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
         else:
             no_data_msg("Spend and impressions data needed to calculate CPM.")
 
@@ -1053,27 +1067,26 @@ else:
                         .head(10)
                         .sort_values("cpm", ascending=False))
             labels_best = [trunc(s) for s in top_best[li_col]]
-            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
-            fig.patch.set_facecolor("#FFFFFF")
-            hbars = ax.barh(labels_best, top_best["cpm"],
-                            color="#2563EB", edgecolor="white", linewidth=1.5, height=_BAR_H)
 
-            ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.2f}"))
-            ax.bar_label(hbars,
-                         labels=[f"${v:,.2f}" for v in top_best["cpm"]],
-                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
-            ax.set_xlabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
-            ax.set_xlim(0, top_best["cpm"].max() * 1.3)
-            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
-            style_ax(ax)
-            plt.yticks(fontsize=_TICK_FS)
-            plt.tight_layout()
-            st.pyplot(fig)
-            buf_best_li = io.BytesIO()
-            fig.savefig(buf_best_li, format="png", dpi=150, bbox_inches="tight")
-            buf_best_li.seek(0)
-            st.session_state["chart_best_li"] = buf_best_li
-            plt.close(fig)
+            best_labels = [f"${v:,.2f}" for v in top_best["cpm"]]
+            fig = go.Figure(go.Bar(
+                x=top_best["cpm"],
+                y=labels_best,
+                orientation="h",
+                marker_color="#2563EB",
+                text=best_labels,
+                textposition="outside",
+                textfont=dict(size=10, color="#374151"),
+                customdata=best_labels,
+                hovertemplate="<b>%{y}</b><br>CPM: %{customdata}<extra></extra>",
+            ))
+            fig.update_layout(
+                bargap=0.3,
+                xaxis_range=[0, top_best["cpm"].max() * 1.35],
+            )
+            fig.update_xaxes(tickprefix="$", tickformat=",.2f")
+            apply_chart_style(fig, xaxis_title="CPM (USD)", horizontal=True)
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
         else:
             no_data_msg("Spend and impressions data needed to calculate CPM.")
 
@@ -1097,27 +1110,26 @@ else:
             # Worst = highest CPM; keep descending so worst sits at the top of the chart
             top_worst = agg_li2.sort_values("cpm", ascending=False).head(10)
             labels_worst = [trunc(s) for s in top_worst[li_col]]
-            fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
-            fig.patch.set_facecolor("#FFFFFF")
-            hbars = ax.barh(labels_worst, top_worst["cpm"],
-                            color="#60A5FA", edgecolor="white", linewidth=1.5, height=_BAR_H)
 
-            ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.2f}"))
-            ax.bar_label(hbars,
-                         labels=[f"${v:,.2f}" for v in top_worst["cpm"]],
-                         padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
-            ax.set_xlabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
-            ax.set_xlim(0, top_worst["cpm"].max() * 1.3)
-            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
-            style_ax(ax)
-            plt.yticks(fontsize=_TICK_FS)
-            plt.tight_layout()
-            st.pyplot(fig)
-            buf_worst_li = io.BytesIO()
-            fig.savefig(buf_worst_li, format="png", dpi=150, bbox_inches="tight")
-            buf_worst_li.seek(0)
-            st.session_state["chart_worst_li"] = buf_worst_li
-            plt.close(fig)
+            worst_labels = [f"${v:,.2f}" for v in top_worst["cpm"]]
+            fig = go.Figure(go.Bar(
+                x=top_worst["cpm"],
+                y=labels_worst,
+                orientation="h",
+                marker_color="#60A5FA",
+                text=worst_labels,
+                textposition="outside",
+                textfont=dict(size=10, color="#374151"),
+                customdata=worst_labels,
+                hovertemplate="<b>%{y}</b><br>CPM: %{customdata}<extra></extra>",
+            ))
+            fig.update_layout(
+                bargap=0.3,
+                xaxis_range=[0, top_worst["cpm"].max() * 1.35],
+            )
+            fig.update_xaxes(tickprefix="$", tickformat=",.2f")
+            apply_chart_style(fig, xaxis_title="CPM (USD)", horizontal=True)
+            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
         else:
             no_data_msg("Spend and impressions data needed to calculate CPM.")
 

@@ -1,6 +1,7 @@
 streamlit
 pandas
 matplotlib
+plotly
 python-pptx
 anthropic
 openai
