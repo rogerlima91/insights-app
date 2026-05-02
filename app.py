@@ -25,45 +25,63 @@ PURPLE  = "#6e2ca9"
 MAGENTA = "#c70099"
 
 # ── Global CSS ────────────────────────────────────────────────────────────────
+# STYLE LOCK: Do not remove or modify this CSS block.
 st.markdown("""
 <style>
+    /* Base font and body text */
     html, body, [class*="css"] {
-        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        font-family: system-ui, "Inter", -apple-system, "Segoe UI", sans-serif;
+        color: #374151;
     }
-    /* Metric cards */
+    /* Page background */
+    .stApp {
+        background-color: #F8F9FA;
+    }
+    /* Sidebar — white with right border */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E5E7EB;
+    }
+    /* All headings */
+    h1, h2, h3, h4, h5, h6 {
+        font-weight: 700 !important;
+        color: #111827 !important;
+    }
+    /* Section headers — blue left border accent */
+    h2, h3 {
+        border-left: 4px solid #2563EB !important;
+        padding-left: 10px !important;
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+        margin-top: 1.4rem !important;
+    }
+    /* KPI metric cards */
     [data-testid="metric-container"] {
-        background: #ffffff;
-        border: 1px solid #e8e8f0;
-        border-top: 4px solid #00b2a9;
-        border-radius: 10px;
-        padding: 16px 20px;
-        box-shadow: 0 2px 8px rgba(20,17,59,0.07);
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
         font-weight: 600;
-        color: #6b7280;
+        color: #6B7280;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
     [data-testid="metric-container"] [data-testid="stMetricValue"] {
         font-size: 24px;
         font-weight: 700;
-        color: #14113b;
+        color: #111827;
     }
-    h3 {
-        color: #14113b !important;
-        font-weight: 700 !important;
-        border-bottom: 2px solid #00b2a9;
-        padding-bottom: 6px;
-        margin-top: 1.4rem !important;
-    }
-    /* Upload box */
+    /* File upload box */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #00b2a9 !important;
+        border: 2px dashed #2563EB !important;
         border-radius: 12px;
         padding: 10px;
     }
+    /* DSP source badges */
     .source-badge {
         display: inline-block;
         padding: 2px 10px;
@@ -72,11 +90,12 @@ st.markdown("""
         font-weight: 700;
         margin-left: 6px;
     }
-    .badge-dv360   { background: #e8f5e9; color: #34b233; }
-    .badge-ttd     { background: #ede7f6; color: #6e2ca9; }
-    .badge-generic { background: #e8f4fd; color: #0288d1; }
+    .badge-dv360   { background: #EFF6FF; color: #2563EB; }
+    .badge-ttd     { background: #F5F3FF; color: #7C3AED; }
+    .badge-generic { background: #F0FDF4; color: #16A34A; }
 </style>
 """, unsafe_allow_html=True)
+# STYLE LOCK
 
 # ── Column name normalisation map ─────────────────────────────────────────────
 # Maps the many different column names DSPs use → our standard internal names.
@@ -711,8 +730,13 @@ Only include brands from the data. Cite actual numbers. No extra text.""",
     return out
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-st.sidebar.title("Insights App")
-st.sidebar.markdown("---")
+st.sidebar.markdown(
+    "<div style='padding:8px 0 12px 0;'>"
+    "<span style='font-size:20px;font-weight:700;color:#2563EB;font-family:system-ui,sans-serif;'>"
+    "Insights App</span></div>"
+    "<hr style='border:none;border-top:1px solid #E5E7EB;margin:0 0 12px 0;'>",
+    unsafe_allow_html=True,
+)
 st.sidebar.subheader("Loaded Files")
 
 # Placeholder — populated after files are uploaded
@@ -807,8 +831,8 @@ else:
     st.subheader("Performance Charts")
 
     # Colour palette — one colour per brand, consistent across all charts
-    PALETTE = [CYAN, GREEN, PURPLE, MAGENTA, NAVY,
-               "#f59e0b", "#ef4444", "#3b82f6", "#10b981", "#f97316"]
+    PALETTE = ["#2563EB", "#60A5FA", "#93C5FD", "#1D4ED8", "#3B82F6",
+               "#7C3AED", "#A78BFA", "#10B981", "#F59E0B", "#EF4444"]
 
     # Shared sizing constants applied to every chart so they all look the same
     _TICK_FS = 11     # font size for axis tick labels
@@ -821,10 +845,11 @@ else:
 
     def style_ax(ax):
         """Apply consistent spine, grid and tick styling to every chart axis."""
+        ax.set_facecolor("#FFFFFF")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_color("#d1d5db")
-        ax.spines["bottom"].set_color("#d1d5db")
+        ax.spines["left"].set_color("#E5E7EB")
+        ax.spines["bottom"].set_color("#E5E7EB")
         ax.tick_params(colors="#374151", labelsize=_TICK_FS, length=3)
         ax.set_axisbelow(True)
 
@@ -851,6 +876,7 @@ else:
                   .sort_values("spend_usd", ascending=False))
             colors1 = [PALETTE[i % len(PALETTE)] for i in range(len(c1))]
             fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            fig.patch.set_facecolor("#FFFFFF")
             bars = ax.bar(c1["campaign"], c1["spend_usd"],
                           color=colors1, edgecolor="white", linewidth=1.5, width=_BAR_W)
 
@@ -867,7 +893,7 @@ else:
                          padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
             ax.set_ylabel("Total Spend (USD)", fontsize=_LABEL_FS, color="#374151")
             ax.set_ylim(0, c1["spend_usd"].max() * 1.28)
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
+            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
             style_ax(ax)
             plt.xticks(rotation=20, ha="right", fontsize=_TICK_FS)
             plt.tight_layout()
@@ -889,6 +915,7 @@ else:
                   .sort_values("cpm", ascending=False))
             colors2 = [PALETTE[i % len(PALETTE)] for i in range(len(c2))]
             fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            fig.patch.set_facecolor("#FFFFFF")
             bars = ax.bar(c2["campaign"], c2["cpm"],
                           color=colors2, edgecolor="white", linewidth=1.5, width=_BAR_W)
 
@@ -900,7 +927,7 @@ else:
                          padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
             ax.set_ylabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
             ax.set_ylim(0, c2["cpm"].max() * 1.28)
-            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
+            ax.yaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
             style_ax(ax)
             plt.xticks(rotation=20, ha="right", fontsize=_TICK_FS)
             plt.tight_layout()
@@ -947,8 +974,9 @@ else:
                         .sort_values("cpm", ascending=False))
             labels_best = [trunc(s) for s in top_best[li_col]]
             fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            fig.patch.set_facecolor("#FFFFFF")
             hbars = ax.barh(labels_best, top_best["cpm"],
-                            color=CYAN, edgecolor="white", linewidth=1.5, height=_BAR_H)
+                            color="#2563EB", edgecolor="white", linewidth=1.5, height=_BAR_H)
 
             ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.2f}"))
             ax.bar_label(hbars,
@@ -956,7 +984,7 @@ else:
                          padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
             ax.set_xlabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
             ax.set_xlim(0, top_best["cpm"].max() * 1.3)
-            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
+            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
             style_ax(ax)
             plt.yticks(fontsize=_TICK_FS)
             plt.tight_layout()
@@ -990,8 +1018,9 @@ else:
             top_worst = agg_li2.sort_values("cpm", ascending=False).head(10)
             labels_worst = [trunc(s) for s in top_worst[li_col]]
             fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+            fig.patch.set_facecolor("#FFFFFF")
             hbars = ax.barh(labels_worst, top_worst["cpm"],
-                            color=MAGENTA, edgecolor="white", linewidth=1.5, height=_BAR_H)
+                            color="#60A5FA", edgecolor="white", linewidth=1.5, height=_BAR_H)
 
             ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"${x:,.2f}"))
             ax.bar_label(hbars,
@@ -999,7 +1028,7 @@ else:
                          padding=5, fontsize=_BAR_FS, color="#374151", fontweight="bold")
             ax.set_xlabel("CPM (USD)", fontsize=_LABEL_FS, color="#374151")
             ax.set_xlim(0, top_worst["cpm"].max() * 1.3)
-            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#e5e7eb")
+            ax.xaxis.grid(True, linestyle="--", linewidth=0.5, alpha=0.7, color="#F3F4F6")
             style_ax(ax)
             plt.yticks(fontsize=_TICK_FS)
             plt.tight_layout()
@@ -1299,7 +1328,7 @@ else:
                     # Show indicator when brand memory is applied
                     if _campaign_brand_context:
                         st.markdown(
-                            "<p style='color:#00b2a9;font-size:13px;font-weight:600;"
+                            "<p style='color:#2563EB;font-size:13px;font-weight:600;"
                             "margin:0 0 8px 0;'>✓ Brand context applied</p>",
                             unsafe_allow_html=True,
                         )

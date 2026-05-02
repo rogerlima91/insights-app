@@ -19,6 +19,41 @@ except ImportError:
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Brand Memory", layout="wide")
 
+# ── Global CSS ────────────────────────────────────────────────────────────────
+# STYLE LOCK: Do not remove or modify this CSS block.
+st.markdown("""
+<style>
+    html, body, [class*="css"] {
+        font-family: system-ui, "Inter", -apple-system, "Segoe UI", sans-serif;
+        color: #374151;
+    }
+    .stApp {
+        background-color: #F8F9FA;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E5E7EB;
+    }
+    h1, h2, h3, h4, h5, h6 {
+        font-weight: 700 !important;
+        color: #111827 !important;
+    }
+    h2, h3 {
+        border-left: 4px solid #2563EB !important;
+        padding-left: 10px !important;
+        border-bottom: none !important;
+        padding-bottom: 0 !important;
+        margin-top: 1.4rem !important;
+    }
+    [data-testid="stFileUploader"] {
+        border: 2px dashed #2563EB !important;
+        border-radius: 12px;
+        padding: 10px;
+    }
+</style>
+""", unsafe_allow_html=True)
+# STYLE LOCK
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _ROOT             = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRAND_MEMORY_PATH = os.path.join(_ROOT, "brand_memory.json")
@@ -197,7 +232,7 @@ with tab_bm:
             entries    = brand_data.get("entries", [])
 
             st.markdown(
-                f"<h4 style='color:#14113b;margin-bottom:4px;'>{brand_name}</h4>",
+                f"<h4 style='color:#111827;margin-bottom:4px;'>{brand_name}</h4>",
                 unsafe_allow_html=True,
             )
 
@@ -214,11 +249,11 @@ with tab_bm:
                         display_date = entry.get("timestamp", "")
 
                     if entry_type == "manual":
-                        badge_color, badge_label = "#00b2a9", "Manual"
+                        badge_color, badge_label = "#2563EB", "Manual"
                     elif entry_type == "transcript":
-                        badge_color, badge_label = "#f59e0b", "Transcript"
+                        badge_color, badge_label = "#F59E0B", "Transcript"
                     else:
-                        badge_color, badge_label = "#6e2ca9", "Email"
+                        badge_color, badge_label = "#7C3AED", "Email"
 
                     col_info, col_btn = st.columns([9, 1])
 
@@ -240,8 +275,9 @@ with tab_bm:
                             )
 
                         st.markdown(
-                            f"<div style='border:1px solid #e8e8f0;border-radius:8px;"
-                            f"padding:10px 14px;margin-bottom:6px;background:#fafafa;'>"
+                            f"<div style='border:1px solid #E5E7EB;border-radius:8px;"
+                            f"padding:10px 14px;margin-bottom:6px;background:#FFFFFF;"
+                            f"box-shadow:0 1px 2px rgba(0,0,0,0.05);'>"
                             f"<span style='font-size:11px;font-weight:700;color:#ffffff;"
                             f"background:{badge_color};padding:2px 8px;border-radius:12px;"
                             f"margin-right:8px;'>{badge_label}</span>"
@@ -597,9 +633,10 @@ with tab_transcript:
                 )
 
             st.markdown(
-                f"<div style='background:#f9f9fb;border:1px solid #e8e8f0;border-radius:8px;"
-                f"padding:16px 20px;font-size:14px;color:#111111;line-height:1.7;"
-                f"max-height:420px;overflow-y:auto;white-space:pre-wrap;'>"
+                f"<div style='background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;"
+                f"padding:16px 20px;font-size:14px;color:#374151;line-height:1.7;"
+                f"max-height:420px;overflow-y:auto;white-space:pre-wrap;"
+                f"box-shadow:0 1px 3px rgba(0,0,0,0.1);'>"
                 f"{transcript}"
                 f"</div>",
                 unsafe_allow_html=True,
