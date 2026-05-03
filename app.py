@@ -827,9 +827,6 @@ st.sidebar.markdown(
 )
 st.sidebar.subheader("Loaded Files")
 
-# Placeholder — populated after files are uploaded
-file_status = st.sidebar.empty()
-
 # ── Main header ───────────────────────────────────────────────────────────────
 st.title("Ad Tech Insights & Reporting")
 st.markdown(
@@ -858,7 +855,7 @@ if not uploaded_files:
         <div style='font-size:13px;margin-top:6px;'>Supports DV360 and TTD CSV exports</div>
     </div>
     """, unsafe_allow_html=True)
-    file_status.markdown("_No files loaded yet._")
+    st.sidebar.markdown("_No files loaded yet._")
 
 else:
     # Load and stack all uploaded files into one DataFrame
@@ -886,7 +883,7 @@ else:
             f"<br><span style='color:#6b7280;'>{fi['rows']:,} rows</span>"
             f"</div>"
         )
-    file_status.markdown(sidebar_html, unsafe_allow_html=True)
+    st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
 
     # ── Summary metrics ───────────────────────────────────────────────────────
     st.subheader("Summary Metrics")
