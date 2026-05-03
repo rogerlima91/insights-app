@@ -64,10 +64,17 @@ st.markdown("""
         padding-left: 0 !important;
         margin-top: 1rem !important;
     }
+    /* Sidebar nav container — transparent with subtle border, no white bar */
+    [data-testid="stSidebarNav"] {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.3) !important;
+        border-radius: 8px !important;
+    }
     /* Sidebar nav links */
     [data-testid="stSidebarNav"] a span {
         color: rgba(255,255,255,0.80) !important;
         font-weight: 500;
+        text-transform: capitalize;
     }
     [data-testid="stSidebarNav"] a:hover span {
         color: #FFFFFF !important;
