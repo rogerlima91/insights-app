@@ -751,11 +751,13 @@ for c in AT_RISK:
 
         # Campaign summary below the button
         remaining_budget = c["budget"] - c["spent"]
+        risk_color = c["risk_color"]
+        risk_label = c["risk"]
         st.markdown(
             f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
             f"<strong style='color:#111827;'>{c['client']}</strong><br>"
             f"Pacing: {c['pacing_index']:.1f}% "
-            f"<span style='color:{c[\"risk_color\"]};font-weight:700;'>({c['risk']})</span><br>"
+            f"<span style='color:{risk_color};font-weight:700;'>({risk_label})</span><br>"
             f"Remaining budget: A${remaining_budget/1_000:.1f}k<br>"
             f"Days left: {c['days_remaining']}"
             f"</div>",
