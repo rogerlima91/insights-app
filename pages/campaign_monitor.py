@@ -37,9 +37,16 @@ st.markdown("""
         padding-left: 0 !important;
         margin-top: 1rem !important;
     }
+    /* Sidebar nav container — transparent with subtle border, no white bar */
+    [data-testid="stSidebarNav"] {
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.3) !important;
+        border-radius: 8px !important;
+    }
     [data-testid="stSidebarNav"] a span {
         color: rgba(255,255,255,0.80) !important;
         font-weight: 500;
+        text-transform: capitalize;
     }
     [data-testid="stSidebarNav"] a:hover span { color: #FFFFFF !important; }
     [data-testid="stSidebarNavLink"][aria-selected="true"],
@@ -599,7 +606,7 @@ if st.button("✨ Run AI Analysis", type="primary"):
             "You are a senior programmatic specialist at Captify reviewing direct deals "
             "running across The Trade Desk (TTD) and Display & Video 360 (DV360) "
             "for the Australian market.\n\n"
-            f"Today is {TODAY.strftime('%-d %B %Y')}. Current deal pacing:\n\n"
+            f"Today is {TODAY.strftime('%d %B %Y').lstrip('0')}. Current deal pacing:\n\n"
             f"{deal_summary}\n\n"
             "Provide a structured analysis with exactly these three sections:\n\n"
             "**Priority Flags**\n"
