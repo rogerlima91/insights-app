@@ -46,6 +46,20 @@ st.markdown("""
         background-color: #7C3AED !important;
         border-right: none !important;
     }
+    section[data-testid="stSidebar"] > div {
+        background-color: #7C3AED !important;
+    }
+    section[data-testid="stSidebar"] > div > div {
+        background-color: #7C3AED !important;
+    }
+    section[data-testid="stSidebar"] * {
+        background-color: transparent !important;
+    }
+    section[data-testid="stSidebar"] > div,
+    section[data-testid="stSidebar"] > div > div,
+    section[data-testid="stSidebar"] > div > div > div {
+        background-color: #7C3AED !important;
+    }
     /* All text inside sidebar: white */
     [data-testid="stSidebar"] *,
     [data-testid="stSidebar"] p,
