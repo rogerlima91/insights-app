@@ -5,9 +5,6 @@ import anthropic
 import streamlit as st
 from datetime import date
 
-# ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Live Campaigns", layout="wide")
-
 # ── Global CSS (identical to app.py — STYLE LOCK) ─────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
 st.markdown("""

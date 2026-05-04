@@ -16,9 +16,6 @@ try:
 except ImportError:
     _GMAIL_AVAILABLE = False
 
-# ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Brand Settings", layout="wide")
-
 # ── Global CSS ────────────────────────────────────────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
 st.markdown("""
