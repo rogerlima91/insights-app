@@ -64,6 +64,11 @@ st.markdown("""
         padding-left: 0 !important;
         margin-top: 1rem !important;
     }
+    /* Force inner sidebar containers to match purple — prevents white gap below nav */
+    [data-testid="stSidebarContent"],
+    [data-testid="stSidebarUserContent"] {
+        background-color: #7C3AED !important;
+    }
     /* Sidebar nav container — transparent with subtle border, no white bar */
     [data-testid="stSidebarNav"] {
         background: transparent !important;
