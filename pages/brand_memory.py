@@ -17,7 +17,7 @@ except ImportError:
     _GMAIL_AVAILABLE = False
 
 # ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Brand Memory", layout="wide")
+st.set_page_config(page_title="Brand Settings", layout="wide")
 
 # ── Global CSS ────────────────────────────────────────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
@@ -33,48 +33,6 @@ st.markdown("""
     /* ── Page background ────────────────────────────────────────── */
     .stApp {
         background-color: #F3F4F6;
-    }
-
-    /* ── Sidebar — purple SaaS style ────────────────────────────── */
-    [data-testid="stSidebar"] {
-        background-color: #7C3AED !important;
-        border-right: none !important;
-    }
-    [data-testid="stSidebar"] *,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] span,
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] small {
-        color: #FFFFFF !important;
-    }
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] h4 {
-        color: #FFFFFF !important;
-        border-left: none !important;
-        padding-left: 0 !important;
-        margin-top: 1rem !important;
-    }
-    [data-testid="stSidebarNav"] a span {
-        color: rgba(255,255,255,0.80) !important;
-        font-weight: 500;
-    }
-    [data-testid="stSidebarNav"] a:hover span {
-        color: #FFFFFF !important;
-    }
-    [data-testid="stSidebarNavLink"][aria-selected="true"],
-    [data-testid="stSidebarNav"] a[aria-current="page"] {
-        background: #FFFFFF !important;
-        border-radius: 20px !important;
-    }
-    [data-testid="stSidebarNavLink"][aria-selected="true"] span,
-    [data-testid="stSidebarNav"] a[aria-current="page"] span {
-        color: #7C3AED !important;
-        font-weight: 700 !important;
-    }
-    [data-testid="stSidebar"] hr {
-        border-color: rgba(255,255,255,0.25) !important;
     }
 
     /* ── Main area headings ──────────────────────────────────────── */
@@ -217,7 +175,7 @@ def fetch_emails(service, query: str, max_results: int = 10):
     return emails
 
 # ── Page title ────────────────────────────────────────────────────────────────
-st.title("Brand Memory")
+st.title("Brand Settings")
 st.markdown(
     "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
     "Store brand context so AI insights are tailored to each brand's objectives. "

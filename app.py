@@ -16,7 +16,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
 
 # ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Insights App", layout="wide")
+st.set_page_config(page_title="Performance & Insights", layout="wide")
 
 # ── Brand colours ─────────────────────────────────────────────────────────────
 NAVY    = "#14113b"
@@ -769,7 +769,7 @@ st.sidebar.markdown(
 st.sidebar.subheader("Loaded Files")
 
 # ── Main header ───────────────────────────────────────────────────────────────
-st.title("Ad Tech Insights & Reporting")
+st.title("Performance & Insights")
 st.markdown(
     "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
     "Upload CSV exports from DV360, TTD or any DSP to generate insights and reports."

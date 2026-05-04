@@ -6,7 +6,7 @@ import streamlit as st
 from datetime import date
 
 # ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Campaign Monitor — Insights App", layout="wide")
+st.set_page_config(page_title="Live Campaigns", layout="wide")
 
 # ── Global CSS (identical to app.py — STYLE LOCK) ─────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
@@ -382,7 +382,7 @@ api_key = (
 )
 
 # ── Page header ───────────────────────────────────────────────────────────────
-st.title("Campaign Monitor")
+st.title("Live Campaigns")
 st.markdown(
     "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
     "Live pacing, deal health diagnostics and DSP optimisation tools for Captify direct deals "
@@ -392,23 +392,42 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ── Date range filter ─────────────────────────────────────────────────────────
+# Derive the earliest start and latest end across all campaigns for the defaults
+all_starts = [c["start"] for c in CAMPAIGNS]
+all_ends   = [c["end"]   for c in CAMPAIGNS]
+
+st.markdown("**Filter by campaign date range**")
+filter_col1, filter_col2 = st.columns(2)
+with filter_col1:
+    filter_start = st.date_input("From", value=min(all_starts), min_value=min(all_starts), max_value=max(all_ends))
+with filter_col2:
+    filter_end = st.date_input("To", value=max(all_ends), min_value=min(all_starts), max_value=max(all_ends))
+
+# Keep campaigns whose date range overlaps the selected window
+FILTERED_CAMPAIGNS = [
+    c for c in CAMPAIGNS
+    if c["start"] <= filter_end and c["end"] >= filter_start
+]
+FILTERED_AT_RISK = [c for c in FILTERED_CAMPAIGNS if c["risk"] in ("Critical", "At risk")]
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 1 — Summary metric cards
 # ═══════════════════════════════════════════════════════════════════════════════
 st.subheader("Portfolio Overview")
 
 # Portfolio-level pacing = total actual spend / total expected spend
-total_spent      = sum(c["spent"]          for c in CAMPAIGNS)
-total_expected   = sum(c["expected_spend"] for c in CAMPAIGNS)
+total_spent      = sum(c["spent"]          for c in FILTERED_CAMPAIGNS)
+total_expected   = sum(c["expected_spend"] for c in FILTERED_CAMPAIGNS)
 portfolio_pacing = (total_spent / total_expected * 100) if total_expected > 0 else 0
-budget_at_risk   = sum(c["budget"] for c in AT_RISK)
+budget_at_risk   = sum(c["budget"] for c in FILTERED_AT_RISK)
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Active Campaigns",  len(CAMPAIGNS))
+c1.metric("Active Campaigns",  len(FILTERED_CAMPAIGNS))
 c2.metric(
     "At-Risk Campaigns",
-    len(AT_RISK),
-    delta=f"{len(AT_RISK)} require action",
+    len(FILTERED_AT_RISK),
+    delta=f"{len(FILTERED_AT_RISK)} require action",
     delta_color="inverse",
 )
 c3.metric("Budget at Risk",    f"A${budget_at_risk / 1_000:.0f}k")
@@ -473,7 +492,7 @@ def days_cell(days):
 
 # Build the HTML table row by row
 rows_html = ""
-for c in CAMPAIGNS:
+for c in FILTERED_CAMPAIGNS:
     rows_html += (
         f"<tr style='border-bottom:1px solid #F3F4F6;'>"
         f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{c['client']}</td>"
@@ -546,7 +565,7 @@ if st.button("✨ Run AI Analysis", type="primary"):
     else:
         # Build plain-text pacing summary including DSP for each campaign
         lines = []
-        for c in CAMPAIGNS:
+        for c in FILTERED_CAMPAIGNS:
             lines.append(
                 f"- {c['client']} | DSP: {c['dsp']} | {c['deal_type']} | {c['deal_id']} | "
                 f"Budget: A${c['budget']:,} | Spent: A${c['spent']:,} | "
@@ -641,8 +660,10 @@ def health_score_colour(score):
     return "#10B981"
 
 
-for c in AT_RISK:
-    diag  = DIAGNOSTICS[c["deal_id"]]
+for c in FILTERED_AT_RISK:
+    diag  = DIAGNOSTICS.get(c["deal_id"])
+    if not diag:
+        continue
     score = diag["health_score"]
     seg   = diag["segment_callout"]
     sc    = health_score_colour(score)
@@ -738,8 +759,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-for c in AT_RISK:
-    pd_  = PUSH_DATA[c["deal_id"]]
+for c in FILTERED_AT_RISK:
+    pd_  = PUSH_DATA.get(c["deal_id"])
+    if not pd_:
+        continue
     is_dv360 = c["dsp"] == "DV360"
 
     col_btn, col_resp = st.columns([1, 3])
