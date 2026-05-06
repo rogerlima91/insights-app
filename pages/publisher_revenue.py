@@ -1,4 +1,5 @@
 import os
+import time
 import anthropic
 import streamlit as st
 
@@ -201,6 +202,51 @@ DIAGNOSTICS = {
                 ),
             },
         ],
+    },
+}
+
+
+# ── PubMatic push simulator data ──────────────────────────────────────────────
+# Hardcoded but realistic actions and API responses per at-risk publisher.
+# Keyed by publisher name. Only publishers with health score < 70 get a panel.
+PUBMATIC_PUSH_DATA = {
+    "Seven Network": {
+        "publisher_id": "PUB-77400",
+        "actions": [
+            "Reduce video floor  A$18.00 → A$15.50",
+            "Activate OpenWrap for CTV supply",
+            "Onboard 2 incremental BVOD buyers into ANZ Video PMP pipeline",
+        ],
+        "recovery_low":  38_000,
+        "recovery_high": 46_000,
+        "api_response": (
+            "PATCH /api/v2/publisher/PUB-77400/settings  →  HTTP 200 OK\n"
+            "\n"
+            "✓  Floor price updated:          A$18.00 → A$15.50  (Video, CTV)\n"
+            "✓  OpenWrap CTV wrapper:          deployed across 4 ad units\n"
+            "✓  Buyer onboarding submitted:    ANZ Video PMP pipeline (+2 seats)\n"
+            "\n"
+            "Projected monthly revenue recovery:  A$38,000 – A$46,000\n"
+            "Timestamp: 2026-05-02 09:14:33 UTC"
+        ),
+    },
+    "Seek": {
+        "publisher_id": "PUB-58291",
+        "actions": [
+            "Enable video demand — format mismatch causing 38% unfilled requests",
+            "Adjust display floor  A$9.00 → A$7.50",
+        ],
+        "recovery_low":  29_000,
+        "recovery_high": 35_000,
+        "api_response": (
+            "PATCH /api/v2/publisher/PUB-58291/settings  →  HTTP 200 OK\n"
+            "\n"
+            "✓  Video demand enabled:          OpenWrap video wrapper activated (6 ad units)\n"
+            "✓  Display floor updated:         A$9.00 → A$7.50 across 6 display line items\n"
+            "\n"
+            "Projected monthly revenue recovery:  A$29,000 – A$35,000\n"
+            "Timestamp: 2026-05-02 09:14:33 UTC"
+        ),
     },
 }
 
@@ -592,6 +638,114 @@ if "pub_strategy_output" in st.session_state:
         f"Q3 Growth Strategy — {pub_label} &nbsp;·&nbsp; Target A${target_label:,}"
         f"</div>"
         + st.session_state["pub_strategy_output"].replace("\n", "<br>") +
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 6 — PubMatic Optimisation Push
+# ══════════════════════════════════════════════════════════════════════════════
+st.subheader("PubMatic Optimisation Push")
+st.markdown(
+    "<p style='color:#6b7280;font-size:14px;margin-top:-8px;'>"
+    "Simulate a PubMatic platform API call to action yield improvements on underperforming publishers. "
+    "<strong>Simulation only — no real changes are made.</strong>"
+    "</p>",
+    unsafe_allow_html=True,
+)
+
+# Only publishers scored At risk or Critical (health < 70) get a push panel
+PUSH_ELIGIBLE = [p for p in PORTFOLIO if p["risk"] in ("Critical", "At risk")]
+
+for p in PUSH_ELIGIBLE:
+    pd_ = PUBMATIC_PUSH_DATA.get(p["name"])
+    if not pd_:
+        continue
+
+    pushed_key = f"pub_pushed_{p['name']}"
+
+    col_btn, col_resp = st.columns([1, 3])
+
+    with col_btn:
+        if st.session_state.get(pushed_key):
+            # Replace button with green applied label once pushed
+            st.markdown(
+                "<div style='background:#ECFDF5;border:1px solid #6EE7B7;"
+                "border-radius:8px;padding:10px 14px;font-weight:700;"
+                "color:#065F46;font-size:14px;text-align:center;'>"
+                "✓ Changes applied"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            if st.button(
+                f"⚡ Push {p['name']}",
+                key=f"push_btn_{p['name']}",
+                type="primary",
+            ):
+                with st.spinner("Pushing to PubMatic API..."):
+                    time.sleep(1.8)
+                st.session_state[pushed_key] = True
+                st.rerun()
+
+        # Publisher summary below the button / applied label
+        risk_color = p["risk_color"]
+        risk_label = p["risk"]
+        st.markdown(
+            f"<div style='font-size:12px;color:#6B7280;margin-top:10px;line-height:1.8;'>"
+            f"<strong style='color:#111827;'>{p['name']}</strong><br>"
+            f"{p['formats']}<br>"
+            f"Health: {p['health_score']:.0f}/100 "
+            f"<span style='color:{risk_color};font-weight:700;'>({risk_label})</span><br>"
+            f"Gap: A${p['revenue_gap']/1_000:.0f}k below target"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    with col_resp:
+        if st.session_state.get(pushed_key):
+            # Show the recommended actions list then the API response block
+            actions_html = "".join(
+                f"<li style='margin-bottom:6px;'>{a}</li>"
+                for a in pd_["actions"]
+            )
+            st.markdown(
+                f"<div style='background:#F9FAFB;border-radius:8px;"
+                f"padding:12px 16px;margin-bottom:10px;font-size:13px;'>"
+                f"<div style='font-weight:600;color:#111827;margin-bottom:8px;'>"
+                f"Actions applied</div>"
+                f"<ul style='margin:0;padding-left:18px;color:#374151;line-height:1.7;'>"
+                f"{actions_html}"
+                f"</ul></div>",
+                unsafe_allow_html=True,
+            )
+            st.code(pd_["api_response"], language="text")
+        else:
+            # Placeholder shown before the button is clicked
+            st.markdown(
+                "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
+                "border-radius:8px;padding:28px;text-align:center;"
+                "color:#9CA3AF;font-size:13px;'>"
+                "Click the button to simulate the PubMatic API call and see "
+                "the projected response.</div>",
+                unsafe_allow_html=True,
+            )
+
+    st.markdown(
+        "<hr style='border:none;border-top:1px solid #E5E7EB;margin:20px 0;'>",
+        unsafe_allow_html=True,
+    )
+
+# ── Total recovery summary — shown only once at least one push has been applied
+pushed_names = [p["name"] for p in PUSH_ELIGIBLE if st.session_state.get(f"pub_pushed_{p['name']}")]
+if pushed_names:
+    total_recovery = sum(PUBMATIC_PUSH_DATA[name]["recovery_low"] for name in pushed_names)
+    st.markdown(
+        f"<div style='background:#F5F3FF;border-left:4px solid #7C3AED;"
+        f"border-radius:8px;padding:14px 18px;font-size:14px;color:#374151;'>"
+        f"<strong style='color:#7C3AED;'>Estimated total recovery across optimised publishers: "
+        f"A${total_recovery:,}/month</strong>"
+        f"&nbsp; (based on {len(pushed_names)} publisher{'s' if len(pushed_names) > 1 else ''} pushed)"
         f"</div>",
         unsafe_allow_html=True,
     )
