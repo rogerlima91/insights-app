@@ -226,13 +226,19 @@ def save_brand_memory(memory):
     with open(BRAND_MEMORY_PATH, "w") as f:
         json.dump(memory, f, indent=2)
 
-# ── CSV loader and normaliser ─────────────────────────────────────────────────
+# ── File loader and normaliser ────────────────────────────────────────────────
 def load_and_normalise(uploaded_file):
     """
-    Reads a CSV file, normalises column names to our standard format,
-    and adds a 'source_file' and 'dsp_source' column for traceability.
+    Reads a CSV, TSV, or Excel file, normalises column names to our standard
+    format, and adds a 'source_file' and 'dsp_source' column for traceability.
     """
-    df = pd.read_csv(uploaded_file)
+    name = uploaded_file.name.lower()
+    if name.endswith(".xlsx") or name.endswith(".xls"):
+        df = pd.read_excel(uploaded_file)
+    elif name.endswith(".tsv"):
+        df = pd.read_csv(uploaded_file, sep="\t")
+    else:
+        df = pd.read_csv(uploaded_file)
 
     # Detect DSP before renaming columns
     dsp = detect_source(df.columns.tolist())
@@ -266,6 +272,33 @@ def load_and_normalise(uploaded_file):
     df["dsp_source"]  = dsp
 
     return df, dsp
+
+
+def detect_grouping_column(df):
+    """
+    Find the best column to group AI insights by.
+    Checks in priority order and returns (column_name, display_label).
+    Falls back to the first non-numeric, non-date column if none match.
+    """
+    # Priority list: (normalised column name after COLUMN_MAP, display label)
+    priority = [
+        ("campaign",  "Brand"),
+        ("partner",   "Partner"),
+        ("line_item", "Creative"),
+    ]
+    for col, label in priority:
+        if col in df.columns:
+            return col, label
+
+    # Fall back to the first column that looks like a text/category dimension
+    for col in df.columns:
+        if col in ("source_file", "dsp_source", "date", "ctr", "cpm"):
+            continue
+        if df[col].dtype == object:
+            return col, col.replace("_", " ").title()
+
+    return None, None
+
 
 # ── PowerPoint export — dark premium template ────────────────────────────────
 # Built entirely from a blank Presentation (no template file required).
@@ -778,8 +811,8 @@ st.markdown(
 st.subheader("Upload DSP Export Files")
 
 uploaded_files = st.file_uploader(
-    "Drag and drop CSV files here, or click to browse. Multiple files accepted.",
-    type=["csv"],
+    "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
+    type=["csv", "tsv", "xlsx", "xls"],
     accept_multiple_files=True,
 )
 
@@ -790,7 +823,7 @@ if not uploaded_files:
     <div style='text-align:center;padding:48px 0;color:#9ca3af;'>
         <div style='font-size:48px;margin-bottom:12px;'>📂</div>
         <div style='font-size:16px;font-weight:600;'>No files uploaded yet</div>
-        <div style='font-size:13px;margin-top:6px;'>Supports DV360 and TTD CSV exports</div>
+        <div style='font-size:13px;margin-top:6px;'>Supports CSV, TSV, and Excel exports from DV360, TTD, and other DSPs</div>
     </div>
     """, unsafe_allow_html=True)
     st.sidebar.markdown("_No files loaded yet._")
@@ -829,7 +862,8 @@ else:
     total_impressions = df_all["impressions"].sum()  if "impressions" in df_all.columns else 0
     total_clicks      = df_all["clicks"].sum()       if "clicks"      in df_all.columns else 0
     total_spend       = df_all["spend_usd"].sum()    if "spend_usd"   in df_all.columns else 0
-    avg_ctr           = df_all["ctr"].mean()         if "ctr"         in df_all.columns else None
+    # Always recalculate CTR from totals — never average a pre-calculated CTR column
+    avg_ctr           = (total_clicks / total_impressions) if total_impressions > 0 else None
     avg_cpm           = df_all["cpm"].mean()         if "cpm"         in df_all.columns else None
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -1076,7 +1110,10 @@ else:
             no_data_msg("Spend and impressions data needed to calculate CPM.")
 
     # ── AI Insights ───────────────────────────────────────────────────────────
-    st.subheader("AI Brand Insights")
+    # Detect the best grouping column — works with any DSP export structure
+    group_col, group_label = detect_grouping_column(df_all)
+
+    st.subheader(f"AI {group_label} Insights" if group_label else "AI Insights")
 
     # Get the Anthropic API key — check Streamlit secrets first, then env var
     api_key = (
@@ -1090,16 +1127,16 @@ else:
             "No Anthropic API key found. Add `ANTHROPIC_API_KEY` to your "
             "Streamlit secrets or environment variables to enable AI insights."
         )
-    elif "campaign" not in df_all.columns:
-        st.info("A 'Campaign Name' or 'Brand Name' column is required to generate per-brand insights.")
+    elif group_col is None:
+        st.info("No suitable grouping column found in this file. AI insights require at least one text/category column.")
     else:
-        # Build an aggregated summary per campaign (recalculate from totals, not averages)
+        # Build an aggregated summary per group (recalculate from totals, not averages)
         has_spend  = "spend_usd"   in df_all.columns
         has_clicks = "clicks"      in df_all.columns
         has_imps   = "impressions" in df_all.columns
 
         agg_cols = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"] if c in df_all.columns}
-        camp_summary = df_all.groupby("campaign").agg(**agg_cols).reset_index()
+        camp_summary = df_all.groupby(group_col).agg(**agg_cols).reset_index()
 
         if has_imps and has_clicks:
             camp_summary["ctr"] = camp_summary["clicks"] / camp_summary["impressions"]
@@ -1110,9 +1147,9 @@ else:
         # Includes campaign-level totals AND a campaign × environment breakdown
         # when an environment column is present (gives Claude the Web/App/YouTube split).
         def format_summary_table(df):
-            lines = ["=== Brand Totals ==="]
+            lines = [f"=== {group_label} Totals ==="]
             for _, r in camp_summary.iterrows():
-                parts = [f"Brand: {r['campaign']}"]
+                parts = [f"{group_label}: {r[group_col]}"]
                 if "impressions" in r and pd.notna(r["impressions"]):
                     parts.append(f"Impressions: {int(r['impressions']):,}")
                 if "clicks" in r and pd.notna(r["clicks"]):
@@ -1132,7 +1169,7 @@ else:
                 lines.append(f"\n=== {section_title} ===")
                 agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"]
                        if c in df.columns}
-                grp = df.groupby(["campaign", label_col]).agg(**agg).reset_index()
+                grp = df.groupby([group_col, label_col]).agg(**agg).reset_index()
                 if "impressions" in grp.columns and "clicks" in grp.columns:
                     grp["ctr"] = grp["clicks"] / grp["impressions"]
                 if "impressions" in grp.columns and "spend_usd" in grp.columns:
@@ -1140,7 +1177,7 @@ else:
                 if "clicks" in grp.columns and "spend_usd" in grp.columns:
                     grp["cpc"] = grp["spend_usd"] / grp["clicks"]
                 for _, r in grp.iterrows():
-                    parts = [f"Brand: {r['campaign']} | {label_key}: {r[label_col]}"]
+                    parts = [f"{group_label}: {r[group_col]} | {label_key}: {r[label_col]}"]
                     if "impressions" in r and pd.notna(r["impressions"]):
                         parts.append(f"Impressions: {int(r['impressions']):,}")
                     if "clicks" in r and pd.notna(r["clicks"]):
@@ -1167,8 +1204,8 @@ else:
             return "\n".join(lines)
 
         all_campaigns_text = format_summary_table(df_all)
-        campaign_list = camp_summary["campaign"].tolist()
-        # Store brand names in session_state so other pages (e.g. Brand Memory) can read them
+        campaign_list = camp_summary[group_col].tolist()
+        # Store group names in session_state so other pages (e.g. Brand Settings) can read them
         st.session_state["campaign_list"] = campaign_list
 
         # System prompt — analyst persona, structured output required
