@@ -568,8 +568,8 @@ with tab_transcript:
 
         uploaded_audio = st.file_uploader(
             "Choose an audio or video file",
-            type=["mp3", "mp4", "wav", "m4a", "webm"],
-            help="Supported formats: MP3, MP4, WAV, M4A, WEBM. Max 25 MB (OpenAI Whisper limit).",
+            type=["mp3", "mp4", "wav", "m4a", "webm", "mpeg4", "mkv", "mov", "ogg"],
+            help="Supported formats: MP3, MP4, WAV, M4A, WEBM, MPEG4, MKV, MOV, OGG. Max 25 MB (OpenAI Whisper limit). MKV files are automatically converted to MP3 before transcription.",
         )
 
         _bm_t        = load_brand_memory()
@@ -605,8 +605,21 @@ with tab_transcript:
                     try:
                         client = OpenAI(api_key=openai_api_key)
                         audio_bytes  = uploaded_audio.read()
-                        audio_buffer = io.BytesIO(audio_bytes)
-                        audio_buffer.name = uploaded_audio.name
+
+                        # MKV is not accepted by Whisper — convert to MP3 via pydub first
+                        if uploaded_audio.name.lower().endswith(".mkv"):
+                            from pydub import AudioSegment
+                            mkv_buffer = io.BytesIO(audio_bytes)
+                            audio_segment = AudioSegment.from_file(mkv_buffer, format="mkv")
+                            mp3_buffer = io.BytesIO()
+                            audio_segment.export(mp3_buffer, format="mp3")
+                            mp3_buffer.seek(0)
+                            audio_buffer = mp3_buffer
+                            audio_buffer.name = uploaded_audio.name.rsplit(".", 1)[0] + ".mp3"
+                        else:
+                            audio_buffer = io.BytesIO(audio_bytes)
+                            audio_buffer.name = uploaded_audio.name
+
                         result = client.audio.transcriptions.create(
                             model="whisper-1",
                             file=audio_buffer,
