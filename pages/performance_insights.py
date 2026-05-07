@@ -8,6 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import anthropic
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -1108,6 +1109,73 @@ else:
             st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
         else:
             no_data_msg("Spend and impressions data needed to calculate CPM.")
+
+    # ── Daily Clicks vs Impressions chart ─────────────────────────────────────
+    # Only shown when the data contains date, clicks, and impressions columns.
+    if all(c in df_all.columns for c in ("date", "clicks", "impressions")):
+        st.subheader("Daily Clicks vs Impressions")
+
+        # Aggregate by date in case multiple rows share the same date
+        daily = (
+            df_all.groupby("date")[["clicks", "impressions"]]
+            .sum()
+            .reset_index()
+            .sort_values("date")
+        )
+
+        # Dual Y-axis layout: clicks on left, impressions on right
+        fig_daily = make_subplots(specs=[[{"secondary_y": True}]])
+
+        # Clicks — solid green line with circle markers, left Y axis
+        fig_daily.add_trace(
+            go.Scatter(
+                x=daily["date"],
+                y=daily["clicks"],
+                name="Clicks",
+                mode="lines+markers",
+                line=dict(color="#1D9E75", width=2, dash="solid"),
+                marker=dict(symbol="circle", size=6, color="#1D9E75"),
+                hovertemplate="%{x}<br>Clicks: <b>%{y:,}</b><extra></extra>",
+            ),
+            secondary_y=False,
+        )
+
+        # Impressions — dashed orange line with circle markers, right Y axis
+        fig_daily.add_trace(
+            go.Scatter(
+                x=daily["date"],
+                y=daily["impressions"],
+                name="Impressions",
+                mode="lines+markers",
+                line=dict(color="#EF9F27", width=2, dash="dash"),
+                marker=dict(symbol="circle", size=6, color="#EF9F27"),
+                hovertemplate="%{x}<br>Impressions: <b>%{y:,}</b><extra></extra>",
+            ),
+            secondary_y=True,
+        )
+
+        fig_daily.update_layout(
+            title=dict(text="Daily Clicks vs Impressions", font=dict(size=15, color="#111827")),
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FFFFFF",
+            font=dict(family="Inter, system-ui, sans-serif", color="#374151"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=60, r=60, t=60, b=50),
+            hovermode="x unified",
+        )
+        fig_daily.update_yaxes(
+            title_text="Clicks", secondary_y=False,
+            tickformat=",", gridcolor="#F3F4F6", title_font=dict(color="#1D9E75"),
+            tickfont=dict(color="#1D9E75"),
+        )
+        fig_daily.update_yaxes(
+            title_text="Impressions", secondary_y=True,
+            tickformat=",", title_font=dict(color="#EF9F27"),
+            tickfont=dict(color="#EF9F27"),
+        )
+        fig_daily.update_xaxes(gridcolor="#F3F4F6")
+
+        st.plotly_chart(fig_daily, use_container_width=True, config={"displaylogo": False})
 
     # ── AI Insights ───────────────────────────────────────────────────────────
     # Detect the best grouping column — works with any DSP export structure
