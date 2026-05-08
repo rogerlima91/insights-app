@@ -809,8 +809,6 @@ st.markdown(
 )
 
 # ── File uploader ─────────────────────────────────────────────────────────────
-st.subheader("Upload DSP Export Files")
-
 uploaded_files = st.file_uploader(
     "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
     type=["csv", "tsv", "xlsx", "xls"],
@@ -884,6 +882,19 @@ else:
             camp_summary["cpm"] = camp_summary["spend_usd"] / camp_summary["impressions"] * 1000
     else:
         camp_summary = pd.DataFrame()
+
+    # ── Global advertiser filter ──────────────────────────────────────────────
+    # Narrows all charts to a single advertiser. "All" shows every advertiser.
+    if "campaign" in df_all.columns:
+        adv_options = ["All"] + sorted(df_all["campaign"].dropna().unique().tolist())
+        sel_adv = st.selectbox(
+            "Filter by Advertiser",
+            options=adv_options,
+            key="global_adv_filter",
+        )
+        df_charts = df_all[df_all["campaign"] == sel_adv].copy() if sel_adv != "All" else df_all.copy()
+    else:
+        df_charts = df_all.copy()
 
     # ── Charts ────────────────────────────────────────────────────────────────
     st.subheader("Performance Charts")
@@ -1040,9 +1051,25 @@ else:
                     # Reverse-map display label back to column name
                     sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
 
+                    # Dimension filter — multiselect to narrow to specific values in this chart
+                    dim_unique = sorted(df_charts[dim_col].dropna().astype(str).unique().tolist())
+                    sel_dims = st.multiselect(
+                        f"Filter {title.split(' by ')[-1]}s",
+                        options=dim_unique,
+                        default=[],
+                        key=f"dim_filter_{title.replace(' ', '_')}",
+                        placeholder="All (no filter applied)",
+                        label_visibility="collapsed",
+                    )
+                    # Use filtered slice if values selected, otherwise use global advertiser-filtered df
+                    df_chart_filtered = (
+                        df_charts[df_charts[dim_col].astype(str).isin(sel_dims)]
+                        if sel_dims else df_charts
+                    )
+
                     st.markdown(f"**{title}** — {sel_label}")
 
-                    agg_df = (get_agg(df_all, dim_col, sel_col)
+                    agg_df = (get_agg(df_chart_filtered, dim_col, sel_col)
                               .sort_values(sel_col, ascending=False)
                               .head(15))
 
@@ -1079,73 +1106,130 @@ else:
                     st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False},
                                     key=f"chart_{title.replace(' ', '_')}_{sel_col}")
 
-    # ── Daily Clicks vs Impressions chart ─────────────────────────────────────
-    # Only shown when the data contains date, clicks, and impressions columns.
-    if all(c in df_all.columns for c in ("date", "clicks", "impressions")):
-        st.subheader("Daily Clicks vs Impressions")
+    # ── Daily Performance chart ────────────────────────────────────────────────
+    # Shown when the data contains a date column and at least one summable metric.
+    if "date" in df_all.columns:
+        st.subheader("Daily Performance")
 
-        # Aggregate by date in case multiple rows share the same date
-        daily = (
-            df_all.groupby("date")[["clicks", "impressions"]]
-            .sum()
-            .reset_index()
-            .sort_values("date")
-        )
+        # Only include summable metrics — CPM and CTR need to be recalculated from
+        # daily raw totals, not summed, so we exclude them from this chart for simplicity.
+        daily_summable = {k: v for k, v in avail_metrics.items()
+                          if k not in ("cpm", "ctr", "cpm_raw", "ctr_raw")}
 
-        # Dual Y-axis layout: clicks on left, impressions on right
-        fig_daily = make_subplots(specs=[[{"secondary_y": True}]])
+        if not daily_summable:
+            no_data_msg("No summable metrics found for the daily chart.")
+        else:
+            # Controls row: advertiser filter | left axis metric | right axis metric
+            _d_col1, _d_col2, _d_col3 = st.columns([2, 1, 1])
 
-        # Clicks — solid green line with circle markers, left Y axis
-        fig_daily.add_trace(
-            go.Scatter(
-                x=daily["date"],
-                y=daily["clicks"],
-                name="Clicks",
-                mode="lines+markers",
-                line=dict(color="#1D9E75", width=2, dash="solid"),
-                marker=dict(symbol="circle", size=6, color="#1D9E75"),
-                hovertemplate="%{x}<br>Clicks: <b>%{y:,}</b><extra></extra>",
-            ),
-            secondary_y=False,
-        )
+            with _d_col1:
+                if "campaign" in df_all.columns:
+                    daily_adv_opts = ["All"] + sorted(df_all["campaign"].dropna().unique().tolist())
+                    sel_daily_adv = st.selectbox(
+                        "Advertiser", daily_adv_opts,
+                        key="daily_adv_filter",
+                        label_visibility="collapsed",
+                    )
+                    df_daily_src = (df_all if sel_daily_adv == "All"
+                                    else df_all[df_all["campaign"] == sel_daily_adv])
+                else:
+                    df_daily_src = df_all
 
-        # Impressions — dashed orange line with circle markers, right Y axis
-        fig_daily.add_trace(
-            go.Scatter(
-                x=daily["date"],
-                y=daily["impressions"],
-                name="Impressions",
-                mode="lines+markers",
-                line=dict(color="#EF9F27", width=2, dash="dash"),
-                marker=dict(symbol="circle", size=6, color="#EF9F27"),
-                hovertemplate="%{x}<br>Impressions: <b>%{y:,}</b><extra></extra>",
-            ),
-            secondary_y=True,
-        )
+            daily_keys   = list(daily_summable.keys())
+            daily_labels = list(daily_summable.values())
 
-        fig_daily.update_layout(
-            title=dict(text="Daily Clicks vs Impressions", font=dict(size=15, color="#111827")),
-            plot_bgcolor="#FFFFFF",
-            paper_bgcolor="#FFFFFF",
-            font=dict(family="Inter, system-ui, sans-serif", color="#374151"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=60, r=60, t=60, b=50),
-            hovermode="x unified",
-        )
-        fig_daily.update_yaxes(
-            title_text="Clicks", secondary_y=False,
-            tickformat=",", gridcolor="#F3F4F6", title_font=dict(color="#1D9E75"),
-            tickfont=dict(color="#1D9E75"),
-        )
-        fig_daily.update_yaxes(
-            title_text="Impressions", secondary_y=True,
-            tickformat=",", title_font=dict(color="#EF9F27"),
-            tickfont=dict(color="#EF9F27"),
-        )
-        fig_daily.update_xaxes(gridcolor="#F3F4F6")
+            # Default left axis = Clicks, right axis = Impressions (when available)
+            left_default  = daily_keys.index("clicks")      if "clicks"      in daily_keys else 0
+            right_default = (daily_keys.index("impressions") if "impressions" in daily_keys
+                             else (1 if len(daily_keys) > 1 else 0))
 
-        st.plotly_chart(fig_daily, use_container_width=True, config={"displaylogo": False},
-                        key="chart_daily_clicks_impressions")
+            with _d_col2:
+                left_label = st.selectbox(
+                    "Left axis", daily_labels,
+                    index=left_default,
+                    key="daily_left_metric",
+                    label_visibility="collapsed",
+                )
+                left_col = daily_keys[daily_labels.index(left_label)]
+
+            with _d_col3:
+                right_label = st.selectbox(
+                    "Right axis", daily_labels,
+                    index=right_default,
+                    key="daily_right_metric",
+                    label_visibility="collapsed",
+                )
+                right_col = daily_keys[daily_labels.index(right_label)]
+
+            # Aggregate by date — sum both selected metrics
+            daily_agg_cols = list(dict.fromkeys([left_col, right_col]))  # deduplicated, ordered
+            daily = (
+                df_daily_src.groupby("date")[daily_agg_cols]
+                .sum()
+                .reset_index()
+                .sort_values("date")
+            )
+
+            # Dual Y-axis layout
+            fig_daily = make_subplots(specs=[[{"secondary_y": True}]])
+
+            # Left Y-axis trace — solid blue line
+            fig_daily.add_trace(
+                go.Scatter(
+                    x=daily["date"],
+                    y=daily[left_col],
+                    name=left_label,
+                    mode="lines+markers",
+                    line=dict(color="#2563EB", width=2, dash="solid"),
+                    marker=dict(symbol="circle", size=6, color="#2563EB"),
+                    hovertemplate=f"%{{x}}<br>{left_label}: <b>%{{y:,}}</b><extra></extra>",
+                ),
+                secondary_y=False,
+            )
+
+            # Right Y-axis trace — dashed orange line (only when a different metric is chosen)
+            if right_col != left_col:
+                fig_daily.add_trace(
+                    go.Scatter(
+                        x=daily["date"],
+                        y=daily[right_col],
+                        name=right_label,
+                        mode="lines+markers",
+                        line=dict(color="#EF9F27", width=2, dash="dash"),
+                        marker=dict(symbol="circle", size=6, color="#EF9F27"),
+                        hovertemplate=f"%{{x}}<br>{right_label}: <b>%{{y:,}}</b><extra></extra>",
+                    ),
+                    secondary_y=True,
+                )
+
+            fig_daily.update_layout(
+                title=dict(text="Daily Performance", font=dict(size=15, color="#111827")),
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF",
+                font=dict(family="Inter, system-ui, sans-serif", color="#374151"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(l=60, r=60, t=60, b=50),
+                hovermode="x unified",
+            )
+            fig_daily.update_yaxes(
+                title_text=left_label, secondary_y=False,
+                tickformat=",", gridcolor="#F3F4F6",
+                title_font=dict(color="#2563EB"),
+                tickfont=dict(color="#2563EB"),
+            )
+            fig_daily.update_yaxes(
+                title_text=right_label if right_col != left_col else "",
+                secondary_y=True,
+                tickformat=",",
+                title_font=dict(color="#EF9F27"),
+                tickfont=dict(color="#EF9F27"),
+                showgrid=False,
+            )
+            fig_daily.update_xaxes(gridcolor="#F3F4F6")
+
+            st.plotly_chart(fig_daily, use_container_width=True,
+                            config={"displaylogo": False},
+                            key="chart_daily_performance")
 
     # ── AI Insights ───────────────────────────────────────────────────────────
     # Detect the best grouping column — works with any DSP export structure
