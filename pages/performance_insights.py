@@ -860,15 +860,31 @@ else:
         )
     st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
 
+    # ── Global advertiser filter — controls Summary Metrics only ──────────────
+    # Each chart has its own independent advertiser filter below.
+    _adv_col = "campaign" if "campaign" in df_all.columns else (
+               "campaign_dim" if "campaign_dim" in df_all.columns else None)
+    if _adv_col:
+        adv_options = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
+        sel_adv_global = st.selectbox(
+            "Filter by Advertiser",
+            options=adv_options,
+            key="global_adv_filter",
+        )
+        df_metrics = (df_all[df_all[_adv_col] == sel_adv_global].copy()
+                      if sel_adv_global != "All Advertisers" else df_all.copy())
+    else:
+        df_metrics = df_all.copy()
+
     # ── Summary metrics ───────────────────────────────────────────────────────
     st.subheader("Summary Metrics")
 
-    total_impressions = df_all["impressions"].sum()  if "impressions" in df_all.columns else 0
-    total_clicks      = df_all["clicks"].sum()       if "clicks"      in df_all.columns else 0
-    total_spend       = df_all["spend_usd"].sum()    if "spend_usd"   in df_all.columns else 0
+    total_impressions = df_metrics["impressions"].sum()  if "impressions" in df_metrics.columns else 0
+    total_clicks      = df_metrics["clicks"].sum()       if "clicks"      in df_metrics.columns else 0
+    total_spend       = df_metrics["spend_usd"].sum()    if "spend_usd"   in df_metrics.columns else 0
     # Always recalculate CTR from totals — never average a pre-calculated CTR column
     avg_ctr           = (total_clicks / total_impressions) if total_impressions > 0 else None
-    avg_cpm           = df_all["cpm"].mean()         if "cpm"         in df_all.columns else None
+    avg_cpm           = df_metrics["cpm"].mean()         if "cpm"         in df_metrics.columns else None
 
     col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Total Impressions", f"{total_impressions:,.0f}")
@@ -887,23 +903,6 @@ else:
             camp_summary["cpm"] = camp_summary["spend_usd"] / camp_summary["impressions"] * 1000
     else:
         camp_summary = pd.DataFrame()
-
-    # ── Global advertiser filter ──────────────────────────────────────────────
-    # Narrows all 6 charts to a single advertiser. Falls back to campaign_dim
-    # if the data has no dedicated advertiser/brand column.
-    _adv_col = "campaign" if "campaign" in df_all.columns else (
-               "campaign_dim" if "campaign_dim" in df_all.columns else None)
-    if _adv_col:
-        adv_options = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
-        sel_adv = st.selectbox(
-            "Filter by Advertiser",
-            options=adv_options,
-            key="global_adv_filter",
-        )
-        df_charts = (df_all[df_all[_adv_col] == sel_adv].copy()
-                     if sel_adv != "All Advertisers" else df_all.copy())
-    else:
-        df_charts = df_all.copy()
 
     # ── Charts ────────────────────────────────────────────────────────────────
     st.subheader("Performance Charts")
@@ -1060,8 +1059,23 @@ else:
                     # Reverse-map display label back to column name
                     sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
 
+                    # Per-chart advertiser filter — independent from other charts
+                    if _adv_col:
+                        chart_adv_opts = ["All Advertisers"] + sorted(
+                            df_all[_adv_col].dropna().unique().tolist()
+                        )
+                        sel_chart_adv = st.selectbox(
+                            "Filter by Advertiser",
+                            options=chart_adv_opts,
+                            key=f"chart_adv_{title.replace(' ', '_')}",
+                        )
+                        df_chart_base = (df_all[df_all[_adv_col] == sel_chart_adv].copy()
+                                         if sel_chart_adv != "All Advertisers" else df_all.copy())
+                    else:
+                        df_chart_base = df_all.copy()
+
                     # Dimension filter — multiselect to narrow to specific values in this chart
-                    dim_unique = sorted(df_charts[dim_col].dropna().astype(str).unique().tolist())
+                    dim_unique = sorted(df_chart_base[dim_col].dropna().astype(str).unique().tolist())
                     sel_dims = st.multiselect(
                         f"Filter {title.split(' by ')[-1]}s",
                         options=dim_unique,
@@ -1070,10 +1084,9 @@ else:
                         placeholder="All (no filter applied)",
                         label_visibility="collapsed",
                     )
-                    # Use filtered slice if values selected, otherwise use global advertiser-filtered df
                     df_chart_filtered = (
-                        df_charts[df_charts[dim_col].astype(str).isin(sel_dims)]
-                        if sel_dims else df_charts
+                        df_chart_base[df_chart_base[dim_col].astype(str).isin(sel_dims)]
+                        if sel_dims else df_chart_base
                     )
 
                     st.markdown(f"**{title}** — {sel_label}")
