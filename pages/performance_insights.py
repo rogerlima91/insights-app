@@ -1076,7 +1076,8 @@ else:
                         fig.update_yaxes(tickformat=",")
 
                     apply_chart_style(fig, yaxis_title=sel_label)
-                    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+                    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False},
+                                    key=f"chart_{title.replace(' ', '_')}_{sel_col}")
 
     # ── Daily Clicks vs Impressions chart ─────────────────────────────────────
     # Only shown when the data contains date, clicks, and impressions columns.
@@ -1143,7 +1144,8 @@ else:
         )
         fig_daily.update_xaxes(gridcolor="#F3F4F6")
 
-        st.plotly_chart(fig_daily, use_container_width=True, config={"displaylogo": False})
+        st.plotly_chart(fig_daily, use_container_width=True, config={"displaylogo": False},
+                        key="chart_daily_clicks_impressions")
 
     # ── AI Insights ───────────────────────────────────────────────────────────
     # Detect the best grouping column — works with any DSP export structure
