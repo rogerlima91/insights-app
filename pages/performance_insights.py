@@ -127,14 +127,19 @@ st.markdown("""
 # Maps the many different column names DSPs use → our standard internal names.
 # Add more aliases here as you encounter new DSP export formats.
 COLUMN_MAP = {
-    # Campaign / Brand (high-level grouping)
-    "campaign":                    "campaign",
-    "campaign name":               "campaign",
-    "campaign_name":               "campaign",
-    "insertion order":             "campaign",
+    # Advertiser / Brand — top-level grouping (used by "Spend by Advertiser" chart
+    # and the global advertiser filter). Maps to internal name "campaign".
     "advertiser":                  "campaign",
-    "brand name":                  "campaign",
+    "partner":                     "campaign",   # TTD top-level dimension
     "brand":                       "campaign",
+    "insertion order":             "campaign",   # DV360 IO used as top-level when no Advertiser column
+
+    # Campaign — one level below Advertiser (used by "Spend by Campaign" chart).
+    # Kept separate so it doesn't collide with the Advertiser column above.
+    "campaign":                    "campaign_dim",
+    "campaign name":               "campaign_dim",
+    "campaign_name":               "campaign_dim",
+    "brand name":                  "campaign_dim",
 
     # Line item (more granular — used for the top-10 line items chart)
     "line item":                   "line_item",
@@ -283,9 +288,9 @@ def detect_grouping_column(df):
     """
     # Priority list: (normalised column name after COLUMN_MAP, display label)
     priority = [
-        ("campaign",  "Brand"),
-        ("partner",   "Partner"),
-        ("line_item", "Creative"),
+        ("campaign",     "Brand"),
+        ("campaign_dim", "Campaign"),
+        ("line_item",    "Creative"),
     ]
     for col, label in priority:
         if col in df.columns:
@@ -884,15 +889,19 @@ else:
         camp_summary = pd.DataFrame()
 
     # ── Global advertiser filter ──────────────────────────────────────────────
-    # Narrows all charts to a single advertiser. "All" shows every advertiser.
-    if "campaign" in df_all.columns:
-        adv_options = ["All"] + sorted(df_all["campaign"].dropna().unique().tolist())
+    # Narrows all 6 charts to a single advertiser. Falls back to campaign_dim
+    # if the data has no dedicated advertiser/brand column.
+    _adv_col = "campaign" if "campaign" in df_all.columns else (
+               "campaign_dim" if "campaign_dim" in df_all.columns else None)
+    if _adv_col:
+        adv_options = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
         sel_adv = st.selectbox(
             "Filter by Advertiser",
             options=adv_options,
             key="global_adv_filter",
         )
-        df_charts = df_all[df_all["campaign"] == sel_adv].copy() if sel_adv != "All" else df_all.copy()
+        df_charts = (df_all[df_all[_adv_col] == sel_adv].copy()
+                     if sel_adv != "All Advertisers" else df_all.copy())
     else:
         df_charts = df_all.copy()
 
@@ -959,7 +968,7 @@ else:
     # None = auto-scan df_all for a matching column name.
     CHART_CONFIGS = [
         {"title": "Spend by Advertiser",      "dim_col": "campaign"},
-        {"title": "Spend by Campaign",         "dim_col": "campaign"},
+        {"title": "Spend by Campaign",         "dim_col": "campaign_dim"},
         {"title": "Spend by Ad Group",         "dim_col": "line_item"},
         {"title": "Spend by Creative",         "dim_col": "line_item"},
         {"title": "Spend by Device Type",      "dim_col": "device_type"},
