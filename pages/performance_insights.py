@@ -788,6 +788,13 @@ Only include brands from the data. Cite actual numbers. No extra text.""",
     out.seek(0)
     return out
 
+# ── File uploader ─────────────────────────────────────────────────────────────
+uploaded_files = st.file_uploader(
+    "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
+    type=["csv", "tsv", "xlsx", "xls"],
+    accept_multiple_files=True,
+)
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.markdown(
     "<div style='padding:8px 0 14px 0;'>"
@@ -806,13 +813,6 @@ st.markdown(
     "Upload CSV exports from DV360, TTD or any DSP to generate insights and reports."
     "</p>",
     unsafe_allow_html=True,
-)
-
-# ── File uploader ─────────────────────────────────────────────────────────────
-uploaded_files = st.file_uploader(
-    "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
-    type=["csv", "tsv", "xlsx", "xls"],
-    accept_multiple_files=True,
 )
 
 # ── Process files ─────────────────────────────────────────────────────────────
