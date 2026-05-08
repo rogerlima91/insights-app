@@ -943,172 +943,140 @@ else:
         )
         return fig
 
-    # ── Row 1: Spend by Brand | CPM by Brand ──────────────────────────────────
-    r1_left, r1_right = st.columns(2)
+    # ── 6 dimension chart configs ──────────────────────────────────────────────
+    # dim_col is the normalised column name to group by.
+    # None = auto-scan df_all for a matching column name.
+    CHART_CONFIGS = [
+        {"title": "Spend by Advertiser",      "dim_col": "campaign"},
+        {"title": "Spend by Campaign",         "dim_col": "campaign"},
+        {"title": "Spend by Ad Group",         "dim_col": "line_item"},
+        {"title": "Spend by Creative",         "dim_col": "line_item"},
+        {"title": "Spend by Device Type",      "dim_col": "device_type"},
+        {"title": "Spend by Audience Segment", "dim_col": None},
+    ]
 
-    # Chart 1 — Total Spend by Brand
-    with r1_left:
-        st.markdown("**Total Spend by Brand**")
-        if "spend_usd" in df_all.columns and "campaign" in df_all.columns:
-            c1 = (df_all.groupby("campaign")["spend_usd"]
-                  .sum().reset_index()
-                  .sort_values("spend_usd", ascending=False))
-            colors1 = [PALETTE[i % len(PALETTE)] for i in range(len(c1))]
+    # Auto-detect audience / segment column for chart 6
+    for _cfg in CHART_CONFIGS:
+        if _cfg["dim_col"] is None:
+            for _col in df_all.columns:
+                if any(kw in _col.lower() for kw in ("audience", "segment")):
+                    _cfg["dim_col"] = _col
+                    break
 
-            # Human-readable label for each bar and tooltip
-            spend_labels = [
-                f"${v/1e6:.2f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
-                for v in c1["spend_usd"]
-            ]
-            fig = go.Figure(go.Bar(
-                x=c1["campaign"],
-                y=c1["spend_usd"],
-                marker_color=colors1,
-                text=spend_labels,
-                textposition="outside",
-                textfont=dict(size=10, color="#374151"),
-                customdata=spend_labels,
-                hovertemplate="<b>%{x}</b><br>Spend: %{customdata}<extra></extra>",
-            ))
-            fig.update_layout(
-                bargap=0.45,
-                yaxis_range=[0, c1["spend_usd"].max() * 1.28],
-            )
-            # Y-axis: SI prefix ticks ($300k, $1.2M)
-            fig.update_yaxes(tickprefix="$", tickformat=".2s")
-            apply_chart_style(fig, yaxis_title="Total Spend (USD)")
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+    # Build the set of available numeric metrics from whatever columns exist
+    METRIC_LABELS = {
+        "spend_usd":   "Spend",
+        "impressions": "Impressions",
+        "clicks":      "Clicks",
+        "conversions": "Conversions",
+        "cpm":         "CPM",
+        "ctr":         "CTR",
+    }
+    avail_metrics = {k: v for k, v in METRIC_LABELS.items() if k in df_all.columns}
+    # Include any extra numeric columns from the raw file that weren't in METRIC_LABELS
+    for _col in df_all.select_dtypes(include="number").columns:
+        if _col not in avail_metrics and _col not in ("source_file",):
+            avail_metrics[_col] = _col.replace("_", " ").title()
+
+    def fmt_val(v, col):
+        """Format a metric value for chart data labels."""
+        if col in ("spend_usd", "cpm"):
+            if v >= 1_000_000:
+                return f"${v/1e6:.2f}M"
+            elif v >= 1_000:
+                return f"${v/1e3:.0f}K"
+            return f"${v:.2f}"
+        elif col == "ctr":
+            return f"{v:.2%}"
+        return f"{v:,.0f}"
+
+    def get_agg(df, dim_col, metric_col):
+        """
+        Aggregate df by dim_col for the chosen metric.
+        CPM and CTR are recalculated from raw totals — never summed or
+        averaged directly, which would give wrong results for rate metrics.
+        """
+        if metric_col == "cpm" and "spend_usd" in df.columns and "impressions" in df.columns:
+            grp = (df.groupby(dim_col)
+                     .agg(spend_usd=("spend_usd", "sum"),
+                          impressions=("impressions", "sum"))
+                     .reset_index())
+            grp["cpm"] = grp["spend_usd"] / grp["impressions"].clip(lower=1) * 1000
+            return grp[[dim_col, "cpm"]]
+        elif metric_col == "ctr" and "clicks" in df.columns and "impressions" in df.columns:
+            grp = (df.groupby(dim_col)
+                     .agg(clicks=("clicks", "sum"),
+                          impressions=("impressions", "sum"))
+                     .reset_index())
+            grp["ctr"] = grp["clicks"] / grp["impressions"].clip(lower=1)
+            return grp[[dim_col, "ctr"]]
         else:
-            no_data_msg("No campaign or spend column found.")
+            return df.groupby(dim_col)[metric_col].sum().reset_index()
 
-    # Chart 2 — CPM by Brand (recalculated from totals for accuracy)
-    with r1_right:
-        st.markdown("**CPM by Brand**")
-        if not camp_summary.empty and "cpm" in camp_summary.columns:
-            c2 = (camp_summary[["campaign", "cpm"]]
-                  .dropna()
-                  .sort_values("cpm", ascending=False))
-            colors2 = [PALETTE[i % len(PALETTE)] for i in range(len(c2))]
+    # Only render charts whose dimension column was detected in the data
+    visible_charts = [
+        cfg for cfg in CHART_CONFIGS
+        if cfg["dim_col"] and cfg["dim_col"] in df_all.columns
+    ]
 
-            cpm_labels = [f"${v:,.2f}" for v in c2["cpm"]]
-            fig = go.Figure(go.Bar(
-                x=c2["campaign"],
-                y=c2["cpm"],
-                marker_color=colors2,
-                text=cpm_labels,
-                textposition="outside",
-                textfont=dict(size=10, color="#374151"),
-                customdata=cpm_labels,
-                hovertemplate="<b>%{x}</b><br>CPM: %{customdata}<extra></extra>",
-            ))
-            fig.update_layout(
-                bargap=0.45,
-                yaxis_range=[0, c2["cpm"].max() * 1.28],
-            )
-            fig.update_yaxes(tickprefix="$", tickformat=",.2f")
-            apply_chart_style(fig, yaxis_title="CPM (USD)")
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
-        else:
-            no_data_msg("Spend and impressions data needed to calculate CPM.")
+    if not visible_charts or not avail_metrics:
+        no_data_msg("No chartable dimensions or metrics found in the uploaded data.")
+    else:
+        # Render in a 2-column grid
+        for _i in range(0, len(visible_charts), 2):
+            _row_cols = st.columns(2)
+            for _j, cfg in enumerate(visible_charts[_i:_i+2]):
+                with _row_cols[_j]:
+                    dim_col = cfg["dim_col"]
+                    title   = cfg["title"]
 
-    # ── Row 2: Best / Worst line items by CPM ─────────────────────────────────
-    # Brand filter options — "All Brands" + each individual brand
-    _li_brands = ["All Brands"] + (
-        camp_summary["campaign"].tolist() if not camp_summary.empty else []
-    )
-    # Column to group by — prefer line_item, fall back to campaign
-    li_col = "line_item" if "line_item" in df_all.columns else "campaign"
+                    # Metric selector dropdown above each chart
+                    sel_label = st.selectbox(
+                        "Metric",
+                        options=list(avail_metrics.values()),
+                        key=f"chart_metric_{title.replace(' ', '_')}",
+                        label_visibility="collapsed",
+                    )
+                    # Reverse-map display label back to column name
+                    sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
 
-    r2_left, r2_right = st.columns(2)
+                    st.markdown(f"**{title}** — {sel_label}")
 
-    # Chart 3 — Best performing line items by CPM (lowest CPM = most cost-efficient)
-    with r2_left:
-        st.markdown("**Best Performing Line Items by CPM**")
-        li_brand_best = st.selectbox(
-            "Filter by brand", _li_brands, key="li_best_brand",
-        )
-        if "spend_usd" in df_all.columns and "impressions" in df_all.columns:
-            df_li = df_all.copy()
-            # Apply brand filter if one is selected
-            if li_brand_best != "All Brands" and "campaign" in df_li.columns:
-                df_li = df_li[df_li["campaign"] == li_brand_best]
-            agg_li = (df_li.groupby(li_col)
-                      .agg(spend_usd=("spend_usd", "sum"),
-                           impressions=("impressions", "sum"))
-                      .reset_index())
-            # Only keep rows with enough impressions to give a meaningful CPM
-            agg_li = agg_li[agg_li["impressions"] > 0].copy()
-            agg_li["cpm"] = agg_li["spend_usd"] / agg_li["impressions"] * 1000
-            # Best = lowest CPM; take 10, then reverse so best is at the top of the chart
-            top_best = (agg_li.sort_values("cpm", ascending=True)
-                        .head(10)
-                        .sort_values("cpm", ascending=False))
-            labels_best = [trunc(s) for s in top_best[li_col]]
+                    agg_df = (get_agg(df_all, dim_col, sel_col)
+                              .sort_values(sel_col, ascending=False)
+                              .head(15))
 
-            best_labels = [f"${v:,.2f}" for v in top_best["cpm"]]
-            fig = go.Figure(go.Bar(
-                x=top_best["cpm"],
-                y=labels_best,
-                orientation="h",
-                marker_color="#2563EB",
-                text=best_labels,
-                textposition="outside",
-                textfont=dict(size=10, color="#374151"),
-                customdata=best_labels,
-                hovertemplate="<b>%{y}</b><br>CPM: %{customdata}<extra></extra>",
-            ))
-            fig.update_layout(
-                bargap=0.3,
-                xaxis_range=[0, top_best["cpm"].max() * 1.35],
-            )
-            fig.update_xaxes(tickprefix="$", tickformat=",.2f")
-            apply_chart_style(fig, xaxis_title="CPM (USD)", horizontal=True)
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
-        else:
-            no_data_msg("Spend and impressions data needed to calculate CPM.")
+                    if agg_df.empty or agg_df[sel_col].sum() == 0:
+                        no_data_msg(f"No {sel_label} data for this dimension.")
+                        continue
 
-    # Chart 4 — Worst performing line items by CPM (highest CPM = least efficient)
-    with r2_right:
-        st.markdown("**Worst Performing Line Items by CPM**")
-        li_brand_worst = st.selectbox(
-            "Filter by brand", _li_brands, key="li_worst_brand",
-        )
-        if "spend_usd" in df_all.columns and "impressions" in df_all.columns:
-            df_li2 = df_all.copy()
-            # Apply brand filter if one is selected
-            if li_brand_worst != "All Brands" and "campaign" in df_li2.columns:
-                df_li2 = df_li2[df_li2["campaign"] == li_brand_worst]
-            agg_li2 = (df_li2.groupby(li_col)
-                       .agg(spend_usd=("spend_usd", "sum"),
-                            impressions=("impressions", "sum"))
-                       .reset_index())
-            agg_li2 = agg_li2[agg_li2["impressions"] > 0].copy()
-            agg_li2["cpm"] = agg_li2["spend_usd"] / agg_li2["impressions"] * 1000
-            # Worst = highest CPM; keep descending so worst sits at the top of the chart
-            top_worst = agg_li2.sort_values("cpm", ascending=False).head(10)
-            labels_worst = [trunc(s) for s in top_worst[li_col]]
+                    bar_labels = [fmt_val(v, sel_col) for v in agg_df[sel_col]]
+                    colors     = [PALETTE[k % len(PALETTE)] for k in range(len(agg_df))]
 
-            worst_labels = [f"${v:,.2f}" for v in top_worst["cpm"]]
-            fig = go.Figure(go.Bar(
-                x=top_worst["cpm"],
-                y=labels_worst,
-                orientation="h",
-                marker_color="#60A5FA",
-                text=worst_labels,
-                textposition="outside",
-                textfont=dict(size=10, color="#374151"),
-                customdata=worst_labels,
-                hovertemplate="<b>%{y}</b><br>CPM: %{customdata}<extra></extra>",
-            ))
-            fig.update_layout(
-                bargap=0.3,
-                xaxis_range=[0, top_worst["cpm"].max() * 1.35],
-            )
-            fig.update_xaxes(tickprefix="$", tickformat=",.2f")
-            apply_chart_style(fig, xaxis_title="CPM (USD)", horizontal=True)
-            st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
-        else:
-            no_data_msg("Spend and impressions data needed to calculate CPM.")
+                    fig = go.Figure(go.Bar(
+                        x=agg_df[dim_col].apply(lambda s: trunc(str(s))),
+                        y=agg_df[sel_col],
+                        marker_color=colors,
+                        text=bar_labels,
+                        textposition="outside",
+                        textfont=dict(size=10, color="#374151"),
+                        hovertemplate=f"<b>%{{x}}</b><br>{sel_label}: %{{text}}<extra></extra>",
+                    ))
+
+                    max_v = agg_df[sel_col].max()
+                    fig.update_layout(
+                        bargap=0.45,
+                        yaxis_range=[0, max_v * 1.3] if max_v > 0 else [0, 1],
+                    )
+                    if sel_col in ("spend_usd", "cpm"):
+                        fig.update_yaxes(tickprefix="$", tickformat=",.0f")
+                    elif sel_col == "ctr":
+                        fig.update_yaxes(tickformat=".1%")
+                    else:
+                        fig.update_yaxes(tickformat=",")
+
+                    apply_chart_style(fig, yaxis_title=sel_label)
+                    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
 
     # ── Daily Clicks vs Impressions chart ─────────────────────────────────────
     # Only shown when the data contains date, clicks, and impressions columns.
