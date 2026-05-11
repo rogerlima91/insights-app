@@ -1,7 +1,9 @@
 import io
+import json
 import os
 import re
 from datetime import date, datetime
+import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 import anthropic
@@ -111,6 +113,215 @@ VIDEO_BENCHMARKS = {
     "Other":             {"vtr": 72, "cpv": 0.04, "cpm": 18.00},
 }
 
+# ── Benchmark file path ───────────────────────────────────────────────────────
+# Stored one level up from pages/ so it lives in the project root.
+BENCHMARKS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "benchmarks.json"
+)
+
+# ── Keyword → vertical mapping ────────────────────────────────────────────────
+# Matched case-insensitively against the Advertiser column of uploaded files.
+VERTICAL_KEYWORDS = {
+    "Alcohol & Spirits": ["heineken", "grey goose", "smirnoff", "bacardi"],
+    "Technology":        ["samsung", "apple", "sony", "microsoft"],
+    "Retail":            ["kmart", "target", "woolworths", "coles"],
+    "Automotive":        ["toyota", "bmw", "ford", "hyundai"],
+    "Entertainment":     ["netflix", "disney", "spotify"],
+    "Finance":           ["anz", "westpac", "commbank", "nab"],
+    "Travel":            ["qantas", "airbnb", "booking.com"],
+}
+
+# ── Minimal column normaliser for benchmark files ─────────────────────────────
+# Maps common DSP column names to the internal names this module expects.
+_COL_MAP = {
+    # Advertiser / brand
+    "advertiser": "advertiser", "partner": "advertiser", "brand": "advertiser",
+    "brand name": "advertiser", "insertion order": "advertiser",
+    # Impressions
+    "impressions": "impressions", "impression": "impressions",
+    "served impressions": "impressions", "total impressions": "impressions",
+    # Clicks
+    "clicks": "clicks", "click": "clicks", "total clicks": "clicks",
+    # Spend
+    "spend": "spend", "spend (usd)": "spend", "total spend": "spend",
+    "media cost": "spend", "media cost (usd)": "spend",
+    "revenue (usd)": "spend", "cost": "spend", "billed spend": "spend",
+    # CTR
+    "ctr": "ctr", "click-through rate": "ctr",
+    # CPM
+    "cpm": "cpm", "avg. cpm": "cpm", "average cpm": "cpm",
+    # VTR / video completion
+    "vtr": "vtr", "view-through rate": "vtr",
+    "video completion rate": "vtr", "vcr": "vtr",
+    # CPV
+    "cpv": "cpv", "cost per view": "cpv",
+    # Format / environment
+    "format": "format", "ad format": "format",
+    "environment": "format", "environment type": "format",
+    "inventory type": "format",
+    # Device
+    "device type": "device", "device": "device",
+    "device_type": "device", "device category": "device",
+}
+
+
+def detect_vertical(advertiser_name):
+    """Map an advertiser name to a vertical using keyword matching."""
+    name_lower = str(advertiser_name).lower()
+    for vertical, keywords in VERTICAL_KEYWORDS.items():
+        if any(kw in name_lower for kw in keywords):
+            return vertical
+    return "Other"
+
+
+def _read_upload(uploaded_file):
+    """Read a CSV or Excel upload and return a raw DataFrame."""
+    name = uploaded_file.name.lower()
+    if name.endswith((".xlsx", ".xls")):
+        return pd.read_excel(uploaded_file)
+    return pd.read_csv(uploaded_file)
+
+
+def _normalise_bm_df(df):
+    """
+    Normalise column names to internal standards and clean numeric columns.
+    Returns the normalised DataFrame.
+    """
+    # Lower-case + strip, then remap via _COL_MAP
+    df.columns = [c.strip().lower() for c in df.columns]
+    df = df.rename(columns={k: v for k, v in _COL_MAP.items() if k in df.columns})
+    # Drop duplicate columns that arose from multiple source names mapping to one target
+    df = df.loc[:, ~df.columns.duplicated(keep="first")]
+
+    # Strip $, commas from numeric columns and coerce to float
+    for col in ["impressions", "clicks", "spend", "ctr", "cpm", "vtr", "cpv"]:
+        if col in df.columns:
+            df[col] = (
+                df[col].astype(str)
+                .str.replace(r"[$,%,]", "", regex=True)
+                .str.strip()
+            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Recalculate CPM and CTR from raw totals if not already present
+    if "cpm" not in df.columns and "spend" in df.columns and "impressions" in df.columns:
+        df["cpm"] = df["spend"] / df["impressions"].clip(lower=1) * 1000
+    if "ctr" not in df.columns and "clicks" in df.columns and "impressions" in df.columns:
+        df["ctr"] = df["clicks"] / df["impressions"].clip(lower=1) * 100
+
+    return df
+
+
+def _is_video_row(row, has_format, has_vtr, has_cpv):
+    """Return True if this row looks like a video placement."""
+    if has_format:
+        fmt_val = str(row.get("format", "")).lower()
+        if any(kw in fmt_val for kw in ("video", "youtube", "pre-roll", "instream")):
+            return True
+    if has_vtr and pd.notna(row.get("vtr")) and row.get("vtr", 0) > 0:
+        return True
+    if has_cpv and pd.notna(row.get("cpv")) and row.get("cpv", 0) > 0:
+        return True
+    return False
+
+
+def calculate_benchmarks(df):
+    """
+    Derive per-vertical Display and Video benchmarks from a normalised DataFrame.
+    Returns a dict ready to be written to benchmarks.json.
+    """
+    # Tag each row with a vertical based on the advertiser name
+    adv_col = "advertiser" if "advertiser" in df.columns else None
+    df = df.copy()
+    df["vertical"] = (
+        df[adv_col].apply(detect_vertical) if adv_col else "Other"
+    )
+
+    # Tag each row as video or display
+    has_format = "format" in df.columns
+    has_vtr    = "vtr"    in df.columns
+    has_cpv    = "cpv"    in df.columns
+    df["is_video"] = df.apply(
+        lambda r: _is_video_row(r, has_format, has_vtr, has_cpv), axis=1
+    )
+
+    results = {"display": {}, "video": {}}
+
+    for vert in df["vertical"].unique():
+        v_df = df[df["vertical"] == vert]
+
+        # ── Display rows ──────────────────────────────────────────────────────
+        disp = v_df[~v_df["is_video"]]
+        if not disp.empty and "cpm" in disp.columns and disp["cpm"].notna().any():
+            bm = {"campaign_count": len(disp)}
+            # CPM — recalculate from totals when possible, else use column mean
+            if "spend" in disp.columns and "impressions" in disp.columns:
+                ts = disp["spend"].sum()
+                ti = disp["impressions"].sum()
+                bm["cpm"] = round(ts / ti * 1000, 2) if ti > 0 else round(disp["cpm"].mean(), 2)
+            else:
+                bm["cpm"] = round(disp["cpm"].mean(), 2)
+
+            # CTR (percentage, e.g. 0.25 means 0.25%)
+            if "clicks" in disp.columns and "impressions" in disp.columns:
+                tc = disp["clicks"].sum()
+                ti = disp["impressions"].sum()
+                bm["ctr"] = round(tc / ti * 100, 3) if ti > 0 else None
+            elif "ctr" in disp.columns:
+                bm["ctr"] = round(disp["ctr"].mean(), 3)
+
+            # CPC
+            if "spend" in disp.columns and "clicks" in disp.columns:
+                ts = disp["spend"].sum()
+                tc = disp["clicks"].sum()
+                bm["cpc"] = round(ts / tc, 2) if tc > 0 else None
+
+            results["display"][vert] = bm
+
+        # ── Video rows ────────────────────────────────────────────────────────
+        vid = v_df[v_df["is_video"]]
+        if not vid.empty and "cpm" in vid.columns and vid["cpm"].notna().any():
+            bm = {"campaign_count": len(vid)}
+            if "spend" in vid.columns and "impressions" in vid.columns:
+                ts = vid["spend"].sum()
+                ti = vid["impressions"].sum()
+                bm["cpm"] = round(ts / ti * 1000, 2) if ti > 0 else round(vid["cpm"].mean(), 2)
+            else:
+                bm["cpm"] = round(vid["cpm"].mean(), 2)
+
+            if has_vtr and vid["vtr"].notna().any():
+                bm["vtr"] = round(vid["vtr"].mean(), 1)
+            if has_cpv and vid["cpv"].notna().any():
+                bm["cpv"] = round(vid["cpv"].mean(), 3)
+            elif "spend" in vid.columns and "clicks" in vid.columns:
+                ts = vid["spend"].sum()
+                tc = vid["clicks"].sum()
+                bm["cpv"] = round(ts / tc, 3) if tc > 0 else None
+
+            results["video"][vert] = bm
+
+    return results
+
+
+def load_benchmarks():
+    """
+    Load custom benchmarks from benchmarks.json.
+    Returns the parsed dict, or None if the file does not exist.
+    """
+    path = os.path.normpath(BENCHMARKS_PATH)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return None
+
+
+def save_benchmarks(data):
+    """Write the benchmarks dict to benchmarks.json."""
+    path = os.path.normpath(BENCHMARKS_PATH)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
 # ── Helper: render AI text as styled HTML ─────────────────────────────────────
 # Matches the insight display style used in performance_insights.py.
 def _insight_html(text):
@@ -160,6 +371,65 @@ st.markdown(
     "</p>",
     unsafe_allow_html=True,
 )
+
+# ── Benchmark Data section ────────────────────────────────────────────────────
+st.subheader("Benchmark Data")
+
+bm_upload = st.file_uploader(
+    "Upload historical DSP reports to calibrate benchmarks",
+    type=["csv", "xlsx", "xls"],
+    accept_multiple_files=True,
+    help="Accepts TTD and DV360 exports. Multiple files accepted.",
+)
+st.caption("Accepts TTD and DV360 exports. Multiple files accepted.")
+
+# Process uploaded files and write benchmarks.json
+if bm_upload:
+    with st.spinner("Processing uploaded reports…"):
+        frames = []
+        for f in bm_upload:
+            try:
+                raw = _read_upload(f)
+                frames.append(_normalise_bm_df(raw))
+            except Exception as e:
+                st.warning(f"Could not read {f.name}: {e}")
+
+        if frames:
+            combined    = pd.concat(frames, ignore_index=True)
+            total_rows  = len(combined)
+            adv_col     = "advertiser" if "advertiser" in combined.columns else None
+            adv_count   = combined[adv_col].nunique() if adv_col else 0
+
+            derived = calculate_benchmarks(combined)
+            derived["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            derived["row_count"]    = total_rows
+            derived["adv_count"]    = adv_count
+            save_benchmarks(derived)
+
+            st.success(
+                f"✅ Benchmarks updated from {total_rows:,} rows "
+                f"across {adv_count} advertisers."
+            )
+
+# Benchmark status indicator
+_loaded_bm = load_benchmarks()
+if _loaded_bm:
+    _bm_date = _loaded_bm.get("last_updated", "unknown date")
+    st.markdown(
+        f"<div style='background:#F0FDF4;border-left:4px solid #22C55E;"
+        f"border-radius:6px;padding:10px 14px;font-size:13px;color:#166534;"
+        f"margin-top:4px;'>"
+        f"✅ Using historical benchmarks — last updated {_bm_date}</div>",
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        "<div style='background:#FFFBEB;border-left:4px solid #F59E0B;"
+        "border-radius:6px;padding:10px 14px;font-size:13px;color:#92400E;"
+        "margin-top:4px;'>"
+        "⚠️ Using industry defaults — upload historical data for more accurate results</div>",
+        unsafe_allow_html=True,
+    )
 
 # ── Section 1: Seller inputs form ─────────────────────────────────────────────
 st.subheader("Campaign Brief")
@@ -236,23 +506,38 @@ if "fc_inputs" in st.session_state:
     fmt          = inp["fmt"]
 
     # ── Section 2: Benchmark engine ───────────────────────────────────────────
-    # Use hardcoded industry benchmarks (no live data stored in session state).
-    # For Video and YouTube formats, use video benchmarks.
-    # For Mixed, use display benchmarks as the base.
-    is_video = fmt in ("Video", "YouTube")
+    # Prefer benchmarks calculated from uploaded historical data (benchmarks.json).
+    # Fall back to hardcoded industry defaults when no file is present.
+    is_video    = fmt in ("Video", "YouTube")
+    _custom_bm  = load_benchmarks()          # None if benchmarks.json doesn't exist
 
     if is_video:
-        bm = VIDEO_BENCHMARKS.get(vertical, VIDEO_BENCHMARKS["Other"])
-        cpm = bm["cpm"]
-        vtr = bm["vtr"]       # percentage, e.g. 72 means 72%
-        cpv = bm["cpv"]
+        # Try custom benchmarks first, then fall back to hardcoded
+        _custom_vid = (_custom_bm or {}).get("video", {})
+        _src = _custom_vid.get(vertical) or _custom_vid.get("Other") or None
+        if _src:
+            cpm = _src.get("cpm", VIDEO_BENCHMARKS[vertical]["cpm"])
+            vtr = _src.get("vtr", VIDEO_BENCHMARKS[vertical]["vtr"])
+            cpv = _src.get("cpv", VIDEO_BENCHMARKS[vertical]["cpv"])
+        else:
+            bm  = VIDEO_BENCHMARKS.get(vertical, VIDEO_BENCHMARKS["Other"])
+            cpm = bm["cpm"]
+            vtr = bm["vtr"]
+            cpv = bm["cpv"]
         ctr = None
         cpc = None
     else:
-        bm  = DISPLAY_BENCHMARKS.get(vertical, DISPLAY_BENCHMARKS["Other"])
-        cpm = bm["cpm"]
-        ctr = bm["ctr"]       # percentage, e.g. 0.25 means 0.25%
-        cpc = bm["cpc"]
+        _custom_dis = (_custom_bm or {}).get("display", {})
+        _src = _custom_dis.get(vertical) or _custom_dis.get("Other") or None
+        if _src:
+            cpm = _src.get("cpm", DISPLAY_BENCHMARKS[vertical]["cpm"])
+            ctr = _src.get("ctr", DISPLAY_BENCHMARKS[vertical]["ctr"])
+            cpc = _src.get("cpc", DISPLAY_BENCHMARKS[vertical]["cpc"])
+        else:
+            bm  = DISPLAY_BENCHMARKS.get(vertical, DISPLAY_BENCHMARKS["Other"])
+            cpm = bm["cpm"]
+            ctr = bm["ctr"]
+            cpc = bm["cpc"]
         vtr = None
         cpv = None
 
