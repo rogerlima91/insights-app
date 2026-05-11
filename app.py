@@ -13,7 +13,8 @@ pg = st.navigation({
         st.Page("pages/brand_settings.py",       title="↳ Brand Settings"),
     ],
     "Operations": [
-        st.Page("pages/live_campaigns.py", title="Live Campaigns"),
+        st.Page("pages/live_campaigns.py",    title="Live Campaigns"),
+        st.Page("pages/forecasting_tool.py",  title="Feasibility Checker"),
     ],
 })
 pg.run()
