@@ -403,64 +403,64 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Benchmark Data section ────────────────────────────────────────────────────
-st.subheader("Benchmark Data")
+# ── Benchmark Data (collapsed by default) ─────────────────────────────────────
+with st.expander("⚙️ Benchmark Data", expanded=False):
 
-bm_upload = st.file_uploader(
-    "Upload historical DSP reports to calibrate benchmarks",
-    type=["csv", "xlsx", "xls"],
-    accept_multiple_files=True,
-    help="Accepts TTD and DV360 exports. Multiple files accepted.",
-)
-st.caption("Accepts TTD and DV360 exports. Multiple files accepted.")
-
-# Process uploaded files and write benchmarks.json
-if bm_upload:
-    with st.spinner("Processing uploaded reports…"):
-        frames = []
-        for f in bm_upload:
-            try:
-                raw = _read_upload(f)
-                frames.append(_normalise_bm_df(raw))
-            except Exception as e:
-                st.warning(f"Could not read {f.name}: {e}")
-
-        if frames:
-            combined    = pd.concat(frames, ignore_index=True)
-            total_rows  = len(combined)
-            adv_col     = "advertiser" if "advertiser" in combined.columns else None
-            adv_count   = combined[adv_col].nunique() if adv_col else 0
-
-            derived = calculate_benchmarks(combined)
-            derived["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-            derived["row_count"]    = total_rows
-            derived["adv_count"]    = adv_count
-            save_benchmarks(derived)
-
-            st.success(
-                f"✅ Benchmarks updated from {total_rows:,} rows "
-                f"across {adv_count} advertisers."
-            )
-
-# Benchmark status indicator
-_loaded_bm = load_benchmarks()
-if _loaded_bm:
-    _bm_date = _loaded_bm.get("last_updated", "unknown date")
-    st.markdown(
-        f"<div style='background:#F0FDF4;border-left:4px solid #22C55E;"
-        f"border-radius:6px;padding:10px 14px;font-size:13px;color:#166534;"
-        f"margin-top:4px;'>"
-        f"✅ Using historical benchmarks — last updated {_bm_date}</div>",
-        unsafe_allow_html=True,
+    bm_upload = st.file_uploader(
+        "Upload historical DSP reports to calibrate benchmarks",
+        type=["csv", "xlsx", "xls"],
+        accept_multiple_files=True,
+        help="Accepts TTD and DV360 exports. Multiple files accepted.",
     )
-else:
-    st.markdown(
-        "<div style='background:#FFFBEB;border-left:4px solid #F59E0B;"
-        "border-radius:6px;padding:10px 14px;font-size:13px;color:#92400E;"
-        "margin-top:4px;'>"
-        "⚠️ Using industry defaults — upload historical data for more accurate results</div>",
-        unsafe_allow_html=True,
-    )
+    st.caption("Accepts TTD and DV360 exports. Multiple files accepted.")
+
+    # Process uploaded files and write benchmarks.json
+    if bm_upload:
+        with st.spinner("Processing uploaded reports…"):
+            frames = []
+            for f in bm_upload:
+                try:
+                    raw = _read_upload(f)
+                    frames.append(_normalise_bm_df(raw))
+                except Exception as e:
+                    st.warning(f"Could not read {f.name}: {e}")
+
+            if frames:
+                combined    = pd.concat(frames, ignore_index=True)
+                total_rows  = len(combined)
+                adv_col     = "advertiser" if "advertiser" in combined.columns else None
+                adv_count   = combined[adv_col].nunique() if adv_col else 0
+
+                derived = calculate_benchmarks(combined)
+                derived["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                derived["row_count"]    = total_rows
+                derived["adv_count"]    = adv_count
+                save_benchmarks(derived)
+
+                st.success(
+                    f"✅ Benchmarks updated from {total_rows:,} rows "
+                    f"across {adv_count} advertisers."
+                )
+
+    # Benchmark status indicator
+    _loaded_bm = load_benchmarks()
+    if _loaded_bm:
+        _bm_date = _loaded_bm.get("last_updated", "unknown date")
+        st.markdown(
+            f"<div style='background:#F0FDF4;border-left:4px solid #22C55E;"
+            f"border-radius:6px;padding:10px 14px;font-size:13px;color:#166534;"
+            f"margin-top:4px;'>"
+            f"✅ Using historical benchmarks — last updated {_bm_date}</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<div style='background:#FFFBEB;border-left:4px solid #F59E0B;"
+            "border-radius:6px;padding:10px 14px;font-size:13px;color:#92400E;"
+            "margin-top:4px;'>"
+            "⚠️ Using industry defaults — upload historical data for more accurate results</div>",
+            unsafe_allow_html=True,
+        )
 
 # ── Section 1: Seller inputs form ─────────────────────────────────────────────
 st.subheader("Campaign Brief")
@@ -1100,427 +1100,428 @@ if "fc_inputs" in st.session_state:
         mime="text/plain",
     )
 
-# ═════════════════════════════════════════════════════════════════════════════
-# FORECAST ACCURACY TRACKER
-# ═════════════════════════════════════════════════════════════════════════════
 st.markdown("---")
-st.subheader("Forecast Accuracy Tracker")
-st.markdown(
-    "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
-    "Compare forecasted delivery against actual post-campaign results to "
-    "measure and improve forecast precision."
-    "</p>",
-    unsafe_allow_html=True,
-)
+with st.expander("📊 Forecast Accuracy Tracker", expanded=False):
 
-# ── Section 1: Upload post-campaign report ────────────────────────────────────
-_actual_report = st.file_uploader(
-    "Upload post-campaign report to validate forecast",
-    type=["csv", "xlsx", "xls"],
-    key="accuracy_upload",
-)
-st.caption(
-    "Upload the actual delivery report after a campaign ends to compare "
-    "against your forecast."
-)
+    st.subheader("Forecast Accuracy Tracker")
+    st.markdown(
+        "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
+        "Compare forecasted delivery against actual post-campaign results to "
+        "measure and improve forecast precision."
+        "</p>",
+        unsafe_allow_html=True,
+    )
 
-_fc_log = load_forecasts_log()
 
-with st.form("accuracy_form"):
-    _acc_c1, _acc_c2 = st.columns(2)
-    with _acc_c1:
-        _acc_advertiser = st.text_input("Advertiser Name", key="acc_adv_input")
-    with _acc_c2:
-        _acc_campaign = st.text_input("Campaign Name", key="acc_camp_input")
+    # ── Section 1: Upload post-campaign report ────────────────────────────────────
+    _actual_report = st.file_uploader(
+        "Upload post-campaign report to validate forecast",
+        type=["csv", "xlsx", "xls"],
+        key="accuracy_upload",
+    )
+    st.caption(
+        "Upload the actual delivery report after a campaign ends to compare "
+        "against your forecast."
+    )
 
-    if _fc_log:
-        # Each option shows date | advertiser | target metric | feasibility score
-        _fc_labels = [
-            f"{fc.get('created_at','?')}  |  {fc.get('advertiser','?')}  |  "
-            f"{fc.get('target_metric','?')}  |  Score: {fc.get('feasibility_score','?')}"
-            for fc in _fc_log
-        ]
-        _sel_fc_idx = st.selectbox(
-            "Select a saved forecast to compare against",
-            options=range(len(_fc_labels)),
-            format_func=lambda i: _fc_labels[i],
-        )
-    else:
-        st.info("No saved forecasts yet. Run a feasibility check first.")
-        _sel_fc_idx = None
+    _fc_log = load_forecasts_log()
 
-    _compare_btn = st.form_submit_button("Compare Forecast vs Actual", type="primary")
+    with st.form("accuracy_form"):
+        _acc_c1, _acc_c2 = st.columns(2)
+        with _acc_c1:
+            _acc_advertiser = st.text_input("Advertiser Name", key="acc_adv_input")
+        with _acc_c2:
+            _acc_campaign = st.text_input("Campaign Name", key="acc_camp_input")
 
-# ── Run comparison ────────────────────────────────────────────────────────────
-if _compare_btn and _actual_report is not None and _sel_fc_idx is not None and _fc_log:
-    try:
-        _adf      = _normalise_bm_df(_read_upload(_actual_report))
-        _fc_entry = _fc_log[_sel_fc_idx]
-
-        # Sum actual totals from the uploaded delivery report
-        _act_imps   = float(_adf["impressions"].sum()) if "impressions" in _adf.columns else 0.0
-        _act_clicks = float(_adf["clicks"].sum())      if "clicks"      in _adf.columns else 0.0
-        _act_rev    = float(_adf["spend"].sum())        if "spend"       in _adf.columns else 0.0
-        # Video views: impressions × (VTR/100) per row when both columns exist
-        if "impressions" in _adf.columns and "vtr" in _adf.columns:
-            _act_views = float((_adf["impressions"] * _adf["vtr"] / 100).sum())
+        if _fc_log:
+            # Each option shows date | advertiser | target metric | feasibility score
+            _fc_labels = [
+                f"{fc.get('created_at','?')}  |  {fc.get('advertiser','?')}  |  "
+                f"{fc.get('target_metric','?')}  |  Score: {fc.get('feasibility_score','?')}"
+                for fc in _fc_log
+            ]
+            _sel_fc_idx = st.selectbox(
+                "Select a saved forecast to compare against",
+                options=range(len(_fc_labels)),
+                format_func=lambda i: _fc_labels[i],
+            )
         else:
-            _act_views = 0.0
+            st.info("No saved forecasts yet. Run a feasibility check first.")
+            _sel_fc_idx = None
 
-        # Forecasted values from the selected log entry
-        _fore_imps   = float(_fc_entry.get("estimated_impressions", 0))
-        _fore_clicks = float(_fc_entry.get("estimated_clicks",      0))
-        _fore_rev    = float(_fc_entry.get("estimated_revenue",     0))
-        _fore_views  = float(_fc_entry.get("estimated_views",       0))
+        _compare_btn = st.form_submit_button("Compare Forecast vs Actual", type="primary")
 
-        def _pct_accuracy(forecasted, actual):
-            """100 minus absolute percentage error, clamped 0–100. None if no forecast."""
-            if not forecasted:
-                return None
-            return max(0.0, round(100 - abs((actual - forecasted) / forecasted * 100), 1))
+    # ── Run comparison ────────────────────────────────────────────────────────────
+    if _compare_btn and _actual_report is not None and _sel_fc_idx is not None and _fc_log:
+        try:
+            _adf      = _normalise_bm_df(_read_upload(_actual_report))
+            _fc_entry = _fc_log[_sel_fc_idx]
 
-        _acc_imps   = _pct_accuracy(_fore_imps,   _act_imps)
-        _acc_clicks = _pct_accuracy(_fore_clicks, _act_clicks)
-        _acc_rev    = _pct_accuracy(_fore_rev,    _act_rev)
-        _acc_views  = _pct_accuracy(_fore_views,  _act_views) if _fore_views else None
+            # Sum actual totals from the uploaded delivery report
+            _act_imps   = float(_adf["impressions"].sum()) if "impressions" in _adf.columns else 0.0
+            _act_clicks = float(_adf["clicks"].sum())      if "clicks"      in _adf.columns else 0.0
+            _act_rev    = float(_adf["spend"].sum())        if "spend"       in _adf.columns else 0.0
+            # Video views: impressions × (VTR/100) per row when both columns exist
+            if "impressions" in _adf.columns and "vtr" in _adf.columns:
+                _act_views = float((_adf["impressions"] * _adf["vtr"] / 100).sum())
+            else:
+                _act_views = 0.0
 
-        _acc_values  = [v for v in [_acc_imps, _acc_clicks, _acc_rev, _acc_views]
-                        if v is not None]
-        _overall_acc = round(sum(_acc_values) / len(_acc_values), 1) if _acc_values else 0.0
+            # Forecasted values from the selected log entry
+            _fore_imps   = float(_fc_entry.get("estimated_impressions", 0))
+            _fore_clicks = float(_fc_entry.get("estimated_clicks",      0))
+            _fore_rev    = float(_fc_entry.get("estimated_revenue",     0))
+            _fore_views  = float(_fc_entry.get("estimated_views",       0))
 
-        st.session_state["fc_comparison"] = {
-            "forecast":    _fc_entry,
-            "act_imps":    _act_imps,    "act_clicks": _act_clicks,
-            "act_rev":     _act_rev,     "act_views":  _act_views,
-            "acc_imps":    _acc_imps,    "acc_clicks": _acc_clicks,
-            "acc_rev":     _acc_rev,     "acc_views":  _acc_views,
-            "overall_acc": _overall_acc,
-        }
+            def _pct_accuracy(forecasted, actual):
+                """100 minus absolute percentage error, clamped 0–100. None if no forecast."""
+                if not forecasted:
+                    return None
+                return max(0.0, round(100 - abs((actual - forecasted) / forecasted * 100), 1))
 
-        # Save to accuracy_log.json
-        append_accuracy({
-            "comparison_id":          str(uuid.uuid4()),
-            "forecast_id":            _fc_entry.get("forecast_id", ""),
-            "compared_at":            datetime.now().strftime("%Y-%m-%d"),
-            "advertiser":             _acc_advertiser or _fc_entry.get("advertiser", ""),
-            "campaign":               _acc_campaign,
-            "vertical":               _fc_entry.get("vertical", "Other"),
-            "format":                 _fc_entry.get("format", ""),
-            "forecasted_impressions": _fore_imps,
-            "actual_impressions":     _act_imps,
-            "impressions_accuracy":   _acc_imps,
-            "forecasted_clicks":      _fore_clicks,
-            "actual_clicks":          _act_clicks,
-            "clicks_accuracy":        _acc_clicks,
-            "forecasted_revenue":     _fore_rev,
-            "actual_revenue":         _act_rev,
-            "revenue_accuracy":       _acc_rev,
-            "forecasted_views":       _fore_views,
-            "actual_views":           _act_views,
-            "views_accuracy":         _acc_views,
-            "overall_accuracy":       _overall_acc,
-            "benchmarks_source":      _fc_entry.get("benchmarks_source", "Industry defaults"),
-        })
-        st.success("✅ Comparison saved to accuracy log.")
+            _acc_imps   = _pct_accuracy(_fore_imps,   _act_imps)
+            _acc_clicks = _pct_accuracy(_fore_clicks, _act_clicks)
+            _acc_rev    = _pct_accuracy(_fore_rev,    _act_rev)
+            _acc_views  = _pct_accuracy(_fore_views,  _act_views) if _fore_views else None
 
-    except Exception as _e:
-        st.error(f"Could not process the report: {_e}")
+            _acc_values  = [v for v in [_acc_imps, _acc_clicks, _acc_rev, _acc_views]
+                            if v is not None]
+            _overall_acc = round(sum(_acc_values) / len(_acc_values), 1) if _acc_values else 0.0
 
-# ── Section 3: Comparison output ──────────────────────────────────────────────
-if "fc_comparison" in st.session_state:
-    _cmp = st.session_state["fc_comparison"]
-    _fce = _cmp["forecast"]
+            st.session_state["fc_comparison"] = {
+                "forecast":    _fc_entry,
+                "act_imps":    _act_imps,    "act_clicks": _act_clicks,
+                "act_rev":     _act_rev,     "act_views":  _act_views,
+                "acc_imps":    _acc_imps,    "acc_clicks": _acc_clicks,
+                "acc_rev":     _acc_rev,     "acc_views":  _acc_views,
+                "overall_acc": _overall_acc,
+            }
 
-    st.markdown("#### Forecast vs Actual")
+            # Save to accuracy_log.json
+            append_accuracy({
+                "comparison_id":          str(uuid.uuid4()),
+                "forecast_id":            _fc_entry.get("forecast_id", ""),
+                "compared_at":            datetime.now().strftime("%Y-%m-%d"),
+                "advertiser":             _acc_advertiser or _fc_entry.get("advertiser", ""),
+                "campaign":               _acc_campaign,
+                "vertical":               _fc_entry.get("vertical", "Other"),
+                "format":                 _fc_entry.get("format", ""),
+                "forecasted_impressions": _fore_imps,
+                "actual_impressions":     _act_imps,
+                "impressions_accuracy":   _acc_imps,
+                "forecasted_clicks":      _fore_clicks,
+                "actual_clicks":          _act_clicks,
+                "clicks_accuracy":        _acc_clicks,
+                "forecasted_revenue":     _fore_rev,
+                "actual_revenue":         _act_rev,
+                "revenue_accuracy":       _acc_rev,
+                "forecasted_views":       _fore_views,
+                "actual_views":           _act_views,
+                "views_accuracy":         _acc_views,
+                "overall_accuracy":       _overall_acc,
+                "benchmarks_source":      _fc_entry.get("benchmarks_source", "Industry defaults"),
+            })
+            st.success("✅ Comparison saved to accuracy log.")
 
-    # A) Accuracy table
-    def _acc_span(acc):
-        if acc is None:
-            return "—"
-        color = "#16A34A" if acc > 85 else "#D97706" if acc >= 70 else "#DC2626"
-        return f"<span style='color:{color};font-weight:700;'>{acc:.1f}%</span>"
+        except Exception as _e:
+            st.error(f"Could not process the report: {_e}")
 
-    def _var_span(fore, actual):
-        if not fore:
-            return "—"
-        gap  = actual - fore
-        col  = "#16A34A" if gap >= 0 else "#DC2626"
-        sign = "+" if gap >= 0 else ""
-        return f"<span style='color:{col};'>{sign}{gap:,.0f}</span>"
+    # ── Section 3: Comparison output ──────────────────────────────────────────────
+    if "fc_comparison" in st.session_state:
+        _cmp = st.session_state["fc_comparison"]
+        _fce = _cmp["forecast"]
 
-    _rows = [
-        ("Impressions",
-         f"{_fce.get('estimated_impressions',0):,.0f}",
-         f"{_cmp['act_imps']:,.0f}",
-         _var_span(_fce.get('estimated_impressions',0), _cmp['act_imps']),
-         _acc_span(_cmp['acc_imps'])),
-        ("Clicks",
-         f"{_fce.get('estimated_clicks',0):,.0f}",
-         f"{_cmp['act_clicks']:,.0f}",
-         _var_span(_fce.get('estimated_clicks',0), _cmp['act_clicks']),
-         _acc_span(_cmp['acc_clicks'])),
-        ("Revenue (A$)",
-         f"A${_fce.get('estimated_revenue',0):,.0f}",
-         f"A${_cmp['act_rev']:,.0f}",
-         _var_span(_fce.get('estimated_revenue',0), _cmp['act_rev']),
-         _acc_span(_cmp['acc_rev'])),
-    ]
-    if _fce.get("estimated_views", 0) > 0:
-        _rows.append((
-            "Video Views",
-            f"{_fce.get('estimated_views',0):,.0f}",
-            f"{_cmp['act_views']:,.0f}",
-            _var_span(_fce.get('estimated_views',0), _cmp['act_views']),
-            _acc_span(_cmp['acc_views']),
+        st.markdown("#### Forecast vs Actual")
+
+        # A) Accuracy table
+        def _acc_span(acc):
+            if acc is None:
+                return "—"
+            color = "#16A34A" if acc > 85 else "#D97706" if acc >= 70 else "#DC2626"
+            return f"<span style='color:{color};font-weight:700;'>{acc:.1f}%</span>"
+
+        def _var_span(fore, actual):
+            if not fore:
+                return "—"
+            gap  = actual - fore
+            col  = "#16A34A" if gap >= 0 else "#DC2626"
+            sign = "+" if gap >= 0 else ""
+            return f"<span style='color:{col};'>{sign}{gap:,.0f}</span>"
+
+        _rows = [
+            ("Impressions",
+             f"{_fce.get('estimated_impressions',0):,.0f}",
+             f"{_cmp['act_imps']:,.0f}",
+             _var_span(_fce.get('estimated_impressions',0), _cmp['act_imps']),
+             _acc_span(_cmp['acc_imps'])),
+            ("Clicks",
+             f"{_fce.get('estimated_clicks',0):,.0f}",
+             f"{_cmp['act_clicks']:,.0f}",
+             _var_span(_fce.get('estimated_clicks',0), _cmp['act_clicks']),
+             _acc_span(_cmp['acc_clicks'])),
+            ("Revenue (A$)",
+             f"A${_fce.get('estimated_revenue',0):,.0f}",
+             f"A${_cmp['act_rev']:,.0f}",
+             _var_span(_fce.get('estimated_revenue',0), _cmp['act_rev']),
+             _acc_span(_cmp['acc_rev'])),
+        ]
+        if _fce.get("estimated_views", 0) > 0:
+            _rows.append((
+                "Video Views",
+                f"{_fce.get('estimated_views',0):,.0f}",
+                f"{_cmp['act_views']:,.0f}",
+                _var_span(_fce.get('estimated_views',0), _cmp['act_views']),
+                _acc_span(_cmp['acc_views']),
+            ))
+
+        _hs = ("background:#7C3AED;color:#FFFFFF;font-size:12px;font-weight:700;"
+               "text-transform:uppercase;letter-spacing:0.05em;padding:10px 14px;text-align:left;")
+        _tbl = ("<table style='width:100%;border-collapse:collapse;border-radius:10px;"
+                "overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08);'>"
+                "<thead><tr>")
+        for _h in ["Metric", "Forecasted", "Actual", "Variance", "Accuracy %"]:
+            _tbl += f"<th style='{_hs}'>{_h}</th>"
+        _tbl += "</tr></thead><tbody>"
+        for _ri, (_m, _fo, _ac, _va, _ap) in enumerate(_rows):
+            _rs = ("background:#F9FAFB;" if _ri % 2 == 0 else "background:#FFFFFF;") + "padding:9px 14px;font-size:14px;"
+            _tbl += (f"<tr><td style='{_rs}font-weight:600;'>{_m}</td>"
+                     f"<td style='{_rs}'>{_fo}</td><td style='{_rs}'>{_ac}</td>"
+                     f"<td style='{_rs}'>{_va}</td><td style='{_rs}'>{_ap}</td></tr>")
+        _tbl += "</tbody></table>"
+        st.markdown(_tbl, unsafe_allow_html=True)
+
+        # B) Accuracy score gauge
+        st.markdown("")
+        _oa      = _cmp["overall_acc"]
+        _gc      = "#EF4444" if _oa < 70 else "#F97316" if _oa < 85 else "#22C55E"
+        _fig_acc = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=_oa,
+            number={"suffix": "%", "font": {"size": 30, "color": "#111827",
+                                             "family": "Inter, sans-serif"}},
+            title={"text": "Overall Forecast Accuracy",
+                   "font": {"size": 14, "color": "#374151"}},
+            gauge={
+                "axis":   {"range": [0, 100], "tickwidth": 1, "tickcolor": "#9CA3AF"},
+                "bar":    {"color": _gc, "thickness": 0.28},
+                "bgcolor": "#FFFFFF",
+                "steps":  [{"range": [0,  70],  "color": "#FEE2E2"},
+                           {"range": [70, 85],  "color": "#FEF3C7"},
+                           {"range": [85, 100], "color": "#DCFCE7"}],
+                "threshold": {"line": {"color": _gc, "width": 4},
+                              "thickness": 0.75, "value": _oa},
+            },
         ))
-
-    _hs = ("background:#7C3AED;color:#FFFFFF;font-size:12px;font-weight:700;"
-           "text-transform:uppercase;letter-spacing:0.05em;padding:10px 14px;text-align:left;")
-    _tbl = ("<table style='width:100%;border-collapse:collapse;border-radius:10px;"
-            "overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08);'>"
-            "<thead><tr>")
-    for _h in ["Metric", "Forecasted", "Actual", "Variance", "Accuracy %"]:
-        _tbl += f"<th style='{_hs}'>{_h}</th>"
-    _tbl += "</tr></thead><tbody>"
-    for _ri, (_m, _fo, _ac, _va, _ap) in enumerate(_rows):
-        _rs = ("background:#F9FAFB;" if _ri % 2 == 0 else "background:#FFFFFF;") + "padding:9px 14px;font-size:14px;"
-        _tbl += (f"<tr><td style='{_rs}font-weight:600;'>{_m}</td>"
-                 f"<td style='{_rs}'>{_fo}</td><td style='{_rs}'>{_ac}</td>"
-                 f"<td style='{_rs}'>{_va}</td><td style='{_rs}'>{_ap}</td></tr>")
-    _tbl += "</tbody></table>"
-    st.markdown(_tbl, unsafe_allow_html=True)
-
-    # B) Accuracy score gauge
-    st.markdown("")
-    _oa      = _cmp["overall_acc"]
-    _gc      = "#EF4444" if _oa < 70 else "#F97316" if _oa < 85 else "#22C55E"
-    _fig_acc = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=_oa,
-        number={"suffix": "%", "font": {"size": 30, "color": "#111827",
-                                         "family": "Inter, sans-serif"}},
-        title={"text": "Overall Forecast Accuracy",
-               "font": {"size": 14, "color": "#374151"}},
-        gauge={
-            "axis":   {"range": [0, 100], "tickwidth": 1, "tickcolor": "#9CA3AF"},
-            "bar":    {"color": _gc, "thickness": 0.28},
-            "bgcolor": "#FFFFFF",
-            "steps":  [{"range": [0,  70],  "color": "#FEE2E2"},
-                       {"range": [70, 85],  "color": "#FEF3C7"},
-                       {"range": [85, 100], "color": "#DCFCE7"}],
-            "threshold": {"line": {"color": _gc, "width": 4},
-                          "thickness": 0.75, "value": _oa},
-        },
-    ))
-    _fig_acc.update_layout(
-        height=260, margin=dict(t=40, b=8, l=24, r=24),
-        paper_bgcolor="#FFFFFF",
-        font=dict(family="Inter, system-ui, sans-serif"),
-    )
-    _g_col, _ = st.columns([1, 1])
-    with _g_col:
-        st.plotly_chart(_fig_acc, use_container_width=True,
-                        config={"displaylogo": False}, key="accuracy_gauge")
-
-# ── Section 4: Precision History Dashboard ────────────────────────────────────
-_acc_log = load_accuracy_log()
-
-if _acc_log:
-    with st.expander("📊 View Accuracy History", expanded=False):
-
-        _adf_hist = pd.DataFrame(_acc_log)
-        # Ensure the date column is parsed for sorting / monthly grouping
-        _adf_hist["compared_at"] = pd.to_datetime(
-            _adf_hist["compared_at"], errors="coerce"
+        _fig_acc.update_layout(
+            height=260, margin=dict(t=40, b=8, l=24, r=24),
+            paper_bgcolor="#FFFFFF",
+            font=dict(family="Inter, system-ui, sans-serif"),
         )
-        _adf_hist = _adf_hist.sort_values("compared_at")
+        _g_col, _ = st.columns([1, 1])
+        with _g_col:
+            st.plotly_chart(_fig_acc, use_container_width=True,
+                            config={"displaylogo": False}, key="accuracy_gauge")
 
-        # A) Accuracy trend over time
-        _trend = (_adf_hist[["compared_at", "overall_accuracy"]]
-                  .dropna()
-                  .sort_values("compared_at"))
-        if not _trend.empty:
-            st.markdown("**Accuracy Trend Over Time**")
-            _fig_trend = go.Figure()
-            _fig_trend.add_trace(go.Scatter(
-                x=_trend["compared_at"], y=_trend["overall_accuracy"],
-                mode="lines+markers",
-                line=dict(color="#7C3AED", width=2),
-                marker=dict(size=7, color="#7C3AED"),
-                name="Overall Accuracy",
-                hovertemplate="%{x|%Y-%m-%d}<br>Accuracy: <b>%{y:.1f}%</b><extra></extra>",
-            ))
-            # 85% reference line
-            _fig_trend.add_hline(
-                y=85, line_dash="dash", line_color="#22C55E",
-                annotation_text="Target (85%)", annotation_position="bottom right",
+    # ── Section 4: Precision History Dashboard ────────────────────────────────────
+    _acc_log = load_accuracy_log()
+
+    if _acc_log:
+        with st.expander("📊 View Accuracy History", expanded=False):
+
+            _adf_hist = pd.DataFrame(_acc_log)
+            # Ensure the date column is parsed for sorting / monthly grouping
+            _adf_hist["compared_at"] = pd.to_datetime(
+                _adf_hist["compared_at"], errors="coerce"
             )
-            _fig_trend.update_layout(
-                plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
-                margin=dict(t=20, b=40, l=50, r=20),
-                yaxis=dict(range=[0, 105], ticksuffix="%",
-                           gridcolor="#F3F4F6", title="Accuracy %"),
-                xaxis=dict(gridcolor="#F3F4F6"),
-                showlegend=False,
-            )
-            st.plotly_chart(_fig_trend, use_container_width=True,
-                            config={"displaylogo": False}, key="trend_chart")
+            _adf_hist = _adf_hist.sort_values("compared_at")
 
-        # B) Accuracy by vertical + C) by format — side by side
-        _by_vert_col, _by_fmt_col = st.columns(2)
+            # A) Accuracy trend over time
+            _trend = (_adf_hist[["compared_at", "overall_accuracy"]]
+                      .dropna()
+                      .sort_values("compared_at"))
+            if not _trend.empty:
+                st.markdown("**Accuracy Trend Over Time**")
+                _fig_trend = go.Figure()
+                _fig_trend.add_trace(go.Scatter(
+                    x=_trend["compared_at"], y=_trend["overall_accuracy"],
+                    mode="lines+markers",
+                    line=dict(color="#7C3AED", width=2),
+                    marker=dict(size=7, color="#7C3AED"),
+                    name="Overall Accuracy",
+                    hovertemplate="%{x|%Y-%m-%d}<br>Accuracy: <b>%{y:.1f}%</b><extra></extra>",
+                ))
+                # 85% reference line
+                _fig_trend.add_hline(
+                    y=85, line_dash="dash", line_color="#22C55E",
+                    annotation_text="Target (85%)", annotation_position="bottom right",
+                )
+                _fig_trend.update_layout(
+                    plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+                    margin=dict(t=20, b=40, l=50, r=20),
+                    yaxis=dict(range=[0, 105], ticksuffix="%",
+                               gridcolor="#F3F4F6", title="Accuracy %"),
+                    xaxis=dict(gridcolor="#F3F4F6"),
+                    showlegend=False,
+                )
+                st.plotly_chart(_fig_trend, use_container_width=True,
+                                config={"displaylogo": False}, key="trend_chart")
 
-        with _by_vert_col:
-            st.markdown("**Accuracy by Vertical**")
-            if "vertical" in _adf_hist.columns:
-                _by_vert = (_adf_hist.groupby("vertical")["overall_accuracy"]
-                            .mean().reset_index()
-                            .sort_values("overall_accuracy", ascending=False))
-                _fig_vert = go.Figure(go.Bar(
-                    x=_by_vert["vertical"],
-                    y=_by_vert["overall_accuracy"],
-                    marker_color="#7C3AED",
-                    text=[f"{v:.1f}%" for v in _by_vert["overall_accuracy"]],
+            # B) Accuracy by vertical + C) by format — side by side
+            _by_vert_col, _by_fmt_col = st.columns(2)
+
+            with _by_vert_col:
+                st.markdown("**Accuracy by Vertical**")
+                if "vertical" in _adf_hist.columns:
+                    _by_vert = (_adf_hist.groupby("vertical")["overall_accuracy"]
+                                .mean().reset_index()
+                                .sort_values("overall_accuracy", ascending=False))
+                    _fig_vert = go.Figure(go.Bar(
+                        x=_by_vert["vertical"],
+                        y=_by_vert["overall_accuracy"],
+                        marker_color="#7C3AED",
+                        text=[f"{v:.1f}%" for v in _by_vert["overall_accuracy"]],
+                        textposition="outside",
+                    ))
+                    _fig_vert.update_layout(
+                        plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+                        margin=dict(t=20, b=60, l=50, r=10),
+                        yaxis=dict(range=[0, 110], ticksuffix="%",
+                                   gridcolor="#F3F4F6"),
+                        bargap=0.4, showlegend=False,
+                    )
+                    st.plotly_chart(_fig_vert, use_container_width=True,
+                                    config={"displaylogo": False}, key="vert_chart")
+
+            with _by_fmt_col:
+                st.markdown("**Accuracy by Format**")
+                if "format" in _adf_hist.columns:
+                    _by_fmt = (_adf_hist.groupby("format")["overall_accuracy"]
+                               .mean().reset_index()
+                               .sort_values("overall_accuracy", ascending=False))
+                    _fmt_colors = {"Display": "#2563EB", "Video": "#7C3AED",
+                                   "YouTube": "#EF4444", "Mixed": "#10B981"}
+                    _fig_fmt = go.Figure(go.Bar(
+                        x=_by_fmt["format"],
+                        y=_by_fmt["overall_accuracy"],
+                        marker_color=[_fmt_colors.get(f, "#6B7280")
+                                      for f in _by_fmt["format"]],
+                        text=[f"{v:.1f}%" for v in _by_fmt["overall_accuracy"]],
+                        textposition="outside",
+                    ))
+                    _fig_fmt.update_layout(
+                        plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+                        margin=dict(t=20, b=60, l=50, r=10),
+                        yaxis=dict(range=[0, 110], ticksuffix="%",
+                                   gridcolor="#F3F4F6"),
+                        bargap=0.4, showlegend=False,
+                    )
+                    st.plotly_chart(_fig_fmt, use_container_width=True,
+                                    config={"displaylogo": False}, key="fmt_chart")
+
+            # D) Accuracy by benchmark source
+            st.markdown("**Accuracy by Benchmark Source**")
+            if "benchmarks_source" in _adf_hist.columns:
+                _by_src = (_adf_hist.groupby("benchmarks_source")["overall_accuracy"]
+                           .mean().reset_index())
+                _src_colors = {"Industry defaults":     "#F59E0B",
+                               "Historical benchmarks": "#22C55E"}
+                _fig_src = go.Figure(go.Bar(
+                    x=_by_src["benchmarks_source"],
+                    y=_by_src["overall_accuracy"],
+                    marker_color=[_src_colors.get(s, "#6B7280")
+                                  for s in _by_src["benchmarks_source"]],
+                    text=[f"{v:.1f}%" for v in _by_src["overall_accuracy"]],
                     textposition="outside",
                 ))
-                _fig_vert.update_layout(
+                _fig_src.update_layout(
                     plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(t=20, b=60, l=50, r=10),
-                    yaxis=dict(range=[0, 110], ticksuffix="%",
-                               gridcolor="#F3F4F6"),
-                    bargap=0.4, showlegend=False,
+                    yaxis=dict(range=[0, 110], ticksuffix="%", gridcolor="#F3F4F6"),
+                    bargap=0.5, showlegend=False,
                 )
-                st.plotly_chart(_fig_vert, use_container_width=True,
-                                config={"displaylogo": False}, key="vert_chart")
+                st.plotly_chart(_fig_src, use_container_width=True,
+                                config={"displaylogo": False}, key="src_chart")
 
-        with _by_fmt_col:
-            st.markdown("**Accuracy by Format**")
-            if "format" in _adf_hist.columns:
-                _by_fmt = (_adf_hist.groupby("format")["overall_accuracy"]
-                           .mean().reset_index()
-                           .sort_values("overall_accuracy", ascending=False))
-                _fmt_colors = {"Display": "#2563EB", "Video": "#7C3AED",
-                               "YouTube": "#EF4444", "Mixed": "#10B981"}
-                _fig_fmt = go.Figure(go.Bar(
-                    x=_by_fmt["format"],
-                    y=_by_fmt["overall_accuracy"],
-                    marker_color=[_fmt_colors.get(f, "#6B7280")
-                                  for f in _by_fmt["format"]],
-                    text=[f"{v:.1f}%" for v in _by_fmt["overall_accuracy"]],
-                    textposition="outside",
-                ))
-                _fig_fmt.update_layout(
-                    plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
-                    margin=dict(t=20, b=60, l=50, r=10),
-                    yaxis=dict(range=[0, 110], ticksuffix="%",
-                               gridcolor="#F3F4F6"),
-                    bargap=0.4, showlegend=False,
-                )
-                st.plotly_chart(_fig_fmt, use_container_width=True,
-                                config={"displaylogo": False}, key="fmt_chart")
+            # E) Summary stats cards
+            st.markdown("**Summary Statistics**")
 
-        # D) Accuracy by benchmark source
-        st.markdown("**Accuracy by Benchmark Source**")
-        if "benchmarks_source" in _adf_hist.columns:
-            _by_src = (_adf_hist.groupby("benchmarks_source")["overall_accuracy"]
-                       .mean().reset_index())
-            _src_colors = {"Industry defaults":     "#F59E0B",
-                           "Historical benchmarks": "#22C55E"}
-            _fig_src = go.Figure(go.Bar(
-                x=_by_src["benchmarks_source"],
-                y=_by_src["overall_accuracy"],
-                marker_color=[_src_colors.get(s, "#6B7280")
-                              for s in _by_src["benchmarks_source"]],
-                text=[f"{v:.1f}%" for v in _by_src["overall_accuracy"]],
-                textposition="outside",
-            ))
-            _fig_src.update_layout(
-                plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
-                margin=dict(t=20, b=60, l=50, r=10),
-                yaxis=dict(range=[0, 110], ticksuffix="%", gridcolor="#F3F4F6"),
-                bargap=0.5, showlegend=False,
-            )
-            st.plotly_chart(_fig_src, use_container_width=True,
-                            config={"displaylogo": False}, key="src_chart")
+            _total_forecasts    = len(load_forecasts_log())
+            _total_comparisons  = len(_acc_log)
+            _avg_accuracy       = round(_adf_hist["overall_accuracy"].mean(), 1)
+            # Best vertical: highest mean accuracy
+            _best_vert = "—"
+            if "vertical" in _adf_hist.columns and not _adf_hist.empty:
+                _bv = (_adf_hist.groupby("vertical")["overall_accuracy"]
+                       .mean().idxmax())
+                _best_vert = str(_bv)
+            # Most improved month: month with biggest accuracy gain vs previous month
+            _best_month = "—"
+            if not _trend.empty and len(_trend) >= 2:
+                _monthly = (_trend.set_index("compared_at")["overall_accuracy"]
+                            .resample("ME").mean().dropna())
+                if len(_monthly) >= 2:
+                    _gains = _monthly.diff().dropna()
+                    if not _gains.empty:
+                        _best_month = _gains.idxmax().strftime("%B %Y")
 
-        # E) Summary stats cards
-        st.markdown("**Summary Statistics**")
+            _sc1, _sc2, _sc3, _sc4, _sc5 = st.columns(5)
+            _sc1.metric("Total Forecasts",       str(_total_forecasts))
+            _sc2.metric("Comparisons Done",      str(_total_comparisons))
+            _sc3.metric("Avg Accuracy",          f"{_avg_accuracy}%")
+            _sc4.metric("Best Vertical",         _best_vert)
+            _sc5.metric("Most Improved Month",   _best_month)
 
-        _total_forecasts    = len(load_forecasts_log())
-        _total_comparisons  = len(_acc_log)
-        _avg_accuracy       = round(_adf_hist["overall_accuracy"].mean(), 1)
-        # Best vertical: highest mean accuracy
-        _best_vert = "—"
-        if "vertical" in _adf_hist.columns and not _adf_hist.empty:
-            _bv = (_adf_hist.groupby("vertical")["overall_accuracy"]
-                   .mean().idxmax())
-            _best_vert = str(_bv)
-        # Most improved month: month with biggest accuracy gain vs previous month
-        _best_month = "—"
-        if not _trend.empty and len(_trend) >= 2:
-            _monthly = (_trend.set_index("compared_at")["overall_accuracy"]
-                        .resample("ME").mean().dropna())
-            if len(_monthly) >= 2:
-                _gains = _monthly.diff().dropna()
-                if not _gains.empty:
-                    _best_month = _gains.idxmax().strftime("%B %Y")
+        # ── Section 5: AI Accuracy Insights ───────────────────────────────────────
+        st.markdown("#### Accuracy Insights")
 
-        _sc1, _sc2, _sc3, _sc4, _sc5 = st.columns(5)
-        _sc1.metric("Total Forecasts",       str(_total_forecasts))
-        _sc2.metric("Comparisons Done",      str(_total_comparisons))
-        _sc3.metric("Avg Accuracy",          f"{_avg_accuracy}%")
-        _sc4.metric("Best Vertical",         _best_vert)
-        _sc5.metric("Most Improved Month",   _best_month)
-
-    # ── Section 5: AI Accuracy Insights ───────────────────────────────────────
-    st.markdown("#### Accuracy Insights")
-
-    _ai_api_key = (
-        st.secrets.get("ANTHROPIC_API_KEY")
-        if "ANTHROPIC_API_KEY" in st.secrets
-        else os.environ.get("ANTHROPIC_API_KEY")
-    )
-
-    if not _ai_api_key:
-        st.warning(
-            "No Anthropic API key found — add `ANTHROPIC_API_KEY` to secrets "
-            "to enable AI accuracy insights."
+        _ai_api_key = (
+            st.secrets.get("ANTHROPIC_API_KEY")
+            if "ANTHROPIC_API_KEY" in st.secrets
+            else os.environ.get("ANTHROPIC_API_KEY")
         )
-    else:
-        if st.button("✨ Generate Accuracy Insights", type="primary",
-                     key="acc_ai_btn"):
-            _log_text = json.dumps(_acc_log, indent=2)
-            _acc_prompt = (
-                "You are analysing the forecast accuracy of a programmatic campaign "
-                "forecasting tool at Captify. Here is the accuracy log data:\n\n"
-                f"{_log_text}\n\n"
-                "Provide:\n"
-                "1. Overall assessment of forecast precision\n"
-                "2. Which variables are causing the most forecast error\n"
-                "3. Three specific recommendations to improve forecast accuracy\n"
-                "4. Whether historical benchmarks are outperforming industry defaults\n\n"
-                "Be direct and specific. Reference actual numbers from the log."
-            )
-            _acc_client = anthropic.Anthropic(api_key=_ai_api_key)
-            with st.spinner("Analysing accuracy log…"):
-                _acc_msg = _acc_client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=600,
-                    system=(
-                        "You are a senior programmatic trading analyst at Captify. "
-                        "Write clear, data-driven analysis of forecast accuracy. "
-                        "Reference actual numbers. Be concise and actionable."
-                    ),
-                    messages=[{"role": "user", "content": _acc_prompt}],
-                )
-            st.session_state["acc_ai_text"] = _acc_msg.content[0].text.strip()
 
-        if "acc_ai_text" in st.session_state:
-            st.markdown(
-                "<div style='background:#FFFFFF;border-radius:12px;padding:20px 24px;"
-                "box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-top:12px;'>"
-                + _insight_html(st.session_state["acc_ai_text"])
-                + "</div>",
-                unsafe_allow_html=True,
+        if not _ai_api_key:
+            st.warning(
+                "No Anthropic API key found — add `ANTHROPIC_API_KEY` to secrets "
+                "to enable AI accuracy insights."
             )
+        else:
+            if st.button("✨ Generate Accuracy Insights", type="primary",
+                         key="acc_ai_btn"):
+                _log_text = json.dumps(_acc_log, indent=2)
+                _acc_prompt = (
+                    "You are analysing the forecast accuracy of a programmatic campaign "
+                    "forecasting tool at Captify. Here is the accuracy log data:\n\n"
+                    f"{_log_text}\n\n"
+                    "Provide:\n"
+                    "1. Overall assessment of forecast precision\n"
+                    "2. Which variables are causing the most forecast error\n"
+                    "3. Three specific recommendations to improve forecast accuracy\n"
+                    "4. Whether historical benchmarks are outperforming industry defaults\n\n"
+                    "Be direct and specific. Reference actual numbers from the log."
+                )
+                _acc_client = anthropic.Anthropic(api_key=_ai_api_key)
+                with st.spinner("Analysing accuracy log…"):
+                    _acc_msg = _acc_client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=600,
+                        system=(
+                            "You are a senior programmatic trading analyst at Captify. "
+                            "Write clear, data-driven analysis of forecast accuracy. "
+                            "Reference actual numbers. Be concise and actionable."
+                        ),
+                        messages=[{"role": "user", "content": _acc_prompt}],
+                    )
+                st.session_state["acc_ai_text"] = _acc_msg.content[0].text.strip()
+
+            if "acc_ai_text" in st.session_state:
+                st.markdown(
+                    "<div style='background:#FFFFFF;border-radius:12px;padding:20px 24px;"
+                    "box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-top:12px;'>"
+                    + _insight_html(st.session_state["acc_ai_text"])
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+
 
 print("Done. Forecasting tool loaded.")
