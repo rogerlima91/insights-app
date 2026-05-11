@@ -88,27 +88,27 @@ st.markdown("""
 # Used when no live uploaded data is available in the session.
 # All CPM/CPC values are in AUD.
 DISPLAY_BENCHMARKS = {
-    "FMCG":              {"ctr": 0.25, "cpm": 18.00, "cpc": 7.20},
-    "Alcohol & Spirits": {"ctr": 0.20, "cpm": 27.00, "cpc": 13.50},
-    "Technology":        {"ctr": 0.35, "cpm": 21.00, "cpc": 6.00},
-    "Retail":            {"ctr": 0.45, "cpm": 15.00, "cpc": 3.33},
-    "Automotive":        {"ctr": 0.18, "cpm": 30.00, "cpc": 16.67},
-    "Entertainment":     {"ctr": 0.30, "cpm": 17.00, "cpc": 5.67},
-    "Finance":           {"ctr": 0.22, "cpm": 33.00, "cpc": 15.00},
-    "Travel":            {"ctr": 0.28, "cpm": 24.00, "cpc": 8.57},
-    "Other":             {"ctr": 0.25, "cpm": 23.00, "cpc": 9.20},
+    "FMCG":              {"ctr": 0.25, "cpm":  6.00, "cpc": 2.40},
+    "Alcohol & Spirits": {"ctr": 0.20, "cpm":  8.00, "cpc": 4.00},
+    "Technology":        {"ctr": 0.35, "cpm":  7.00, "cpc": 2.00},
+    "Retail":            {"ctr": 0.45, "cpm":  5.00, "cpc": 1.11},
+    "Automotive":        {"ctr": 0.18, "cpm":  9.00, "cpc": 5.00},
+    "Entertainment":     {"ctr": 0.30, "cpm":  6.00, "cpc": 2.00},
+    "Finance":           {"ctr": 0.22, "cpm": 10.00, "cpc": 4.55},
+    "Travel":            {"ctr": 0.28, "cpm":  7.00, "cpc": 2.50},
+    "Other":             {"ctr": 0.25, "cpm":  6.00, "cpc": 2.40},
 }
 
 VIDEO_BENCHMARKS = {
-    "FMCG":              {"vtr": 72, "cpv": 0.06, "cpm": 42.00},
-    "Alcohol & Spirits": {"vtr": 75, "cpv": 0.08, "cpm": 53.00},
-    "Technology":        {"vtr": 70, "cpv": 0.05, "cpm": 38.00},
-    "Retail":            {"vtr": 71, "cpv": 0.05, "cpm": 33.00},
-    "Automotive":        {"vtr": 74, "cpv": 0.08, "cpm": 57.00},
-    "Entertainment":     {"vtr": 73, "cpv": 0.06, "cpm": 42.00},
-    "Finance":           {"vtr": 69, "cpv": 0.08, "cpm": 60.00},
-    "Travel":            {"vtr": 76, "cpv": 0.06, "cpm": 48.00},
-    "Other":             {"vtr": 72, "cpv": 0.06, "cpm": 42.00},
+    "FMCG":              {"vtr": 72, "cpv": 0.04, "cpm": 18.00},
+    "Alcohol & Spirits": {"vtr": 75, "cpv": 0.05, "cpm": 22.00},
+    "Technology":        {"vtr": 70, "cpv": 0.03, "cpm": 16.00},
+    "Retail":            {"vtr": 71, "cpv": 0.03, "cpm": 15.00},
+    "Automotive":        {"vtr": 74, "cpv": 0.05, "cpm": 20.00},
+    "Entertainment":     {"vtr": 73, "cpv": 0.04, "cpm": 17.00},
+    "Finance":           {"vtr": 69, "cpv": 0.05, "cpm": 22.00},
+    "Travel":            {"vtr": 76, "cpv": 0.04, "cpm": 19.00},
+    "Other":             {"vtr": 72, "cpv": 0.04, "cpm": 18.00},
 }
 
 # ── Helper: render AI text as styled HTML ─────────────────────────────────────
