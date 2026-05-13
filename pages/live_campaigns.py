@@ -2,8 +2,9 @@ import os
 import re
 import json
 import anthropic
+import pandas as pd
 import streamlit as st
-from datetime import date
+from datetime import date, timedelta
 
 # ── Global CSS (identical to app.py — STYLE LOCK) ─────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
@@ -168,9 +169,8 @@ def calc_pacing(c):
     }
 
 
-# Build enriched list and filter to campaigns that need attention
-CAMPAIGNS = [calc_pacing(c) for c in RAW_CAMPAIGNS]
-AT_RISK   = [c for c in CAMPAIGNS if c["risk"] in ("Critical", "At risk")]
+# Build enriched mock data (used as fallback when no files are uploaded)
+MOCK_CAMPAIGNS = [calc_pacing(c) for c in RAW_CAMPAIGNS]
 
 # ── Deal health diagnostics (one entry per at-risk deal) ──────────────────────
 # Mimics what the TTD Deal Health API or DV360 Troubleshooter API would return.
@@ -389,6 +389,240 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ── Column aliases: internal name → list of accepted CSV headers ──────────────
+# Matching is case-insensitive. The first alias that exists in the file wins.
+COLUMN_ALIASES = {
+    "date":         ["date"],
+    "advertiser":   ["advertiser", "partner", "brand name"],
+    "campaign":     ["campaign", "campaign name"],
+    "line_item":    ["line item", "ad group", "line item name"],
+    "deal_id":      ["deal id", "deal id"],
+    "deal_type":    ["deal type", "type"],
+    "budget":       ["budget", "total budget"],
+    "spend":        ["spend", "revenue (usd)", "revenue (aud)", "cost"],
+    "impressions":  ["impressions"],
+    "clicks":       ["clicks"],
+    "cpm":          ["cpm", "cpm (usd)", "cpm (aud)"],
+    "ctr":          ["ctr", "ctr (%)"],
+    "video_views":  ["video views", "views"],
+    "vtr":          ["vtr", "vtr (%)"],
+    "flight_start": ["flight start", "start date"],
+    "flight_end":   ["flight end", "end date"],
+}
+
+
+def map_columns(df):
+    """
+    Rename a DataFrame's columns to internal standard names using COLUMN_ALIASES.
+    Matching is case-insensitive and strips leading/trailing spaces.
+    """
+    rename = {}
+    lower_to_orig = {col.lower().strip(): col for col in df.columns}
+    for internal, aliases in COLUMN_ALIASES.items():
+        for alias in aliases:
+            if alias in lower_to_orig:
+                rename[lower_to_orig[alias]] = internal
+                break  # stop at the first matching alias for this internal name
+    return df.rename(columns=rename)
+
+
+def detect_dsp_from_filename(filename):
+    """Infer DSP from the upload filename — returns 'TTD', 'DV360', or 'Unknown'."""
+    name = filename.lower()
+    if "ttd" in name or "thetradedesk" in name or "trade_desk" in name:
+        return "TTD"
+    if "dv360" in name or "dv_360" in name or "displayvideo" in name:
+        return "DV360"
+    return "Unknown"
+
+
+def build_campaigns_from_df(df):
+    """
+    Convert a merged, column-mapped DataFrame into:
+      - CAMPAIGNS list  (one dict per advertiser, same shape as mock data)
+      - CAMPAIGN_BREAKDOWN dict  (keyed by deal_id, same shape as mock data)
+    Pacing is calculated relative to today's real date.
+    """
+    today = date.today()
+
+    # Ensure all required columns exist; fill with defaults if absent
+    defaults = {
+        "advertiser": "Unknown", "campaign": "Unknown", "line_item": "Unknown",
+        "deal_id": "N/A", "deal_type": "Unknown", "dsp": "Unknown",
+        "budget": 0, "spend": 0, "impressions": 0, "clicks": 0, "video_views": 0,
+        "flight_start": None, "flight_end": None,
+    }
+    for col, default in defaults.items():
+        if col not in df.columns:
+            df[col] = default
+
+    # Convert flight date columns to Python date objects
+    df["flight_start"] = pd.to_datetime(df["flight_start"], errors="coerce").dt.date
+    df["flight_end"]   = pd.to_datetime(df["flight_end"],   errors="coerce").dt.date
+
+    # Fill missing dates: start = today, end = today + 30 days
+    df["flight_start"] = df["flight_start"].apply(lambda x: x if pd.notna(x) and x else today)
+    df["flight_end"]   = df["flight_end"].apply(
+        lambda x: x if pd.notna(x) and x else today + timedelta(days=30)
+    )
+
+    # Coerce numeric delivery columns
+    for col in ("budget", "spend", "impressions", "clicks", "video_views"):
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+    # Deduplicate: group by advertiser + campaign + line_item.
+    # Sum delivery metrics; keep the last value for budget, deal info, and dates
+    # (last = most recently uploaded file wins for static fields).
+    agg = (
+        df.groupby(["advertiser", "campaign", "line_item"], as_index=False)
+        .agg(
+            dsp          = ("dsp",          "last"),
+            deal_id      = ("deal_id",      "last"),
+            deal_type    = ("deal_type",    "last"),
+            budget       = ("budget",       "last"),
+            spend        = ("spend",        "sum"),
+            impressions  = ("impressions",  "sum"),
+            clicks       = ("clicks",       "sum"),
+            video_views  = ("video_views",  "sum"),
+            flight_start = ("flight_start", "min"),  # earliest start across files
+            flight_end   = ("flight_end",   "max"),  # latest end across files
+        )
+    )
+
+    campaigns  = []
+    breakdown  = {}
+
+    for advertiser, adv_df in agg.groupby("advertiser"):
+        start  = adv_df["flight_start"].min()
+        end    = adv_df["flight_end"].max()
+        budget = adv_df["budget"].sum()
+        spent  = adv_df["spend"].sum()
+        dsp       = adv_df["dsp"].iloc[0]
+        deal_id   = adv_df["deal_id"].iloc[0]
+        deal_type = adv_df["deal_type"].iloc[0]
+
+        # Pacing calculation — same formula as calc_pacing()
+        total_days     = (end - start).days
+        days_elapsed   = max((today - start).days, 0)
+        days_remaining = (end - today).days
+        expected_spend = budget * (days_elapsed / total_days) if total_days > 0 else 0
+        pacing_index   = (spent / expected_spend * 100) if expected_spend > 0 else 0
+
+        if pacing_index < 75:
+            risk, risk_color, risk_bg = "Critical",   "#EF4444", "#FEF2F2"
+        elif pacing_index < 92:
+            risk, risk_color, risk_bg = "At risk",    "#F59E0B", "#FFFBEB"
+        elif pacing_index <= 110:
+            risk, risk_color, risk_bg = "On track",   "#10B981", "#ECFDF5"
+        else:
+            risk, risk_color, risk_bg = "Overpacing", "#7C3AED", "#F5F3FF"
+
+        campaigns.append({
+            "client":         advertiser,
+            "deal_type":      deal_type,
+            "deal_id":        deal_id,
+            "dsp":            dsp,
+            "budget":         budget,
+            "spent":          spent,
+            "start":          start,
+            "end":            end,
+            "total_days":     total_days,
+            "days_elapsed":   days_elapsed,
+            "days_remaining": days_remaining,
+            "expected_spend": expected_spend,
+            "pacing_index":   pacing_index,
+            "risk":           risk,
+            "risk_color":     risk_color,
+            "risk_bg":        risk_bg,
+        })
+
+        # Build campaign → line item breakdown for the drill-down table
+        camp_list = []
+        for camp_name, camp_df in adv_df.groupby("campaign"):
+            li_list = []
+            for _, li_row in camp_df.iterrows():
+                li_list.append({
+                    "name":   li_row["line_item"],
+                    "budget": li_row["budget"],
+                    "spent":  li_row["spend"],
+                })
+            camp_list.append({
+                "name":       camp_name,
+                "budget":     camp_df["budget"].sum(),
+                "spent":      camp_df["spend"].sum(),
+                "line_items": li_list,
+            })
+        breakdown[deal_id] = {"campaigns": camp_list}
+
+    return campaigns, breakdown
+
+
+# ── File uploader ──────────────────────────────────────────────────────────────
+st.markdown("**Upload pacing reports**")
+uploaded_files = st.file_uploader(
+    "Upload DSP pacing reports",
+    type=["csv"],
+    accept_multiple_files=True,
+    label_visibility="collapsed",
+    help="Upload one or more CSV exports from TTD or DV360. Columns are mapped automatically.",
+)
+
+if uploaded_files:
+    dfs = []
+    for f in uploaded_files:
+        df_raw = pd.read_csv(f)
+        df_raw = map_columns(df_raw)
+        # Inject a 'dsp' column from the filename if the file didn't have one
+        if "dsp" not in df_raw.columns:
+            df_raw["dsp"] = detect_dsp_from_filename(f.name)
+        dfs.append(df_raw)
+
+    merged_df = pd.concat(dfs, ignore_index=True)
+
+    # Upload summary line
+    num_rows  = len(merged_df)
+    num_adv   = merged_df["advertiser"].nunique() if "advertiser" in merged_df.columns else "?"
+    dsp_vals  = sorted(merged_df["dsp"].dropna().unique()) if "dsp" in merged_df.columns else []
+    dsp_str   = " & ".join(dsp_vals) if dsp_vals else "Unknown"
+    n_files   = len(uploaded_files)
+    st.caption(
+        f"Loaded **{n_files}** file{'s' if n_files > 1 else ''}  ·  "
+        f"**{num_rows:,}** rows  ·  "
+        f"**{num_adv}** advertisers across **{dsp_str}**"
+    )
+
+    CAMPAIGNS, CAMPAIGN_BREAKDOWN = build_campaigns_from_df(merged_df)
+    _using_upload = True
+    _upload_date  = date.today()
+
+else:
+    # Fall back to hardcoded mock data when no files are uploaded
+    CAMPAIGNS          = MOCK_CAMPAIGNS
+    CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
+    _using_upload      = False
+
+# Data status indicator — shown between the uploader and the date filters
+if _using_upload:
+    total_camps = sum(len(b["campaigns"]) for b in CAMPAIGN_BREAKDOWN.values())
+    num_adv_str = len(CAMPAIGNS)
+    st.markdown(
+        f"<div style='background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;"
+        f"padding:10px 14px;font-size:13px;color:#065F46;margin-bottom:4px;'>"
+        f"✅ Pacing data loaded from upload — <strong>{total_camps}</strong> campaigns across "
+        f"<strong>{num_adv_str}</strong> advertisers — "
+        f"last updated <strong>{_upload_date.strftime('%d %b %Y')}</strong>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        "<div style='background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"
+        "padding:10px 14px;font-size:13px;color:#92400E;margin-bottom:4px;'>"
+        "⚠️ Showing mock data — upload DSP reports above for live pacing"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
 # ── Date range filter ─────────────────────────────────────────────────────────
 # Derive the earliest start and latest end across all campaigns for the defaults
 all_starts = [c["start"] for c in CAMPAIGNS]
@@ -465,12 +699,15 @@ st.subheader("Pacing Dashboard")
 
 
 def dsp_badge(dsp):
-    """Coloured pill badge for TTD or DV360."""
+    """Coloured pill badge for DSP. Handles TTD, DV360, and any other value."""
     if dsp == "TTD":
         return ("<span style='background:#F5F3FF;color:#7C3AED;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>TTD</span>")
-    return ("<span style='background:#EFF6FF;color:#2563EB;border-radius:4px;"
-            "padding:2px 8px;font-size:11px;font-weight:700;'>DV360</span>")
+    if dsp == "DV360":
+        return ("<span style='background:#EFF6FF;color:#2563EB;border-radius:4px;"
+                "padding:2px 8px;font-size:11px;font-weight:700;'>DV360</span>")
+    return (f"<span style='background:#F3F4F6;color:#6B7280;border-radius:4px;"
+            f"padding:2px 8px;font-size:11px;font-weight:700;'>{dsp}</span>")
 
 
 def deal_type_badge(deal_type):
@@ -544,7 +781,7 @@ def calc_sub_pacing(budget, spent, start, end):
 # ── Mock campaign and line item data per deal ─────────────────────────────────
 # Budgets and spends at each level sum exactly to the client totals in RAW_CAMPAIGNS.
 # Line items are given slightly different pacing so the drill-down shows variety.
-CAMPAIGN_BREAKDOWN = {
+MOCK_CAMPAIGN_BREAKDOWN = {
     "DL-44821": {  # Grey Goose AU — budget 85k, spent 41.2k
         "campaigns": [
             {
