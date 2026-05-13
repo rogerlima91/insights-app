@@ -401,10 +401,38 @@ with filter_col1:
 with filter_col2:
     filter_end = st.date_input("To", value=max(all_ends), min_value=min(all_starts), max_value=max(all_ends))
 
-# Keep campaigns whose date range overlaps the selected window
+# ── Operations filters ────────────────────────────────────────────────────────
+st.markdown("**Operations**")
+ops_col1, ops_col2, ops_col3, ops_col4, ops_col5 = st.columns(5)
+
+# Derive unique values for each filter from the full campaign list
+all_clients   = sorted(set(c["client"]    for c in CAMPAIGNS))
+all_buy_types = sorted(set(c["deal_type"] for c in CAMPAIGNS))
+all_dsps      = sorted(set(c["dsp"]       for c in CAMPAIGNS))
+all_deal_ids  = sorted(set(c["deal_id"]   for c in CAMPAIGNS))
+all_statuses  = ["Critical", "At risk", "On track", "Overpacing"]
+
+with ops_col1:
+    filter_clients = st.multiselect("Client", all_clients, placeholder="All clients")
+with ops_col2:
+    filter_buy_types = st.multiselect("Buy Type", all_buy_types, placeholder="All types")
+with ops_col3:
+    filter_dsps = st.multiselect("DSP", all_dsps, placeholder="All DSPs")
+with ops_col4:
+    filter_deal_ids = st.multiselect("Deal ID", all_deal_ids, placeholder="All deals")
+with ops_col5:
+    filter_statuses = st.multiselect("Status", all_statuses, placeholder="All statuses")
+
+# Keep campaigns whose date range overlaps the selected window,
+# then apply the operations filters (empty selection = show all)
 FILTERED_CAMPAIGNS = [
     c for c in CAMPAIGNS
     if c["start"] <= filter_end and c["end"] >= filter_start
+    and (not filter_clients   or c["client"]    in filter_clients)
+    and (not filter_buy_types or c["deal_type"] in filter_buy_types)
+    and (not filter_dsps      or c["dsp"]       in filter_dsps)
+    and (not filter_deal_ids  or c["deal_id"]   in filter_deal_ids)
+    and (not filter_statuses  or c["risk"]      in filter_statuses)
 ]
 FILTERED_AT_RISK = [c for c in FILTERED_CAMPAIGNS if c["risk"] in ("Critical", "At risk")]
 
