@@ -515,34 +515,178 @@ def days_cell(days):
     return f"<span style='color:{color};font-weight:{weight};'>{label}{flag}</span>"
 
 
-# Build the HTML table row by row
-rows_html = ""
-for c in FILTERED_CAMPAIGNS:
-    rows_html += (
-        f"<tr style='border-bottom:1px solid #F3F4F6;'>"
-        f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{c['client']}</td>"
-        f"<td style='padding:14px 16px;'>{dsp_badge(c['dsp'])}</td>"
-        f"<td style='padding:14px 16px;'>{deal_type_badge(c['deal_type'])}</td>"
-        f"<td style='padding:14px 16px;font-size:12px;color:#6B7280;"
-        f"font-family:monospace;'>{c['deal_id']}</td>"
-        f"<td style='padding:14px 16px;text-align:right;'>A${c['budget']/1_000:.0f}k</td>"
-        f"<td style='padding:14px 16px;text-align:right;'>A${c['spent']/1_000:.1f}k</td>"
-        f"<td style='padding:14px 16px;min-width:220px;'>"
-        f"{pacing_bar(c['pacing_index'], c['risk_color'])}</td>"
-        f"<td style='padding:14px 16px;text-align:center;'>"
-        f"{days_cell(c['days_remaining'])}</td>"
-        f"<td style='padding:14px 16px;'>"
-        f"{risk_badge(c['risk'], c['risk_color'], c['risk_bg'])}</td>"
-        f"</tr>"
-    )
+def calc_sub_pacing(budget, spent, start, end):
+    """
+    Calculate pacing index and risk tier for a campaign or line item.
+    Reuses the same logic as calc_pacing() but takes raw budget/spent values
+    rather than a full campaign dict.
+    """
+    total_days     = (end - start).days
+    days_elapsed   = (TODAY - start).days
+    expected_spend = budget * (days_elapsed / total_days) if total_days > 0 else 0
+    pacing_index   = (spent / expected_spend * 100) if expected_spend > 0 else 0
 
+    if pacing_index < 75:
+        risk, risk_color, risk_bg = "Critical",   "#EF4444", "#FEF2F2"
+    elif pacing_index < 92:
+        risk, risk_color, risk_bg = "At risk",    "#F59E0B", "#FFFBEB"
+    elif pacing_index <= 110:
+        risk, risk_color, risk_bg = "On track",   "#10B981", "#ECFDF5"
+    else:
+        risk, risk_color, risk_bg = "Overpacing", "#7C3AED", "#F5F3FF"
+
+    return {
+        "pacing_index": pacing_index,
+        "risk": risk, "risk_color": risk_color, "risk_bg": risk_bg,
+    }
+
+
+# ── Mock campaign and line item data per deal ─────────────────────────────────
+# Budgets and spends at each level sum exactly to the client totals in RAW_CAMPAIGNS.
+# Line items are given slightly different pacing so the drill-down shows variety.
+CAMPAIGN_BREAKDOWN = {
+    "DL-44821": {  # Grey Goose AU — budget 85k, spent 41.2k
+        "campaigns": [
+            {
+                "name": "Grey Goose AU — Brand Awareness Q2",
+                "budget": 55_000, "spent": 27_800,
+                "line_items": [
+                    {"name": "Prospecting Display — Desktop",   "budget": 22_000, "spent": 13_200},
+                    {"name": "Retargeting — Mobile",            "budget": 18_000, "spent":  9_600},
+                    {"name": "YouTube Pre-roll — All Devices",  "budget": 15_000, "spent":  5_000},
+                ],
+            },
+            {
+                "name": "Grey Goose AU — Premium Spirits Retargeting",
+                "budget": 30_000, "spent": 13_400,
+                "line_items": [
+                    {"name": "Site Retargeting — Display",      "budget": 17_000, "spent":  9_400},
+                    {"name": "CRM Match — Programmatic",        "budget": 13_000, "spent":  4_000},
+                ],
+            },
+        ],
+    },
+    "DL-52190": {  # EA Games — budget 120k, spent 72k
+        "campaigns": [
+            {
+                "name": "EA Games — FC25 Launch AU",
+                "budget": 75_000, "spent": 51_000,
+                "line_items": [
+                    {"name": "Gaming Audience — Display Desktop",     "budget": 30_000, "spent": 22_000},
+                    {"name": "In-Game Interest — Mobile Video",       "budget": 25_000, "spent": 19_500},
+                    {"name": "Sports Fans Retargeting",               "budget": 20_000, "spent":  9_500},
+                ],
+            },
+            {
+                "name": "EA Games — App Install Prospecting",
+                "budget": 45_000, "spent": 21_000,
+                "line_items": [
+                    {"name": "Tech Enthusiasts — Programmatic Display", "budget": 20_000, "spent": 10_500},
+                    {"name": "YouTube Gaming Pre-roll",                 "budget": 15_000, "spent":  7_200},
+                    {"name": "Console Owners — CTV",                   "budget": 10_000, "spent":  3_300},
+                ],
+            },
+        ],
+    },
+    "DL-39847": {  # Heineken — budget 45k, spent 18.9k
+        "campaigns": [
+            {
+                "name": "Heineken — Winter Warm-Up AU",
+                "budget": 28_000, "spent": 12_400,
+                "line_items": [
+                    {"name": "Sports Context Display",              "budget": 12_000, "spent":  5_800},
+                    {"name": "Social Entertainment — Mobile",       "budget": 10_000, "spent":  4_600},
+                    {"name": "Video Pre-roll — Premium Publishers", "budget":  6_000, "spent":  2_000},
+                ],
+            },
+            {
+                "name": "Heineken — AFL Season Sponsorship",
+                "budget": 17_000, "spent": 6_500,
+                "line_items": [
+                    {"name": "AFL Fans — Programmatic Display",     "budget": 10_000, "spent":  4_200},
+                    {"name": "Live Sports Retargeting",             "budget":  7_000, "spent":  2_300},
+                ],
+            },
+        ],
+    },
+    "DL-61023": {  # eBay AU — budget 95k, spent 25.8k
+        "campaigns": [
+            {
+                "name": "eBay AU — Mid-Year Sales Push",
+                "budget": 60_000, "spent": 16_800,
+                "line_items": [
+                    {"name": "In-Market Shoppers — Display",        "budget": 25_000, "spent":  7_500},
+                    {"name": "Electronics Buyers — Mobile",         "budget": 20_000, "spent":  6_200},
+                    {"name": "Fashion Retargeting — Desktop",       "budget": 15_000, "spent":  3_100},
+                ],
+            },
+            {
+                "name": "eBay AU — Seller Acquisition",
+                "budget": 35_000, "spent": 9_000,
+                "line_items": [
+                    {"name": "Small Business Owners — Programmatic", "budget": 20_000, "spent":  5_800},
+                    {"name": "Marketplace Visitors — CTV",           "budget": 15_000, "spent":  3_200},
+                ],
+            },
+        ],
+    },
+    "DL-77345": {  # Continental Tyres — budget 60k, spent 19.8k
+        "campaigns": [
+            {
+                "name": "Continental Tyres — Safety First AU",
+                "budget": 38_000, "spent": 13_200,
+                "line_items": [
+                    {"name": "Car Owners Prospecting — Display",    "budget": 16_000, "spent":  6_000},
+                    {"name": "Auto Intenders — Mobile Video",       "budget": 12_000, "spent":  4_800},
+                    {"name": "Service Station Context",             "budget": 10_000, "spent":  2_400},
+                ],
+            },
+            {
+                "name": "Continental Tyres — Summer Drive AU",
+                "budget": 22_000, "spent": 6_600,
+                "line_items": [
+                    {"name": "Road Trip Planners — Programmatic",   "budget": 13_000, "spent":  4_500},
+                    {"name": "Premium Car Owners — CTV",            "budget":  9_000, "spent":  2_100},
+                ],
+            },
+        ],
+    },
+    "DL-33891": {  # Bose — budget 150k, spent 122k
+        "campaigns": [
+            {
+                "name": "Bose — QuietComfort Premium Launch",
+                "budget": 90_000, "spent": 75_000,
+                "line_items": [
+                    {"name": "Tech Affluent — Display Desktop",     "budget": 35_000, "spent": 30_500},
+                    {"name": "Music Streamers — Mobile Video",      "budget": 30_000, "spent": 26_000},
+                    {"name": "Premium Audio Intenders — CTV",       "budget": 25_000, "spent": 18_500},
+                ],
+            },
+            {
+                "name": "Bose — Sport Headphones Retargeting",
+                "budget": 60_000, "spent": 47_000,
+                "line_items": [
+                    {"name": "Site Visitors Retargeting — Display", "budget": 25_000, "spent": 22_000},
+                    {"name": "Fitness Audience — Mobile",           "budget": 20_000, "spent": 17_500},
+                    {"name": "Sports Events Context",               "budget": 15_000, "spent":  7_500},
+                ],
+            },
+        ],
+    },
+}
+
+
+# ── Pacing table with expandable client → campaign → line item rows ───────────
+# Table header (rendered once above all client rows)
 st.markdown(
-    f"""
-    <div style='background:#FFFFFF;border-radius:12px;
-                box-shadow:0 4px 12px rgba(0,0,0,0.08);overflow:hidden;'>
+    """
+    <div style='background:#F9FAFB;border-radius:12px 12px 0 0;
+                border-bottom:2px solid #E5E7EB;margin-bottom:0;'>
       <table style='width:100%;border-collapse:collapse;'>
         <thead>
-          <tr style='background:#F9FAFB;border-bottom:2px solid #E5E7EB;'>
+          <tr>
+            <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
+                       text-transform:uppercase;letter-spacing:0.06em;width:28px;'></th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Client</th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
@@ -563,12 +707,108 @@ st.markdown(
                        text-transform:uppercase;letter-spacing:0.06em;'>Status</th>
           </tr>
         </thead>
-        <tbody>{rows_html}</tbody>
       </table>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+# One white card per client row; the expander below it reveals campaign detail
+for c in FILTERED_CAMPAIGNS:
+    breakdown = CAMPAIGN_BREAKDOWN.get(c["deal_id"], {})
+
+    # Client-level row (HTML table row, same columns as header above)
+    client_row = (
+        f"<tr style='border-bottom:1px solid #F3F4F6;'>"
+        f"<td style='padding:14px 16px;width:28px;color:#9CA3AF;font-size:11px;'>▶</td>"
+        f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{c['client']}</td>"
+        f"<td style='padding:14px 16px;'>{dsp_badge(c['dsp'])}</td>"
+        f"<td style='padding:14px 16px;'>{deal_type_badge(c['deal_type'])}</td>"
+        f"<td style='padding:14px 16px;font-size:12px;color:#6B7280;"
+        f"font-family:monospace;'>{c['deal_id']}</td>"
+        f"<td style='padding:14px 16px;text-align:right;'>A${c['budget']/1_000:.0f}k</td>"
+        f"<td style='padding:14px 16px;text-align:right;'>A${c['spent']/1_000:.1f}k</td>"
+        f"<td style='padding:14px 16px;min-width:220px;'>"
+        f"{pacing_bar(c['pacing_index'], c['risk_color'])}</td>"
+        f"<td style='padding:14px 16px;text-align:center;'>"
+        f"{days_cell(c['days_remaining'])}</td>"
+        f"<td style='padding:14px 16px;'>"
+        f"{risk_badge(c['risk'], c['risk_color'], c['risk_bg'])}</td>"
+        f"</tr>"
+    )
+    st.markdown(
+        f"<div style='background:#FFFFFF;box-shadow:0 1px 0 #F3F4F6;'>"
+        f"<table style='width:100%;border-collapse:collapse;'>"
+        f"<tbody>{client_row}</tbody>"
+        f"</table></div>",
+        unsafe_allow_html=True,
+    )
+
+    # Campaign-level expander (only shown if breakdown data exists)
+    if breakdown:
+        with st.expander(
+            f"↳  Campaign & Line Item Breakdown — {c['client']}",
+            expanded=False,
+        ):
+            for camp in breakdown.get("campaigns", []):
+                # Calculate pacing for this campaign using parent flight dates
+                cp = calc_sub_pacing(camp["budget"], camp["spent"], c["start"], c["end"])
+
+                camp_label = (
+                    f"📊  {camp['name']}  ·  "
+                    f"A${camp['budget']/1_000:.0f}k budget  ·  "
+                    f"A${camp['spent']/1_000:.1f}k spent  ·  "
+                    f"{cp['pacing_index']:.1f}% ({cp['risk']})"
+                )
+
+                # Line item expander nested inside the campaign expander
+                with st.expander(camp_label, expanded=False):
+                    # Build a mini HTML table showing each line item
+                    li_rows = ""
+                    for li in camp["line_items"]:
+                        lp = calc_sub_pacing(
+                            li["budget"], li["spent"], c["start"], c["end"]
+                        )
+                        li_rows += (
+                            f"<tr style='border-bottom:1px solid #F3F4F6;'>"
+                            f"<td style='padding:10px 14px 10px 24px;color:#374151;"
+                            f"font-size:13px;'>{li['name']}</td>"
+                            f"<td style='padding:10px 14px;text-align:right;"
+                            f"font-size:13px;'>A${li['budget']/1_000:.0f}k</td>"
+                            f"<td style='padding:10px 14px;text-align:right;"
+                            f"font-size:13px;'>A${li['spent']/1_000:.1f}k</td>"
+                            f"<td style='padding:10px 14px;min-width:200px;'>"
+                            f"{pacing_bar(lp['pacing_index'], lp['risk_color'])}</td>"
+                            f"<td style='padding:10px 14px;'>"
+                            f"{risk_badge(lp['risk'], lp['risk_color'], lp['risk_bg'])}</td>"
+                            f"</tr>"
+                        )
+
+                    st.markdown(
+                        f"<div style='background:#F9FAFB;border-radius:8px;"
+                        f"overflow:hidden;margin-top:8px;'>"
+                        f"<table style='width:100%;border-collapse:collapse;'>"
+                        f"<thead><tr style='background:#F3F4F6;border-bottom:1px solid #E5E7EB;'>"
+                        f"<th style='padding:8px 14px 8px 24px;text-align:left;font-size:11px;"
+                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                        f"Line Item</th>"
+                        f"<th style='padding:8px 14px;text-align:right;font-size:11px;"
+                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                        f"Budget</th>"
+                        f"<th style='padding:8px 14px;text-align:right;font-size:11px;"
+                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                        f"Spent</th>"
+                        f"<th style='padding:8px 14px;text-align:left;font-size:11px;"
+                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                        f"Pacing</th>"
+                        f"<th style='padding:8px 14px;text-align:left;font-size:11px;"
+                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                        f"Status</th>"
+                        f"</tr></thead>"
+                        f"<tbody>{li_rows}</tbody>"
+                        f"</table></div>",
+                        unsafe_allow_html=True,
+                    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 3 — AI analysis
