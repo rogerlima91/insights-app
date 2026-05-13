@@ -172,6 +172,140 @@ def calc_pacing(c):
 # Build enriched mock data (used as fallback when no files are uploaded)
 MOCK_CAMPAIGNS = [calc_pacing(c) for c in RAW_CAMPAIGNS]
 
+# ── Mock campaign and line item data per deal ─────────────────────────────────
+# Budgets and spends at each level sum exactly to the client totals in RAW_CAMPAIGNS.
+# Line items are given slightly different pacing so the drill-down shows variety.
+MOCK_CAMPAIGN_BREAKDOWN = {
+    "DL-44821": {  # Grey Goose AU — budget 85k, spent 41.2k
+        "campaigns": [
+            {
+                "name": "Grey Goose AU — Brand Awareness Q2",
+                "budget": 55_000, "spent": 27_800,
+                "line_items": [
+                    {"name": "Prospecting Display — Desktop",   "budget": 22_000, "spent": 13_200},
+                    {"name": "Retargeting — Mobile",            "budget": 18_000, "spent":  9_600},
+                    {"name": "YouTube Pre-roll — All Devices",  "budget": 15_000, "spent":  5_000},
+                ],
+            },
+            {
+                "name": "Grey Goose AU — Premium Spirits Retargeting",
+                "budget": 30_000, "spent": 13_400,
+                "line_items": [
+                    {"name": "Site Retargeting — Display",      "budget": 17_000, "spent":  9_400},
+                    {"name": "CRM Match — Programmatic",        "budget": 13_000, "spent":  4_000},
+                ],
+            },
+        ],
+    },
+    "DL-52190": {  # EA Games — budget 120k, spent 72k
+        "campaigns": [
+            {
+                "name": "EA Games — FC25 Launch AU",
+                "budget": 75_000, "spent": 51_000,
+                "line_items": [
+                    {"name": "Gaming Audience — Display Desktop",     "budget": 30_000, "spent": 22_000},
+                    {"name": "In-Game Interest — Mobile Video",       "budget": 25_000, "spent": 19_500},
+                    {"name": "Sports Fans Retargeting",               "budget": 20_000, "spent":  9_500},
+                ],
+            },
+            {
+                "name": "EA Games — App Install Prospecting",
+                "budget": 45_000, "spent": 21_000,
+                "line_items": [
+                    {"name": "Tech Enthusiasts — Programmatic Display", "budget": 20_000, "spent": 10_500},
+                    {"name": "YouTube Gaming Pre-roll",                 "budget": 15_000, "spent":  7_200},
+                    {"name": "Console Owners — CTV",                   "budget": 10_000, "spent":  3_300},
+                ],
+            },
+        ],
+    },
+    "DL-39847": {  # Heineken — budget 45k, spent 18.9k
+        "campaigns": [
+            {
+                "name": "Heineken — Winter Warm-Up AU",
+                "budget": 28_000, "spent": 12_400,
+                "line_items": [
+                    {"name": "Sports Context Display",              "budget": 12_000, "spent":  5_800},
+                    {"name": "Social Entertainment — Mobile",       "budget": 10_000, "spent":  4_600},
+                    {"name": "Video Pre-roll — Premium Publishers", "budget":  6_000, "spent":  2_000},
+                ],
+            },
+            {
+                "name": "Heineken — AFL Season Sponsorship",
+                "budget": 17_000, "spent": 6_500,
+                "line_items": [
+                    {"name": "AFL Fans — Programmatic Display",     "budget": 10_000, "spent":  4_200},
+                    {"name": "Live Sports Retargeting",             "budget":  7_000, "spent":  2_300},
+                ],
+            },
+        ],
+    },
+    "DL-61023": {  # eBay AU — budget 95k, spent 25.8k
+        "campaigns": [
+            {
+                "name": "eBay AU — Mid-Year Sales Push",
+                "budget": 60_000, "spent": 16_800,
+                "line_items": [
+                    {"name": "In-Market Shoppers — Display",        "budget": 25_000, "spent":  7_500},
+                    {"name": "Electronics Buyers — Mobile",         "budget": 20_000, "spent":  6_200},
+                    {"name": "Fashion Retargeting — Desktop",       "budget": 15_000, "spent":  3_100},
+                ],
+            },
+            {
+                "name": "eBay AU — Seller Acquisition",
+                "budget": 35_000, "spent": 9_000,
+                "line_items": [
+                    {"name": "Small Business Owners — Programmatic", "budget": 20_000, "spent":  5_800},
+                    {"name": "Marketplace Visitors — CTV",           "budget": 15_000, "spent":  3_200},
+                ],
+            },
+        ],
+    },
+    "DL-77345": {  # Continental Tyres — budget 60k, spent 19.8k
+        "campaigns": [
+            {
+                "name": "Continental Tyres — Safety First AU",
+                "budget": 38_000, "spent": 13_200,
+                "line_items": [
+                    {"name": "Car Owners Prospecting — Display",    "budget": 16_000, "spent":  6_000},
+                    {"name": "Auto Intenders — Mobile Video",       "budget": 12_000, "spent":  4_800},
+                    {"name": "Service Station Context",             "budget": 10_000, "spent":  2_400},
+                ],
+            },
+            {
+                "name": "Continental Tyres — Summer Drive AU",
+                "budget": 22_000, "spent": 6_600,
+                "line_items": [
+                    {"name": "Road Trip Planners — Programmatic",   "budget": 13_000, "spent":  4_500},
+                    {"name": "Premium Car Owners — CTV",            "budget":  9_000, "spent":  2_100},
+                ],
+            },
+        ],
+    },
+    "DL-33891": {  # Bose — budget 150k, spent 122k
+        "campaigns": [
+            {
+                "name": "Bose — QuietComfort Premium Launch",
+                "budget": 90_000, "spent": 75_000,
+                "line_items": [
+                    {"name": "Tech Affluent — Display Desktop",     "budget": 35_000, "spent": 30_500},
+                    {"name": "Music Streamers — Mobile Video",      "budget": 30_000, "spent": 26_000},
+                    {"name": "Premium Audio Intenders — CTV",       "budget": 25_000, "spent": 18_500},
+                ],
+            },
+            {
+                "name": "Bose — Sport Headphones Retargeting",
+                "budget": 60_000, "spent": 47_000,
+                "line_items": [
+                    {"name": "Site Visitors Retargeting — Display", "budget": 25_000, "spent": 22_000},
+                    {"name": "Fitness Audience — Mobile",           "budget": 20_000, "spent": 17_500},
+                    {"name": "Sports Events Context",               "budget": 15_000, "spent":  7_500},
+                ],
+            },
+        ],
+    },
+}
+
 # ── Deal health diagnostics (one entry per at-risk deal) ──────────────────────
 # Mimics what the TTD Deal Health API or DV360 Troubleshooter API would return.
 # Wording and field names reflect the platform each deal runs on.
@@ -776,141 +910,6 @@ def calc_sub_pacing(budget, spent, start, end):
         "pacing_index": pacing_index,
         "risk": risk, "risk_color": risk_color, "risk_bg": risk_bg,
     }
-
-
-# ── Mock campaign and line item data per deal ─────────────────────────────────
-# Budgets and spends at each level sum exactly to the client totals in RAW_CAMPAIGNS.
-# Line items are given slightly different pacing so the drill-down shows variety.
-MOCK_CAMPAIGN_BREAKDOWN = {
-    "DL-44821": {  # Grey Goose AU — budget 85k, spent 41.2k
-        "campaigns": [
-            {
-                "name": "Grey Goose AU — Brand Awareness Q2",
-                "budget": 55_000, "spent": 27_800,
-                "line_items": [
-                    {"name": "Prospecting Display — Desktop",   "budget": 22_000, "spent": 13_200},
-                    {"name": "Retargeting — Mobile",            "budget": 18_000, "spent":  9_600},
-                    {"name": "YouTube Pre-roll — All Devices",  "budget": 15_000, "spent":  5_000},
-                ],
-            },
-            {
-                "name": "Grey Goose AU — Premium Spirits Retargeting",
-                "budget": 30_000, "spent": 13_400,
-                "line_items": [
-                    {"name": "Site Retargeting — Display",      "budget": 17_000, "spent":  9_400},
-                    {"name": "CRM Match — Programmatic",        "budget": 13_000, "spent":  4_000},
-                ],
-            },
-        ],
-    },
-    "DL-52190": {  # EA Games — budget 120k, spent 72k
-        "campaigns": [
-            {
-                "name": "EA Games — FC25 Launch AU",
-                "budget": 75_000, "spent": 51_000,
-                "line_items": [
-                    {"name": "Gaming Audience — Display Desktop",     "budget": 30_000, "spent": 22_000},
-                    {"name": "In-Game Interest — Mobile Video",       "budget": 25_000, "spent": 19_500},
-                    {"name": "Sports Fans Retargeting",               "budget": 20_000, "spent":  9_500},
-                ],
-            },
-            {
-                "name": "EA Games — App Install Prospecting",
-                "budget": 45_000, "spent": 21_000,
-                "line_items": [
-                    {"name": "Tech Enthusiasts — Programmatic Display", "budget": 20_000, "spent": 10_500},
-                    {"name": "YouTube Gaming Pre-roll",                 "budget": 15_000, "spent":  7_200},
-                    {"name": "Console Owners — CTV",                   "budget": 10_000, "spent":  3_300},
-                ],
-            },
-        ],
-    },
-    "DL-39847": {  # Heineken — budget 45k, spent 18.9k
-        "campaigns": [
-            {
-                "name": "Heineken — Winter Warm-Up AU",
-                "budget": 28_000, "spent": 12_400,
-                "line_items": [
-                    {"name": "Sports Context Display",              "budget": 12_000, "spent":  5_800},
-                    {"name": "Social Entertainment — Mobile",       "budget": 10_000, "spent":  4_600},
-                    {"name": "Video Pre-roll — Premium Publishers", "budget":  6_000, "spent":  2_000},
-                ],
-            },
-            {
-                "name": "Heineken — AFL Season Sponsorship",
-                "budget": 17_000, "spent": 6_500,
-                "line_items": [
-                    {"name": "AFL Fans — Programmatic Display",     "budget": 10_000, "spent":  4_200},
-                    {"name": "Live Sports Retargeting",             "budget":  7_000, "spent":  2_300},
-                ],
-            },
-        ],
-    },
-    "DL-61023": {  # eBay AU — budget 95k, spent 25.8k
-        "campaigns": [
-            {
-                "name": "eBay AU — Mid-Year Sales Push",
-                "budget": 60_000, "spent": 16_800,
-                "line_items": [
-                    {"name": "In-Market Shoppers — Display",        "budget": 25_000, "spent":  7_500},
-                    {"name": "Electronics Buyers — Mobile",         "budget": 20_000, "spent":  6_200},
-                    {"name": "Fashion Retargeting — Desktop",       "budget": 15_000, "spent":  3_100},
-                ],
-            },
-            {
-                "name": "eBay AU — Seller Acquisition",
-                "budget": 35_000, "spent": 9_000,
-                "line_items": [
-                    {"name": "Small Business Owners — Programmatic", "budget": 20_000, "spent":  5_800},
-                    {"name": "Marketplace Visitors — CTV",           "budget": 15_000, "spent":  3_200},
-                ],
-            },
-        ],
-    },
-    "DL-77345": {  # Continental Tyres — budget 60k, spent 19.8k
-        "campaigns": [
-            {
-                "name": "Continental Tyres — Safety First AU",
-                "budget": 38_000, "spent": 13_200,
-                "line_items": [
-                    {"name": "Car Owners Prospecting — Display",    "budget": 16_000, "spent":  6_000},
-                    {"name": "Auto Intenders — Mobile Video",       "budget": 12_000, "spent":  4_800},
-                    {"name": "Service Station Context",             "budget": 10_000, "spent":  2_400},
-                ],
-            },
-            {
-                "name": "Continental Tyres — Summer Drive AU",
-                "budget": 22_000, "spent": 6_600,
-                "line_items": [
-                    {"name": "Road Trip Planners — Programmatic",   "budget": 13_000, "spent":  4_500},
-                    {"name": "Premium Car Owners — CTV",            "budget":  9_000, "spent":  2_100},
-                ],
-            },
-        ],
-    },
-    "DL-33891": {  # Bose — budget 150k, spent 122k
-        "campaigns": [
-            {
-                "name": "Bose — QuietComfort Premium Launch",
-                "budget": 90_000, "spent": 75_000,
-                "line_items": [
-                    {"name": "Tech Affluent — Display Desktop",     "budget": 35_000, "spent": 30_500},
-                    {"name": "Music Streamers — Mobile Video",      "budget": 30_000, "spent": 26_000},
-                    {"name": "Premium Audio Intenders — CTV",       "budget": 25_000, "spent": 18_500},
-                ],
-            },
-            {
-                "name": "Bose — Sport Headphones Retargeting",
-                "budget": 60_000, "spent": 47_000,
-                "line_items": [
-                    {"name": "Site Visitors Retargeting — Display", "budget": 25_000, "spent": 22_000},
-                    {"name": "Fitness Audience — Mobile",           "budget": 20_000, "spent": 17_500},
-                    {"name": "Sports Events Context",               "budget": 15_000, "spent":  7_500},
-                ],
-            },
-        ],
-    },
-}
 
 
 # ── Pacing table with expandable client → campaign → line item rows ───────────
