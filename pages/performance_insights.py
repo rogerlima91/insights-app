@@ -794,11 +794,24 @@ Only include brands from the data. Cite actual numbers. No extra text.""",
     return out
 
 # ── File uploader ─────────────────────────────────────────────────────────────
-uploaded_files = st.file_uploader(
-    "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
-    type=["csv", "tsv", "xlsx", "xls"],
-    accept_multiple_files=True,
-)
+# Expander label and default state depend on whether data was loaded on the
+# previous run. Session state "_uploader_loaded_info" is set after files are
+# processed so the label and collapse state update on the next rerun.
+_loaded_info = st.session_state.get("_uploader_loaded_info")
+if _loaded_info:
+    _exp_label    = (f"📁 Upload Data — {_loaded_info['label']} loaded "
+                     f"({_loaded_info['rows']:,} rows)")
+    _exp_expanded = False
+else:
+    _exp_label    = "📁 Upload Data"
+    _exp_expanded = True
+
+with st.expander(_exp_label, expanded=_exp_expanded):
+    uploaded_files = st.file_uploader(
+        "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
+        type=["csv", "tsv", "xlsx", "xls"],
+        accept_multiple_files=True,
+    )
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.markdown(
@@ -822,6 +835,8 @@ st.markdown(
 
 # ── Process files ─────────────────────────────────────────────────────────────
 if not uploaded_files:
+    # Clear stored file info so expander resets to expanded when files are removed
+    st.session_state.pop("_uploader_loaded_info", None)
     # Show a friendly prompt when nothing is uploaded yet
     st.markdown("""
     <div style='text-align:center;padding:48px 0;color:#9ca3af;'>
@@ -845,6 +860,18 @@ else:
 
     # Combine all files into a single DataFrame
     df_all = pd.concat(frames, ignore_index=True)
+
+    # Store file info in session state so the expander label updates on next rerun
+    _file_label = (uploaded_files[0].name if len(uploaded_files) == 1
+                   else f"{len(uploaded_files)} files")
+    st.session_state["_uploader_loaded_info"] = {
+        "label": _file_label,
+        "rows":  len(df_all),
+    }
+
+    # Parse date column to datetime so the date range filter works correctly
+    if "date" in df_all.columns:
+        df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
 
     # ── Sidebar file list ─────────────────────────────────────────────────────
     badge_class = {"DV360": "badge-dv360", "TTD": "badge-ttd", "Generic": "badge-generic"}
@@ -871,8 +898,32 @@ else:
             options=adv_options,
             key="global_adv_filter",
         )
-        df_metrics = (df_all[df_all[_adv_col] == sel_adv_global].copy()
-                      if sel_adv_global != "All Advertisers" else df_all.copy())
+    else:
+        sel_adv_global = None
+
+    # ── Date range filter — only shown when data has a date column ────────────
+    # Filters ALL summary metrics and ALL charts to the selected date range.
+    if "date" in df_all.columns:
+        _min_date = df_all["date"].dropna().min().date()
+        _max_date = df_all["date"].dropna().max().date()
+        _date_range = st.date_input(
+            "Filter by Date Range",
+            value=(_min_date, _max_date),
+            min_value=_min_date,
+            max_value=_max_date,
+            key="date_range_filter",
+        )
+        # Apply date filter when the user has selected a full start + end range
+        if isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
+            _start, _end = _date_range
+            df_all = df_all[
+                (df_all["date"].dt.date >= _start) &
+                (df_all["date"].dt.date <= _end)
+            ].copy()
+
+    # Apply advertiser filter on the (possibly date-filtered) df_all
+    if _adv_col and sel_adv_global and sel_adv_global != "All Advertisers":
+        df_metrics = df_all[df_all[_adv_col] == sel_adv_global].copy()
     else:
         df_metrics = df_all.copy()
 
@@ -1051,10 +1102,9 @@ else:
 
                     # Metric selector dropdown above each chart
                     sel_label = st.selectbox(
-                        "Metric",
+                        "Select Metric",
                         options=list(avail_metrics.values()),
                         key=f"chart_metric_{title.replace(' ', '_')}",
-                        label_visibility="collapsed",
                     )
                     # Reverse-map display label back to column name
                     sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
@@ -1082,7 +1132,6 @@ else:
                         default=[],
                         key=f"dim_filter_{title.replace(' ', '_')}",
                         placeholder="All (no filter applied)",
-                        label_visibility="collapsed",
                     )
                     df_chart_filtered = (
                         df_chart_base[df_chart_base[dim_col].astype(str).isin(sel_dims)]
