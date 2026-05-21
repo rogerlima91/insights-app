@@ -268,24 +268,24 @@ with tab_bm:
                 st.success(f"Deleted brand: {bm_selected}")
                 st.rerun()
 
-    # ── Saved brands — collapsible entries view ───────────────────────────────
+    # ── Saved brands — one collapsible expander per brand ────────────────────
     st.markdown("---")
-    _saved_label = (
-        f"Saved Brands ({len(bm_names)})" if bm_names else "Saved Brands"
-    )
-    with st.expander(_saved_label, expanded=False):
-        if not bm_names:
-            st.info("No brands saved yet. Use the form above to add one.")
-        else:
-            for brand_name, brand_data in bm.items():
-                brand_data = migrate_brand(brand_data)
-                entries    = brand_data.get("entries", [])
+    _saved_title = f"Saved Brands ({len(bm_names)})" if bm_names else "Saved Brands"
+    st.subheader(_saved_title)
 
-                st.markdown(
-                    f"<h4 style='color:#111827;margin-bottom:4px;'>{brand_name}</h4>",
-                    unsafe_allow_html=True,
-                )
+    if not bm_names:
+        st.info("No brands saved yet. Use the form above to add one.")
+    else:
+        for brand_name, brand_data in bm.items():
+            brand_data = migrate_brand(brand_data)
+            entries    = brand_data.get("entries", [])
 
+            # Each brand is its own collapsible — collapsed by default
+            entry_count = len(entries)
+            _brand_label = (
+                f"{brand_name}  ·  {entry_count} {'entry' if entry_count == 1 else 'entries'}"
+            )
+            with st.expander(_brand_label, expanded=False):
                 if not entries:
                     st.caption("No entries yet.")
                 else:
@@ -353,8 +353,6 @@ with tab_bm:
                                     del fresh_bm[brand_name]
                                 save_brand_memory(fresh_bm)
                                 st.rerun()
-
-                st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — Email Context

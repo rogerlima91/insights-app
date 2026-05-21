@@ -887,6 +887,22 @@ else:
         )
     st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
 
+    # ── Filter colour styling ──────────────────────────────────────────────────
+    # Soft lavender card around every selectbox, date input, and multiselect so
+    # all filter controls stand out clearly from the rest of the page content.
+    st.markdown("""
+    <style>
+    [data-testid="stSelectbox"],
+    [data-testid="stDateInput"],
+    [data-testid="stMultiSelect"] {
+        background-color : #F5F3FF;
+        border           : 1px solid #DDD6FE;
+        border-radius    : 8px;
+        padding          : 6px 8px 2px 8px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # ── Global filters — side by side ─────────────────────────────────────────
     # Advertiser filter is always shown; date range filter appears only when the
     # data has a date column. Both sit in two equal columns on the same row.
