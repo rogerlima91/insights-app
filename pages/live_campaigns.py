@@ -1266,132 +1266,134 @@ for c in FILTERED_AT_RISK:
         continue
     is_dv360 = c["dsp"] == "DV360"
 
-    col_btn, col_resp = st.columns([1, 3])
+    # Each optimisation is collapsible — label shows client + deal info when collapsed
+    remaining_budget = c["budget"] - c["spent"]
+    risk_color = c["risk_color"]
+    risk_label = c["risk"]
+    _exp_label = (
+        f"⚡ {c['client']}  ·  {c['dsp']} {c['deal_type']}  ·  {c['deal_id']}  ·  "
+        f"Pacing {c['pacing_index']:.1f}% ({risk_label})  ·  "
+        f"A${remaining_budget/1_000:.1f}k remaining"
+    )
+    with st.expander(_exp_label, expanded=False):
+        col_btn, col_resp = st.columns([1, 3])
 
-    with col_btn:
-        if st.button(
-            f"⚡ PATCH {c['deal_id']}",
-            key=f"push_{c['deal_id']}",
-            type="primary",
-        ):
-            st.session_state[f"pushed_{c['deal_id']}"] = True
+        with col_btn:
+            if st.button(
+                f"⚡ Push Optimisation — {c['client']}",
+                key=f"push_{c['deal_id']}",
+                type="primary",
+            ):
+                st.session_state[f"pushed_{c['deal_id']}"] = True
 
-        # Campaign summary below the button
-        remaining_budget = c["budget"] - c["spent"]
-        risk_color = c["risk_color"]
-        risk_label = c["risk"]
-        st.markdown(
-            f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
-            f"<strong style='color:#111827;'>{c['client']}</strong><br>"
-            f"{c['dsp']} &nbsp;·&nbsp; {c['deal_type']}<br>"
-            f"Pacing: {c['pacing_index']:.1f}% "
-            f"<span style='color:{risk_color};font-weight:700;'>({risk_label})</span><br>"
-            f"Remaining: A${remaining_budget/1_000:.1f}k &nbsp;·&nbsp; {c['days_remaining']}d left"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-    with col_resp:
-        if st.session_state.get(f"pushed_{c['deal_id']}"):
-            budget_change_pct = (
-                (pd_["budget_to"] - pd_["budget_from"]) / pd_["budget_from"] * 100
-            )
-            recovery_note = (
-                "Low confidence due to compressed flight end — monitor daily for first 48h"
-                if pd_["confidence"] == "LOW"
-                else "Monitor pacing daily to avoid overspend"
-            )
-
-            if is_dv360:
-                # DV360 API response — uses DV360 field names and micros for bid amounts
-                # bidAmountMicros: $1.00 = 1,000,000 micros
-                bid_from_micros = int(pd_["bid_from"] * 1_000_000)
-                bid_to_micros   = int(pd_["bid_to"]   * 1_000_000)
-                mock_response = {
-                    "status":              200,
-                    "message":             "Insertion order updated successfully",
-                    "advertiserId":        "7841209",
-                    "insertionOrderId":    c["deal_id"],
-                    "advertiser":          c["client"],
-                    "endpoint":            f"PATCH /v2/advertisers/7841209/insertionOrders/{c['deal_id']}",
-                    "changes_applied": {
-                        "pacing": {
-                            "from": {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_EVEN"},
-                            "to":   {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_AHEAD"},
-                        },
-                        "bidStrategy": {
-                            "fixedBid": {
-                                "from": {"bidAmountMicros": bid_from_micros},
-                                "to":   {"bidAmountMicros": bid_to_micros},
-                                "change": "+25.0%",
-                            }
-                        },
-                        "budget_daily_aud": {
-                            "from":   round(pd_["budget_from"], 2),
-                            "to":     round(pd_["budget_to"],   2),
-                            "change": f"+{budget_change_pct:.1f}%",
-                        },
-                    },
-                    "estimated_recovery": {
-                        "additional_spend_aud":       pd_["recovery_aud"],
-                        "projected_end_pacing_index": pd_["projected_pacing"],
-                        "confidence":                 pd_["confidence"],
-                        "note":                       recovery_note,
-                    },
-                    "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
-                }
-            else:
-                # TTD API response — uses TTD field names
-                mock_response = {
-                    "status":     200,
-                    "message":    "Deal updated successfully",
-                    "deal_id":    c["deal_id"],
-                    "advertiser": c["client"],
-                    "endpoint":   f"PATCH /v3/deal/{c['deal_id']}",
-                    "changes_applied": {
-                        "base_bid_cpm_aud": {
-                            "from":   pd_["bid_from"],
-                            "to":     pd_["bid_to"],
-                            "change": "+25.0%",
-                        },
-                        "daily_budget_aud": {
-                            "from":   round(pd_["budget_from"], 2),
-                            "to":     round(pd_["budget_to"],   2),
-                            "change": f"+{budget_change_pct:.1f}%",
-                        },
-                        "pacing_mode": {
-                            "from": "EVEN",
-                            "to":   "AGGRESSIVE",
-                        },
-                        "bid_shading": {
-                            "from": "ENABLED",
-                            "to":   "DISABLED",
-                        },
-                    },
-                    "estimated_recovery": {
-                        "additional_spend_aud":       pd_["recovery_aud"],
-                        "projected_end_pacing_index": pd_["projected_pacing"],
-                        "confidence":                 pd_["confidence"],
-                        "note":                       recovery_note,
-                    },
-                    "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
-                }
-
-            st.code(json.dumps(mock_response, indent=2), language="json")
-        else:
-            # Placeholder shown before the button is clicked
+            # Campaign summary below the button
             st.markdown(
-                "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
-                "border-radius:8px;padding:28px;text-align:center;"
-                "color:#9CA3AF;font-size:13px;'>"
-                "Click the button to simulate the DSP PATCH call and see the "
-                "projected API response.</div>",
+                f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
+                f"<strong style='color:#111827;'>{c['client']}</strong><br>"
+                f"{c['dsp']} &nbsp;·&nbsp; {c['deal_type']}<br>"
+                f"Pacing: {c['pacing_index']:.1f}% "
+                f"<span style='color:{risk_color};font-weight:700;'>({risk_label})</span><br>"
+                f"Remaining: A${remaining_budget/1_000:.1f}k &nbsp;·&nbsp; {c['days_remaining']}d left"
+                f"</div>",
                 unsafe_allow_html=True,
             )
 
-    st.markdown(
-        "<hr style='border:none;border-top:1px solid #E5E7EB;margin:20px 0;'>",
-        unsafe_allow_html=True,
-    )
+        with col_resp:
+            if st.session_state.get(f"pushed_{c['deal_id']}"):
+                budget_change_pct = (
+                    (pd_["budget_to"] - pd_["budget_from"]) / pd_["budget_from"] * 100
+                )
+                recovery_note = (
+                    "Low confidence due to compressed flight end — monitor daily for first 48h"
+                    if pd_["confidence"] == "LOW"
+                    else "Monitor pacing daily to avoid overspend"
+                )
+
+                if is_dv360:
+                    # DV360 API response — uses DV360 field names and micros for bid amounts
+                    # bidAmountMicros: $1.00 = 1,000,000 micros
+                    bid_from_micros = int(pd_["bid_from"] * 1_000_000)
+                    bid_to_micros   = int(pd_["bid_to"]   * 1_000_000)
+                    mock_response = {
+                        "status":              200,
+                        "message":             "Insertion order updated successfully",
+                        "advertiserId":        "7841209",
+                        "insertionOrderId":    c["deal_id"],
+                        "advertiser":          c["client"],
+                        "endpoint":            f"PATCH /v2/advertisers/7841209/insertionOrders/{c['deal_id']}",
+                        "changes_applied": {
+                            "pacing": {
+                                "from": {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_EVEN"},
+                                "to":   {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_AHEAD"},
+                            },
+                            "bidStrategy": {
+                                "fixedBid": {
+                                    "from": {"bidAmountMicros": bid_from_micros},
+                                    "to":   {"bidAmountMicros": bid_to_micros},
+                                    "change": "+25.0%",
+                                }
+                            },
+                            "budget_daily_aud": {
+                                "from":   round(pd_["budget_from"], 2),
+                                "to":     round(pd_["budget_to"],   2),
+                                "change": f"+{budget_change_pct:.1f}%",
+                            },
+                        },
+                        "estimated_recovery": {
+                            "additional_spend_aud":       pd_["recovery_aud"],
+                            "projected_end_pacing_index": pd_["projected_pacing"],
+                            "confidence":                 pd_["confidence"],
+                            "note":                       recovery_note,
+                        },
+                        "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
+                    }
+                else:
+                    # TTD API response — uses TTD field names
+                    mock_response = {
+                        "status":     200,
+                        "message":    "Deal updated successfully",
+                        "deal_id":    c["deal_id"],
+                        "advertiser": c["client"],
+                        "endpoint":   f"PATCH /v3/deal/{c['deal_id']}",
+                        "changes_applied": {
+                            "base_bid_cpm_aud": {
+                                "from":   pd_["bid_from"],
+                                "to":     pd_["bid_to"],
+                                "change": "+25.0%",
+                            },
+                            "daily_budget_aud": {
+                                "from":   round(pd_["budget_from"], 2),
+                                "to":     round(pd_["budget_to"],   2),
+                                "change": f"+{budget_change_pct:.1f}%",
+                            },
+                            "pacing_mode": {
+                                "from": "EVEN",
+                                "to":   "AGGRESSIVE",
+                            },
+                            "bid_shading": {
+                                "from": "ENABLED",
+                                "to":   "DISABLED",
+                            },
+                        },
+                        "estimated_recovery": {
+                            "additional_spend_aud":       pd_["recovery_aud"],
+                            "projected_end_pacing_index": pd_["projected_pacing"],
+                            "confidence":                 pd_["confidence"],
+                            "note":                       recovery_note,
+                        },
+                        "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
+                    }
+
+                st.code(json.dumps(mock_response, indent=2), language="json")
+            else:
+                # Placeholder shown before the button is clicked
+                st.markdown(
+                    "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
+                    "border-radius:8px;padding:28px;text-align:center;"
+                    "color:#9CA3AF;font-size:13px;'>"
+                    "Click the button to simulate the DSP PATCH call and see the "
+                    "projected API response.</div>",
+                    unsafe_allow_html=True,
+                )
 
 print("Campaign Monitor loaded.")

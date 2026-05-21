@@ -887,32 +887,37 @@ else:
         )
     st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
 
-    # ── Global advertiser filter — controls Summary Metrics only ──────────────
-    # Each chart has its own independent advertiser filter below.
-    _adv_col = "campaign" if "campaign" in df_all.columns else (
-               "campaign_dim" if "campaign_dim" in df_all.columns else None)
-    if _adv_col:
-        adv_options = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
-        sel_adv_global = st.selectbox(
-            "Filter by Advertiser",
-            options=adv_options,
-            key="global_adv_filter",
-        )
-    else:
-        sel_adv_global = None
+    # ── Global filters — side by side ─────────────────────────────────────────
+    # Advertiser filter is always shown; date range filter appears only when the
+    # data has a date column. Both sit in two equal columns on the same row.
+    _adv_col  = "campaign" if "campaign" in df_all.columns else (
+                "campaign_dim" if "campaign_dim" in df_all.columns else None)
+    _has_date = "date" in df_all.columns
 
-    # ── Date range filter — only shown when data has a date column ────────────
-    # Filters ALL summary metrics and ALL charts to the selected date range.
-    if "date" in df_all.columns:
-        _min_date = df_all["date"].dropna().min().date()
-        _max_date = df_all["date"].dropna().max().date()
-        _date_range = st.date_input(
-            "Filter by Date Range",
-            value=(_min_date, _max_date),
-            min_value=_min_date,
-            max_value=_max_date,
-            key="date_range_filter",
-        )
+    _fcol1, _fcol2 = st.columns(2)
+
+    with _fcol1:
+        if _adv_col:
+            adv_options    = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
+            sel_adv_global = st.selectbox(
+                "Filter by Advertiser",
+                options=adv_options,
+                key="global_adv_filter",
+            )
+        else:
+            sel_adv_global = None
+
+    if _has_date:
+        with _fcol2:
+            _min_date   = df_all["date"].dropna().min().date()
+            _max_date   = df_all["date"].dropna().max().date()
+            _date_range = st.date_input(
+                "Filter by Date Range",
+                value=(_min_date, _max_date),
+                min_value=_min_date,
+                max_value=_max_date,
+                key="date_range_filter",
+            )
         # Apply date filter when the user has selected a full start + end range
         if isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
             _start, _end = _date_range
@@ -1100,25 +1105,30 @@ else:
                     dim_col = cfg["dim_col"]
                     title   = cfg["title"]
 
-                    # Metric selector dropdown above each chart
-                    sel_label = st.selectbox(
-                        "Select Metric",
-                        options=list(avail_metrics.values()),
-                        key=f"chart_metric_{title.replace(' ', '_')}",
-                    )
+                    # Three chart controls in one compact row:
+                    # Metric | Advertiser filter | Dimension filter
+                    _cc1, _cc2, _cc3 = st.columns(3)
+
+                    with _cc1:
+                        sel_label = st.selectbox(
+                            "Select Metric",
+                            options=list(avail_metrics.values()),
+                            key=f"chart_metric_{title.replace(' ', '_')}",
+                        )
                     # Reverse-map display label back to column name
                     sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
 
                     # Per-chart advertiser filter — independent from other charts
                     if _adv_col:
-                        chart_adv_opts = ["All Advertisers"] + sorted(
-                            df_all[_adv_col].dropna().unique().tolist()
-                        )
-                        sel_chart_adv = st.selectbox(
-                            "Filter by Advertiser",
-                            options=chart_adv_opts,
-                            key=f"chart_adv_{title.replace(' ', '_')}",
-                        )
+                        with _cc2:
+                            chart_adv_opts = ["All Advertisers"] + sorted(
+                                df_all[_adv_col].dropna().unique().tolist()
+                            )
+                            sel_chart_adv = st.selectbox(
+                                "Filter by Advertiser",
+                                options=chart_adv_opts,
+                                key=f"chart_adv_{title.replace(' ', '_')}",
+                            )
                         df_chart_base = (df_all[df_all[_adv_col] == sel_chart_adv].copy()
                                          if sel_chart_adv != "All Advertisers" else df_all.copy())
                     else:
@@ -1126,13 +1136,14 @@ else:
 
                     # Dimension filter — multiselect to narrow to specific values in this chart
                     dim_unique = sorted(df_chart_base[dim_col].dropna().astype(str).unique().tolist())
-                    sel_dims = st.multiselect(
-                        f"Filter {title.split(' by ')[-1]}s",
-                        options=dim_unique,
-                        default=[],
-                        key=f"dim_filter_{title.replace(' ', '_')}",
-                        placeholder="All (no filter applied)",
-                    )
+                    with _cc3:
+                        sel_dims = st.multiselect(
+                            f"Filter {title.split(' by ')[-1]}s",
+                            options=dim_unique,
+                            default=[],
+                            key=f"dim_filter_{title.replace(' ', '_')}",
+                            placeholder="All (no filter applied)",
+                        )
                     df_chart_filtered = (
                         df_chart_base[df_chart_base[dim_col].astype(str).isin(sel_dims)]
                         if sel_dims else df_chart_base

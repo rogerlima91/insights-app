@@ -196,134 +196,165 @@ with tab_bm:
     csv_brands = st.session_state.get("campaign_list", [])
     all_brand_options = bm_names + [b for b in csv_brands if b not in bm_names]
 
-    # ── Add entry form ────────────────────────────────────────────────────────
+    # ── Add / edit brand form ─────────────────────────────────────────────────
     st.subheader("Add Entry")
 
     bm_options  = ["+ Add new brand"] + all_brand_options
     bm_selected = st.selectbox("Select brand", bm_options, key="bm_select")
 
-    if bm_selected == "+ Add new brand":
-        bm_new_name = st.text_input("Brand name", key="bm_new_name")
+    _adding_new = bm_selected == "+ Add new brand"
+
+    if _adding_new:
+        # New brand — show name field and empty text area
+        bm_new_name        = st.text_input("Brand name", key="bm_new_name")
+        _existing_logic    = ""
+        _btn_label         = "Save"
     else:
-        bm_new_name = bm_selected
+        # Existing brand — hide name field, pre-populate text area with saved logic
+        bm_new_name     = bm_selected
+        _brand_data_pre = migrate_brand(bm.get(bm_selected, {}))
+        _existing_logic = _brand_data_pre.get("rationale", "")
+        _btn_label      = "Update"
 
     bm_entry_text = st.text_area(
-        "Brand rationale",
-        value="",
+        "Logic",
+        value=_existing_logic,
         height=150,
         help=(
             "Describe this brand's objectives, preferred KPIs, and any context the AI "
-            "should use when writing commentary. Each save creates a new dated entry."
+            "should use when writing commentary."
         ),
         key="bm_entry_text",
     )
 
-    if st.button("Save", type="primary", key="bm_save"):
-        name_to_save = (
-            bm_new_name.strip() if bm_selected == "+ Add new brand" else bm_selected
-        )
+    if st.button(_btn_label, type="primary", key="bm_save"):
+        name_to_save = bm_new_name.strip() if _adding_new else bm_selected
         if not name_to_save:
             st.error("Enter a brand name before saving.")
         elif not bm_entry_text.strip():
-            st.error("Enter some rationale text before saving.")
+            st.error("Enter some logic text before saving.")
         else:
             brand_data = migrate_brand(bm.get(name_to_save, {}))
-            brand_data["entries"].append({
-                "type":      "manual",
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "text":      bm_entry_text.strip(),
-            })
+            if _adding_new:
+                # Append a new entry for a new brand
+                brand_data["entries"].append({
+                    "type":      "manual",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "text":      bm_entry_text.strip(),
+                })
+            else:
+                # Update: replace all manual entries with the edited text,
+                # keeping email and transcript entries intact
+                non_manual = [e for e in brand_data["entries"] if e.get("type") != "manual"]
+                brand_data["entries"] = non_manual + [{
+                    "type":      "manual",
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "text":      bm_entry_text.strip(),
+                }]
             brand_data["rationale"] = entries_to_rationale(brand_data["entries"])
             bm[name_to_save] = brand_data
             save_brand_memory(bm)
-            st.success(f"Entry saved for: {name_to_save}")
+            st.success(f"{'Saved' if _adding_new else 'Updated'}: {name_to_save}")
             st.rerun()
 
-    # ── Saved brands — entries view ───────────────────────────────────────────
+    # Delete button — only shown when editing an existing brand
+    if not _adding_new:
+        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+        if st.button("🗑 Delete Brand", key="bm_delete_brand"):
+            fresh_bm = load_brand_memory()
+            if bm_selected in fresh_bm:
+                del fresh_bm[bm_selected]
+                save_brand_memory(fresh_bm)
+                st.success(f"Deleted brand: {bm_selected}")
+                st.rerun()
+
+    # ── Saved brands — collapsible entries view ───────────────────────────────
     st.markdown("---")
-    st.subheader("Saved Brands")
+    _saved_label = (
+        f"Saved Brands ({len(bm_names)})" if bm_names else "Saved Brands"
+    )
+    with st.expander(_saved_label, expanded=False):
+        if not bm_names:
+            st.info("No brands saved yet. Use the form above to add one.")
+        else:
+            for brand_name, brand_data in bm.items():
+                brand_data = migrate_brand(brand_data)
+                entries    = brand_data.get("entries", [])
 
-    if not bm_names:
-        st.info("No brands saved yet. Use the form above to add one.")
-    else:
-        for brand_name, brand_data in bm.items():
-            brand_data = migrate_brand(brand_data)
-            entries    = brand_data.get("entries", [])
+                st.markdown(
+                    f"<h4 style='color:#111827;margin-bottom:4px;'>{brand_name}</h4>",
+                    unsafe_allow_html=True,
+                )
 
-            st.markdown(
-                f"<h4 style='color:#111827;margin-bottom:4px;'>{brand_name}</h4>",
-                unsafe_allow_html=True,
-            )
+                if not entries:
+                    st.caption("No entries yet.")
+                else:
+                    for i, entry in enumerate(entries):
+                        entry_type   = entry.get("type", "manual")
+                        is_new_email = entry_type == "email" and "subject" in entry
 
-            if not entries:
-                st.caption("No entries yet.")
-            else:
-                for i, entry in enumerate(entries):
-                    entry_type   = entry.get("type", "manual")
-                    is_new_email = entry_type == "email" and "subject" in entry
-
-                    if is_new_email:
-                        display_date = entry.get("email_date", entry.get("timestamp", ""))
-                    else:
-                        display_date = entry.get("timestamp", "")
-
-                    if entry_type == "manual":
-                        badge_color, badge_label = "#2563EB", "Manual"
-                    elif entry_type == "transcript":
-                        badge_color, badge_label = "#F59E0B", "Transcript"
-                    else:
-                        badge_color, badge_label = "#7C3AED", "Email"
-
-                    col_info, col_btn = st.columns([9, 1])
-
-                    with col_info:
                         if is_new_email:
-                            body_html = (
-                                f"<p style='margin:6px 0 0 0;font-size:13px;color:#374151;'>"
-                                f"<b>From:</b> {entry.get('sender', '')}</p>"
-                                f"<p style='margin:2px 0 0 0;font-size:13px;color:#374151;'>"
-                                f"<b>Subject:</b> {entry.get('subject', '')}</p>"
-                                f"<p style='margin:2px 0 0 0;font-size:13px;color:#6b7280;'>"
-                                f"{entry.get('snippet', '')}</p>"
-                            )
+                            display_date = entry.get("email_date", entry.get("timestamp", ""))
                         else:
-                            text_escaped = entry.get("text", "").replace("<", "&lt;")
-                            body_html = (
-                                f"<p style='margin:8px 0 0 0;font-size:13px;color:#111111;"
-                                f"white-space:pre-wrap;'>{text_escaped}</p>"
+                            display_date = entry.get("timestamp", "")
+
+                        if entry_type == "manual":
+                            badge_color, badge_label = "#2563EB", "Manual"
+                        elif entry_type == "transcript":
+                            badge_color, badge_label = "#F59E0B", "Transcript"
+                        else:
+                            badge_color, badge_label = "#7C3AED", "Email"
+
+                        col_info, col_btn = st.columns([9, 1])
+
+                        with col_info:
+                            if is_new_email:
+                                body_html = (
+                                    f"<p style='margin:6px 0 0 0;font-size:13px;color:#374151;'>"
+                                    f"<b>From:</b> {entry.get('sender', '')}</p>"
+                                    f"<p style='margin:2px 0 0 0;font-size:13px;color:#374151;'>"
+                                    f"<b>Subject:</b> {entry.get('subject', '')}</p>"
+                                    f"<p style='margin:2px 0 0 0;font-size:13px;color:#6b7280;'>"
+                                    f"{entry.get('snippet', '')}</p>"
+                                )
+                            else:
+                                text_escaped = entry.get("text", "").replace("<", "&lt;")
+                                body_html = (
+                                    f"<p style='margin:8px 0 0 0;font-size:13px;color:#111111;"
+                                    f"white-space:pre-wrap;'>{text_escaped}</p>"
+                                )
+
+                            st.markdown(
+                                f"<div style='border:1px solid #E5E7EB;border-radius:8px;"
+                                f"padding:10px 14px;margin-bottom:6px;background:#FFFFFF;"
+                                f"box-shadow:0 1px 2px rgba(0,0,0,0.05);'>"
+                                f"<span style='font-size:11px;font-weight:700;color:#ffffff;"
+                                f"background:{badge_color};padding:2px 8px;border-radius:12px;"
+                                f"margin-right:8px;'>{badge_label}</span>"
+                                f"<span style='font-size:12px;color:#6b7280;'>{display_date}</span>"
+                                + body_html +
+                                f"</div>",
+                                unsafe_allow_html=True,
                             )
 
-                        st.markdown(
-                            f"<div style='border:1px solid #E5E7EB;border-radius:8px;"
-                            f"padding:10px 14px;margin-bottom:6px;background:#FFFFFF;"
-                            f"box-shadow:0 1px 2px rgba(0,0,0,0.05);'>"
-                            f"<span style='font-size:11px;font-weight:700;color:#ffffff;"
-                            f"background:{badge_color};padding:2px 8px;border-radius:12px;"
-                            f"margin-right:8px;'>{badge_label}</span>"
-                            f"<span style='font-size:12px;color:#6b7280;'>{display_date}</span>"
-                            + body_html +
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+                        with col_btn:
+                            st.markdown("<div style='margin-top:4px;'></div>",
+                                        unsafe_allow_html=True)
+                            if st.button("🗑 Delete", key=f"del_{brand_name}_{i}"):
+                                fresh_bm   = load_brand_memory()
+                                fresh_data = migrate_brand(fresh_bm.get(brand_name, {}))
+                                fresh_data["entries"].pop(i)
+                                if fresh_data["entries"]:
+                                    fresh_data["rationale"] = entries_to_rationale(
+                                        fresh_data["entries"]
+                                    )
+                                    fresh_bm[brand_name] = fresh_data
+                                else:
+                                    del fresh_bm[brand_name]
+                                save_brand_memory(fresh_bm)
+                                st.rerun()
 
-                    with col_btn:
-                        st.markdown("<div style='margin-top:4px;'></div>",
-                                    unsafe_allow_html=True)
-                        if st.button("🗑 Delete", key=f"del_{brand_name}_{i}"):
-                            fresh_bm   = load_brand_memory()
-                            fresh_data = migrate_brand(fresh_bm.get(brand_name, {}))
-                            fresh_data["entries"].pop(i)
-                            if fresh_data["entries"]:
-                                fresh_data["rationale"] = entries_to_rationale(
-                                    fresh_data["entries"]
-                                )
-                                fresh_bm[brand_name] = fresh_data
-                            else:
-                                del fresh_bm[brand_name]
-                            save_brand_memory(fresh_bm)
-                            st.rerun()
-
-            st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — Email Context
