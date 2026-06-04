@@ -1212,20 +1212,11 @@ else:
                     dim_col = cfg["dim_col"]
                     title   = cfg["title"]
 
-                    # Row 1: Metric selector | per-chart DSP filter
-                    _cc1, _cc2 = st.columns(2)
+                    # Single row: DSP | Dimension | Metric
+                    _cc1, _cc2, _cc3 = st.columns(3)
 
+                    # DSP filter — independent from global DSP filter
                     with _cc1:
-                        sel_label = st.selectbox(
-                            "Select Metric",
-                            options=list(avail_metrics.values()),
-                            key=f"chart_metric_{title.replace(' ', '_')}",
-                        )
-                    # Reverse-map display label back to column name
-                    sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
-
-                    # Per-chart DSP filter — independent from global DSP filter
-                    with _cc2:
                         _chart_dsp_opts = ["All DSPs"] + sorted(
                             df_all["dsp_source"].dropna().unique().tolist()
                         )
@@ -1239,21 +1230,29 @@ else:
                         if sel_chart_dsp != "All DSPs" else df_all.copy()
                     )
 
-                    # Row 2: Filter by Dimension | cascading value filter
-                    _cc3, _cc4 = st.columns(2)
-
+                    # Dimension filter — cascading: pick a dimension column to filter by
                     _dim_filter_opts = ["(No filter)"] + [
                         lbl for col, lbl in _avail_dims.items()
                         if col in df_chart_base.columns
                     ]
-                    with _cc3:
+                    with _cc2:
                         sel_filter_dim_label = st.selectbox(
                             "Filter by Dimension",
                             options=_dim_filter_opts,
                             key=f"filter_dim_{title.replace(' ', '_')}",
                         )
 
-                    # Show cascading value picker when a dimension is selected
+                    # Metric selector
+                    with _cc3:
+                        sel_label = st.selectbox(
+                            "Select Metric",
+                            options=list(avail_metrics.values()),
+                            key=f"chart_metric_{title.replace(' ', '_')}",
+                        )
+                    # Reverse-map display label back to column name
+                    sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
+
+                    # When a dimension is selected, show a value picker below the row
                     if sel_filter_dim_label != "(No filter)":
                         sel_filter_dim_col = next(
                             col for col, lbl in _avail_dims.items()
@@ -1262,12 +1261,11 @@ else:
                         _dim_val_opts = ["All"] + sorted(
                             df_chart_base[sel_filter_dim_col].dropna().astype(str).unique().tolist()
                         )
-                        with _cc4:
-                            sel_dim_val = st.selectbox(
-                                f"Filter by {sel_filter_dim_label}",
-                                options=_dim_val_opts,
-                                key=f"filter_dim_val_{title.replace(' ', '_')}",
-                            )
+                        sel_dim_val = st.selectbox(
+                            f"Filter by {sel_filter_dim_label}",
+                            options=_dim_val_opts,
+                            key=f"filter_dim_val_{title.replace(' ', '_')}",
+                        )
                         df_chart_filtered = (
                             df_chart_base[
                                 df_chart_base[sel_filter_dim_col].astype(str) == sel_dim_val
