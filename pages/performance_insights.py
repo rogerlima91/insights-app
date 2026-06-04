@@ -119,66 +119,53 @@ st.markdown("""
     .badge-dv360   { background: #EFF6FF; color: #2563EB; }
     .badge-ttd     { background: #F5F3FF; color: #7C3AED; }
     .badge-generic { background: #F0FDF4; color: #16A34A; }
+    .badge-amazon  { background: #FFF7ED; color: #C2410C; }
 </style>
 """, unsafe_allow_html=True)
 # STYLE LOCK
 
-# ── Column name normalisation map ─────────────────────────────────────────────
-# Maps the many different column names DSPs use → our standard internal names.
-# Add more aliases here as you encounter new DSP export formats.
+# ── Column name normalisation maps ────────────────────────────────────────────
+# COLUMN_MAP: internal dimension name → list of possible source column names.
+# For each internal name, the first matching source column found in the data is
+# used; already-claimed columns are skipped so priority is top-to-bottom within
+# each internal name. Mixed-case here — matching is done after lowercasing.
 COLUMN_MAP = {
-    # Advertiser / Brand — top-level grouping (used by "Spend by Advertiser" chart
-    # and the global advertiser filter). Maps to internal name "campaign".
-    "advertiser":                  "campaign",
-    "partner":                     "campaign",   # TTD top-level dimension
-    "brand":                       "campaign",
-    "insertion order":             "campaign",   # DV360 IO used as top-level when no Advertiser column
+    "advertiser":      ["Advertiser", "Partner", "Brand"],
+    "campaign":        ["Campaign", "Campaign Name", "Brand Name", "Order"],
+    "insertion_order": ["Insertion Order", "Campaign", "Campaign Name", "Order"],
+    "line_item":       ["Line Item", "Line Item Name", "Ad Group", "Ad Group Name"],
+    "creative":        ["Creative", "Ad"],
+}
 
-    # Campaign — one level below Advertiser (used by "Spend by Campaign" chart).
-    # Kept separate so it doesn't collide with the Advertiser column above.
-    "campaign":                    "campaign_dim",
-    "campaign name":               "campaign_dim",
-    "campaign_name":               "campaign_dim",
-    "brand name":                  "campaign_dim",
-
-    # Line item (more granular — used for the top-10 line items chart)
-    "line item":                   "line_item",
-    "line item name":              "line_item",
-    "ad group":                    "line_item",
-    "ad group name":               "line_item",
-    "creative":                    "line_item",
-
-    # Device type (for pie chart)
+# METRIC_MAP: lowercased source column name → internal metric/dimension name.
+# Covers numeric, date, device, and environment columns across all DSPs.
+METRIC_MAP = {
+    # Device type
     "device type":                 "device_type",
     "device":                      "device_type",
     "device_type":                 "device_type",
     "device category":             "device_type",
-
-    # Environment / inventory type (for pie chart)
+    # Environment / inventory
     "environment":                 "environment",
     "environment type":            "environment",
     "inventory type":              "environment",
     "supply type":                 "environment",
     "site type":                   "environment",
-
     # Date
     "date":                        "date",
     "day":                         "date",
     "week":                        "date",
     "month":                       "date",
-
     # Impressions
     "impressions":                 "impressions",
     "impression":                  "impressions",
     "served impressions":          "impressions",
     "total impressions":           "impressions",
-
     # Clicks
     "clicks":                      "clicks",
     "click":                       "clicks",
     "total clicks":                "clicks",
     "link clicks":                 "clicks",
-
     # Spend / cost
     "spend":                       "spend_usd",
     "spend (usd)":                 "spend_usd",
@@ -189,29 +176,46 @@ COLUMN_MAP = {
     "revenue (usd)":               "spend_usd",
     "cost":                        "spend_usd",
     "billed spend":                "spend_usd",
-
     # Conversions
     "conversions":                 "conversions",
     "total conversions":           "conversions",
     "post-click conversions":      "conversions",
-
-    # CTR (sometimes pre-calculated in export)
+    # CTR (pre-calculated in export)
     "ctr":                         "ctr_raw",
     "click-through rate":          "ctr_raw",
-
-    # CPM (sometimes pre-calculated)
+    # CPM (pre-calculated in export)
     "cpm":                         "cpm_raw",
     "avg. cpm":                    "cpm_raw",
     "average cpm":                 "cpm_raw",
 }
 
 # ── DSP source detector ───────────────────────────────────────────────────────
-# Tries to identify which DSP the CSV came from based on column names.
+# Identifies which DSP the CSV came from by checking for DSP-specific column names.
+# More specific signals are checked first to avoid false positives.
 def detect_source(columns):
-    cols_lower = [c.lower() for c in columns]
-    if any("revenue (usd)" in c or "insertion order" in c for c in cols_lower):
+    cols_lower = [c.strip().lower() for c in columns]
+    # Amazon: "Detail Page Views (DPV)" is unique to Amazon DSP reports
+    if any("detail page views" in c for c in cols_lower):
+        return "Amazon"
+    # DV360 YouTube: "Ad Format" column only appears in YouTube reports
+    if any("ad format" in c for c in cols_lower):
+        return "DV360 YouTube"
+    # TTD: "Supply Vendor" is a TTD-specific column
+    if any("supply vendor" in c for c in cols_lower):
+        return "TTD"
+    # DV360 Display: "Insertion Order" is a DV360-specific hierarchy level
+    if any("insertion order" in c for c in cols_lower):
         return "DV360"
-    if any("billed spend" in c or "partner" in c for c in cols_lower):
+    # TTD fallback: uses "Ad Group" without an Insertion Order level
+    if any("ad group" in c for c in cols_lower):
+        return "TTD"
+    # Amazon fallback: standalone "order" column (exact match)
+    if any(c == "order" for c in cols_lower):
+        return "Amazon"
+    # DV360 / TTD fallback based on spend column naming
+    if any("revenue (usd)" in c for c in cols_lower):
+        return "DV360"
+    if any("billed spend" in c for c in cols_lower):
         return "TTD"
     return "Generic"
 
@@ -249,12 +253,30 @@ def load_and_normalise(uploaded_file):
     # Detect DSP before renaming columns
     dsp = detect_source(df.columns.tolist())
 
-    # Normalise column names: lowercase + strip whitespace, then remap
+    # Normalise column names: lowercase + strip whitespace
     df.columns = [c.strip().lower() for c in df.columns]
-    df = df.rename(columns={k: v for k, v in COLUMN_MAP.items() if k in df.columns})
 
-    # Multiple source columns can map to the same standard name (e.g. both
-    # "CTR" and "Click-through rate" → "ctr_raw"). Keep the first occurrence.
+    # Apply dimension column mapping (COLUMN_MAP).
+    # For each internal name, pick the first source column that exists AND hasn't
+    # already been claimed by a higher-priority internal name.
+    _used_src = set()
+    _dim_rename = {}
+    for _internal, _src_list in COLUMN_MAP.items():
+        for _src in _src_list:
+            _src_lower = _src.lower()
+            if _src_lower in df.columns and _src_lower not in _used_src:
+                _dim_rename[_src_lower] = _internal
+                _used_src.add(_src_lower)
+                break
+
+    # Apply metric/date column mapping (METRIC_MAP) for all remaining columns
+    _metric_rename = {k: v for k, v in METRIC_MAP.items()
+                      if k in df.columns and k not in _used_src}
+
+    # Merge both rename dicts and apply in one pass
+    df = df.rename(columns={**_dim_rename, **_metric_rename})
+
+    # Multiple source columns can map to the same standard name — keep first occurrence
     df = df.loc[:, ~df.columns.duplicated(keep="first")]
 
     # Convert numeric columns — DSP exports often include commas or $ signs
@@ -288,17 +310,21 @@ def detect_grouping_column(df):
     """
     # Priority list: (normalised column name after COLUMN_MAP, display label)
     priority = [
-        ("campaign",     "Brand"),
-        ("campaign_dim", "Campaign"),
-        ("line_item",    "Creative"),
+        ("advertiser",      "Advertiser"),
+        ("campaign",        "Campaign"),
+        ("insertion_order", "Insertion Order"),
+        ("line_item",       "Line Item"),
+        ("creative",        "Creative"),
     ]
     for col, label in priority:
         if col in df.columns:
             return col, label
 
     # Fall back to the first column that looks like a text/category dimension
+    _skip = {"source_file", "dsp_source", "date", "ctr", "cpm",
+             "advertiser", "campaign", "insertion_order", "line_item", "creative"}
     for col in df.columns:
-        if col in ("source_file", "dsp_source", "date", "ctr", "cpm"):
+        if col in _skip:
             continue
         if df[col].dtype == object:
             return col, col.replace("_", " ").title()
@@ -420,7 +446,13 @@ def _make_revenue_chart_pptx(camp_summary):
     if camp_summary.empty or "spend_usd" not in camp_summary.columns:
         return None
 
-    data = (camp_summary[["campaign", "spend_usd"]]
+    # Find whichever grouping column was used to build camp_summary
+    _c = next((c for c in ("advertiser", "campaign", "insertion_order", "line_item")
+               if c in camp_summary.columns), None)
+    if _c is None:
+        return None
+
+    data = (camp_summary[[_c, "spend_usd"]]
             .dropna()
             .sort_values("spend_usd", ascending=False))
 
@@ -428,7 +460,7 @@ def _make_revenue_chart_pptx(camp_summary):
     fig.patch.set_facecolor("#0D1B2A")
     ax.set_facecolor("#0D1B2A")
 
-    bars = ax.bar(data["campaign"], data["spend_usd"],
+    bars = ax.bar(data[_c], data["spend_usd"],
                   color="#00A8E8", edgecolor="none", width=0.5)
     ax.yaxis.set_major_formatter(
         mticker.FuncFormatter(
@@ -463,9 +495,14 @@ def _build_data_text(df_all, camp_summary):
     Produce a compact text summary of all campaign data for use in AI prompts.
     Includes brand totals and a line item breakdown when available.
     """
+    # Find whichever top-level grouping column was used to build camp_summary
+    _c = next((c for c in ("advertiser", "campaign", "insertion_order", "line_item")
+               if c in camp_summary.columns), None)
+
     lines = ["=== Brand Totals ==="]
     for _, r in camp_summary.iterrows():
-        parts = [f"Brand: {r['campaign']}"]
+        brand_val = r[_c] if _c else "Unknown"
+        parts = [f"Brand: {brand_val}"]
         if "impressions" in r and pd.notna(r.get("impressions")):
             parts.append(f"Impressions: {int(r['impressions']):,}")
         if "clicks" in r and pd.notna(r.get("clicks")):
@@ -479,11 +516,13 @@ def _build_data_text(df_all, camp_summary):
         lines.append(" | ".join(parts))
 
     # Line item breakdown gives the AI enough detail to cite best/worst performers
-    if "line_item" in df_all.columns and "campaign" in df_all.columns:
+    _c_all = next((c for c in ("advertiser", "campaign", "insertion_order")
+                   if c in df_all.columns), None)
+    if "line_item" in df_all.columns and _c_all:
         lines.append("\n=== By Brand and Line Item ===")
         agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"]
                if c in df_all.columns}
-        grp = df_all.groupby(["campaign", "line_item"]).agg(**agg).reset_index()
+        grp = df_all.groupby([_c_all, "line_item"]).agg(**agg).reset_index()
         if "impressions" in grp.columns and "spend_usd" in grp.columns:
             grp["cpm"] = grp["spend_usd"] / grp["impressions"].clip(lower=1) * 1000
         if "impressions" in grp.columns and "clicks" in grp.columns:
@@ -491,7 +530,7 @@ def _build_data_text(df_all, camp_summary):
         if "clicks" in grp.columns and "spend_usd" in grp.columns:
             grp["cpc"] = grp["spend_usd"] / grp["clicks"].clip(lower=1)
         for _, r in grp.iterrows():
-            parts = [f"Brand: {r['campaign']} | Line Item: {r['line_item']}"]
+            parts = [f"Brand: {r[_c_all]} | Line Item: {r['line_item']}"]
             if "impressions" in r and pd.notna(r.get("impressions")):
                 parts.append(f"Impressions: {int(r['impressions']):,}")
             if "spend_usd" in r and pd.notna(r.get("spend_usd")):
@@ -622,8 +661,10 @@ def build_pptx_report(api_key, camp_summary, df_all):
 
     slide_num = 1
     data_text = _build_data_text(df_all, camp_summary)
-    campaigns = (camp_summary["campaign"].tolist()
-                 if "campaign" in camp_summary.columns else [])
+    # Find whichever top-level grouping column was used to build camp_summary
+    _camp_col = next((c for c in ("advertiser", "campaign", "insertion_order", "line_item")
+                      if c in camp_summary.columns), None)
+    campaigns = camp_summary[_camp_col].tolist() if _camp_col else []
 
     # ── Slide 1: Executive Summary ────────────────────────────────────────────
     s1 = _new_blank_slide(prs)
@@ -874,7 +915,8 @@ else:
         df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
 
     # ── Sidebar file list ─────────────────────────────────────────────────────
-    badge_class = {"DV360": "badge-dv360", "TTD": "badge-ttd", "Generic": "badge-generic"}
+    badge_class = {"DV360": "badge-dv360", "DV360 YouTube": "badge-dv360",
+                   "TTD": "badge-ttd", "Amazon": "badge-amazon", "Generic": "badge-generic"}
     sidebar_html = ""
     for fi in file_info:
         bc = badge_class.get(fi["dsp"], "badge-generic")
@@ -887,9 +929,9 @@ else:
         )
     st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
 
-    # ── Filter colour styling ──────────────────────────────────────────────────
-    # Soft lavender card around every selectbox, date input, and multiselect so
-    # all filter controls stand out clearly from the rest of the page content.
+    # ── Filter colour styling + small widget sizing ────────────────────────────
+    # Soft lavender card around every selectbox, date input, and multiselect.
+    # Font size reduced to 13px and padding tightened so filter controls stay compact.
     st.markdown("""
     <style>
     [data-testid="stSelectbox"],
@@ -898,21 +940,31 @@ else:
         background-color : #F5F3FF;
         border           : 1px solid #DDD6FE;
         border-radius    : 8px;
-        padding          : 6px 8px 2px 8px;
+        padding          : 4px 6px 2px 6px;
+    }
+    [data-testid="stSelectbox"] label,
+    [data-testid="stMultiSelect"] label,
+    [data-testid="stDateInput"] label {
+        font-size: 13px !important;
+    }
+    [data-testid="stSelectbox"] div[data-baseweb="select"] *,
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] * {
+        font-size: 13px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
     # ── Global filters — side by side ─────────────────────────────────────────
-    # Advertiser filter is always shown; date range filter appears only when the
-    # data has a date column. Both sit in two equal columns on the same row.
-    _adv_col  = "campaign" if "campaign" in df_all.columns else (
-                "campaign_dim" if "campaign_dim" in df_all.columns else None)
+    # Advertiser filter + DSP filter always shown; date range filter appears only
+    # when the data has a date column. Laid out in 2 or 3 equal columns.
+    _adv_col  = "advertiser" if "advertiser" in df_all.columns else (
+                "campaign"   if "campaign"   in df_all.columns else None)
     _has_date = "date" in df_all.columns
 
-    _fcol1, _fcol2 = st.columns(2)
+    # 3 columns when date data is present, otherwise 2
+    _filter_cols = st.columns(3 if _has_date else 2)
 
-    with _fcol1:
+    with _filter_cols[0]:
         if _adv_col:
             adv_options    = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
             sel_adv_global = st.selectbox(
@@ -923,8 +975,17 @@ else:
         else:
             sel_adv_global = None
 
+    # DSP filter — populated from the dsp_source column tagged during file load
+    with _filter_cols[1]:
+        _dsp_opts      = ["All DSPs"] + sorted(df_all["dsp_source"].dropna().unique().tolist())
+        sel_dsp_global = st.selectbox(
+            "Filter by DSP",
+            options=_dsp_opts,
+            key="global_dsp_filter",
+        )
+
     if _has_date:
-        with _fcol2:
+        with _filter_cols[2]:
             _min_date   = df_all["date"].dropna().min().date()
             _max_date   = df_all["date"].dropna().max().date()
             _date_range = st.date_input(
@@ -942,7 +1003,11 @@ else:
                 (df_all["date"].dt.date <= _end)
             ].copy()
 
-    # Apply advertiser filter on the (possibly date-filtered) df_all
+    # Apply global DSP filter to df_all — affects summary metrics AND all charts
+    if sel_dsp_global != "All DSPs":
+        df_all = df_all[df_all["dsp_source"] == sel_dsp_global].copy()
+
+    # Apply advertiser filter on the (possibly date/DSP-filtered) df_all
     if _adv_col and sel_adv_global and sel_adv_global != "All Advertisers":
         df_metrics = df_all[df_all[_adv_col] == sel_adv_global].copy()
     else:
@@ -965,10 +1030,12 @@ else:
     col4.metric("Avg CTR",           f"{avg_ctr:.2%}"    if avg_ctr is not None else "N/A")
     col5.metric("Avg CPM",           f"${avg_cpm:,.2f}"  if avg_cpm is not None else "N/A")
 
-    # Build campaign-level summary now so it's available for both insights and PPTX export
-    if "campaign" in df_all.columns:
+    # Build top-level summary for PPTX export — group by best available dimension
+    _top_col = next((c for c in ("advertiser", "campaign", "insertion_order")
+                     if c in df_all.columns), None)
+    if _top_col:
         _agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"] if c in df_all.columns}
-        camp_summary = df_all.groupby("campaign").agg(**_agg).reset_index()
+        camp_summary = df_all.groupby(_top_col).agg(**_agg).reset_index()
         if "impressions" in camp_summary.columns and "clicks" in camp_summary.columns:
             camp_summary["ctr"] = camp_summary["clicks"] / camp_summary["impressions"]
         if "impressions" in camp_summary.columns and "spend_usd" in camp_summary.columns:
@@ -1034,19 +1101,20 @@ else:
         )
         return fig
 
-    # ── 6 dimension chart configs ──────────────────────────────────────────────
-    # dim_col is the normalised column name to group by.
-    # None = auto-scan df_all for a matching column name.
+    # ── Chart dimension configs ────────────────────────────────────────────────
+    # Title is the dimension name only (no "Spend by" prefix).
+    # dim_col is the normalised internal column name to group by.
+    # None = auto-detect from df_all columns.
     CHART_CONFIGS = [
-        {"title": "Spend by Advertiser",      "dim_col": "campaign"},
-        {"title": "Spend by Campaign",         "dim_col": "campaign_dim"},
-        {"title": "Spend by Ad Group",         "dim_col": "line_item"},
-        {"title": "Spend by Creative",         "dim_col": "line_item"},
-        {"title": "Spend by Device Type",      "dim_col": "device_type"},
-        {"title": "Spend by Audience Segment", "dim_col": None},
+        {"title": "Advertiser",      "dim_col": "advertiser"},
+        {"title": "Campaign",        "dim_col": "campaign"},
+        {"title": "Insertion Order", "dim_col": "insertion_order"},
+        {"title": "Line Item",       "dim_col": "line_item"},
+        {"title": "Creative",        "dim_col": "creative"},
+        {"title": "Audience Segment", "dim_col": None},
     ]
 
-    # Auto-detect audience / segment column for chart 6
+    # Auto-detect audience / segment column for the last chart
     for _cfg in CHART_CONFIGS:
         if _cfg["dim_col"] is None:
             for _col in df_all.columns:
@@ -1104,6 +1172,24 @@ else:
         else:
             return df.groupby(dim_col)[metric_col].sum().reset_index()
 
+    # Dimension columns available for the cascading filter in each chart.
+    # Only includes columns that are actually present in the data.
+    _DIMENSION_LABELS = {
+        "advertiser":      "Advertiser",
+        "campaign":        "Campaign",
+        "insertion_order": "Insertion Order",
+        "line_item":       "Line Item",
+        "creative":        "Creative",
+        "device_type":     "Device Type",
+        "environment":     "Environment",
+    }
+    _avail_dims = {col: lbl for col, lbl in _DIMENSION_LABELS.items()
+                   if col in df_all.columns}
+    # Also detect any audience/segment columns in the data
+    for _col in df_all.columns:
+        if any(kw in _col.lower() for kw in ("audience", "segment")) and _col not in _avail_dims:
+            _avail_dims[_col] = _col.replace("_", " ").title()
+
     # Only render charts whose dimension column was detected in the data
     visible_charts = [
         cfg for cfg in CHART_CONFIGS
@@ -1121,9 +1207,8 @@ else:
                     dim_col = cfg["dim_col"]
                     title   = cfg["title"]
 
-                    # Three chart controls in one compact row:
-                    # Metric | Advertiser filter | Dimension filter
-                    _cc1, _cc2, _cc3 = st.columns(3)
+                    # Row 1: Metric selector | per-chart DSP filter
+                    _cc1, _cc2 = st.columns(2)
 
                     with _cc1:
                         sel_label = st.selectbox(
@@ -1134,36 +1219,58 @@ else:
                     # Reverse-map display label back to column name
                     sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
 
-                    # Per-chart advertiser filter — independent from other charts
-                    if _adv_col:
-                        with _cc2:
-                            chart_adv_opts = ["All Advertisers"] + sorted(
-                                df_all[_adv_col].dropna().unique().tolist()
-                            )
-                            sel_chart_adv = st.selectbox(
-                                "Filter by Advertiser",
-                                options=chart_adv_opts,
-                                key=f"chart_adv_{title.replace(' ', '_')}",
-                            )
-                        df_chart_base = (df_all[df_all[_adv_col] == sel_chart_adv].copy()
-                                         if sel_chart_adv != "All Advertisers" else df_all.copy())
-                    else:
-                        df_chart_base = df_all.copy()
-
-                    # Dimension filter — multiselect to narrow to specific values in this chart
-                    dim_unique = sorted(df_chart_base[dim_col].dropna().astype(str).unique().tolist())
-                    with _cc3:
-                        sel_dims = st.multiselect(
-                            f"Filter {title.split(' by ')[-1]}s",
-                            options=dim_unique,
-                            default=[],
-                            key=f"dim_filter_{title.replace(' ', '_')}",
-                            placeholder="All (no filter applied)",
+                    # Per-chart DSP filter — independent from global DSP filter
+                    with _cc2:
+                        _chart_dsp_opts = ["All DSPs"] + sorted(
+                            df_all["dsp_source"].dropna().unique().tolist()
                         )
-                    df_chart_filtered = (
-                        df_chart_base[df_chart_base[dim_col].astype(str).isin(sel_dims)]
-                        if sel_dims else df_chart_base
+                        sel_chart_dsp = st.selectbox(
+                            "Filter by DSP",
+                            options=_chart_dsp_opts,
+                            key=f"chart_dsp_{title.replace(' ', '_')}",
+                        )
+                    df_chart_base = (
+                        df_all[df_all["dsp_source"] == sel_chart_dsp].copy()
+                        if sel_chart_dsp != "All DSPs" else df_all.copy()
                     )
+
+                    # Row 2: Filter by Dimension | cascading value filter
+                    _cc3, _cc4 = st.columns(2)
+
+                    _dim_filter_opts = ["(No filter)"] + [
+                        lbl for col, lbl in _avail_dims.items()
+                        if col in df_chart_base.columns
+                    ]
+                    with _cc3:
+                        sel_filter_dim_label = st.selectbox(
+                            "Filter by Dimension",
+                            options=_dim_filter_opts,
+                            key=f"filter_dim_{title.replace(' ', '_')}",
+                        )
+
+                    # Show cascading value picker when a dimension is selected
+                    if sel_filter_dim_label != "(No filter)":
+                        sel_filter_dim_col = next(
+                            col for col, lbl in _avail_dims.items()
+                            if lbl == sel_filter_dim_label
+                        )
+                        _dim_val_opts = ["All"] + sorted(
+                            df_chart_base[sel_filter_dim_col].dropna().astype(str).unique().tolist()
+                        )
+                        with _cc4:
+                            sel_dim_val = st.selectbox(
+                                f"Filter by {sel_filter_dim_label}",
+                                options=_dim_val_opts,
+                                key=f"filter_dim_val_{title.replace(' ', '_')}",
+                            )
+                        df_chart_filtered = (
+                            df_chart_base[
+                                df_chart_base[sel_filter_dim_col].astype(str) == sel_dim_val
+                            ].copy()
+                            if sel_dim_val != "All" else df_chart_base
+                        )
+                    else:
+                        df_chart_filtered = df_chart_base
 
                     st.markdown(f"**{title}** — {sel_label}")
 
@@ -1221,15 +1328,15 @@ else:
             _d_col1, _d_col2, _d_col3 = st.columns([2, 1, 1])
 
             with _d_col1:
-                if "campaign" in df_all.columns:
-                    daily_adv_opts = ["All"] + sorted(df_all["campaign"].dropna().unique().tolist())
+                if _adv_col:
+                    daily_adv_opts = ["All"] + sorted(df_all[_adv_col].dropna().unique().tolist())
                     sel_daily_adv = st.selectbox(
                         "Advertiser", daily_adv_opts,
                         key="daily_adv_filter",
                         label_visibility="collapsed",
                     )
                     df_daily_src = (df_all if sel_daily_adv == "All"
-                                    else df_all[df_all["campaign"] == sel_daily_adv])
+                                    else df_all[df_all[_adv_col] == sel_daily_adv])
                 else:
                     df_daily_src = df_all
 
