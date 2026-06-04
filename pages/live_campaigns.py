@@ -1,7 +1,5 @@
 import os
-import re
 import json
-import anthropic
 import pandas as pd
 import streamlit as st
 from datetime import date, timedelta
@@ -67,69 +65,74 @@ st.markdown("""
 # ── Fixed demo date — matches the mock campaign data below ────────────────────
 TODAY = date(2026, 5, 2)
 
-# ── Mock campaign data ────────────────────────────────────────────────────────
-# Real Captify clients running direct deals across TTD and DV360. All figures in AUD.
-# dsp field: "TTD" = The Trade Desk, "DV360" = Display & Video 360
+# ── Mock campaign data ─────────────────────────────────────────────────────────
+# Optus campaigns running across DV360, TTD, and Amazon DSP. All figures in AUD.
 RAW_CAMPAIGNS = [
     {
-        "client":    "Grey Goose AU",
-        "deal_type": "PG",
-        "deal_id":   "DL-44821",
-        "dsp":       "TTD",
-        "budget":    85_000,
-        "spent":     41_200,
-        "start":     date(2026, 4, 1),
-        "end":       date(2026, 5, 15),
+        "client":        "Optus",
+        "campaign_name": "Optus — Mobile Plans Spring Offer — Display",
+        "buy_type":      "PG",
+        "campaign_id":   "IO-881421",
+        "dsp":           "DV360",
+        "budget":        110_000,
+        "spent":         52_400,
+        "start":         date(2026, 4, 1),
+        "end":           date(2026, 5, 20),
     },
     {
-        "client":    "EA Games",
-        "deal_type": "PMP",
-        "deal_id":   "DL-52190",
-        "dsp":       "DV360",
-        "budget":    120_000,
-        "spent":     72_000,
-        "start":     date(2026, 4, 10),
-        "end":       date(2026, 5, 20),
+        "client":        "Optus",
+        "campaign_name": "Optus | NBN Broadband | Prospecting | AU | Apr-May 2026",
+        "buy_type":      "PMP",
+        "campaign_id":   "CMP-774032",
+        "dsp":           "TTD",
+        "budget":        85_000,
+        "spent":         41_200,
+        "start":         date(2026, 4, 10),
+        "end":           date(2026, 5, 15),
     },
     {
-        "client":    "Heineken",
-        "deal_type": "PG",
-        "deal_id":   "DL-39847",
-        "dsp":       "DV360",
-        "budget":    45_000,
-        "spent":     18_900,
-        "start":     date(2026, 4, 15),
-        "end":       date(2026, 5, 10),
+        "client":        "Optus",
+        "campaign_name": "Optus — Business Solutions Q2 2026 — B2B Display",
+        "buy_type":      "PG",
+        "campaign_id":   "IO-882155",
+        "dsp":           "DV360",
+        "budget":        60_000,
+        "spent":         24_800,
+        "start":         date(2026, 4, 15),
+        "end":           date(2026, 5, 10),
     },
     {
-        "client":    "eBay AU",
-        "deal_type": "PMP",
-        "deal_id":   "DL-61023",
-        "dsp":       "TTD",
-        "budget":    95_000,
-        "spent":     25_800,
-        "start":     date(2026, 4, 20),
-        "end":       date(2026, 5, 30),
+        "client":        "Optus",
+        "campaign_name": "Optus | Entertainment Bundle | Retargeting | AU | Apr-May 2026",
+        "buy_type":      "PMP",
+        "campaign_id":   "CMP-774581",
+        "dsp":           "TTD",
+        "budget":        45_000,
+        "spent":         13_500,
+        "start":         date(2026, 4, 20),
+        "end":           date(2026, 5, 30),
     },
     {
-        "client":    "Continental Tyres",
-        "deal_type": "PG",
-        "deal_id":   "DL-77345",
-        "dsp":       "TTD",
-        "budget":    60_000,
-        "spent":     19_800,
-        "start":     date(2026, 4, 25),
-        "end":       date(2026, 5, 8),
+        "client":        "Optus",
+        "campaign_name": "Optus_CTV_BrandAwareness_2026Q2",
+        "buy_type":      "PMP",
+        "campaign_id":   "AMZ-330921",
+        "dsp":           "Amazon DSP",
+        "budget":        75_000,
+        "spent":         64_800,
+        "start":         date(2026, 3, 15),
+        "end":           date(2026, 5, 15),
     },
     {
-        "client":    "Bose",
-        "deal_type": "PMP",
-        "deal_id":   "DL-33891",
-        "dsp":       "DV360",
-        "budget":    150_000,
-        "spent":     122_000,
-        "start":     date(2026, 3, 15),
-        "end":       date(2026, 5, 15),
+        "client":        "Optus",
+        "campaign_name": "Optus — Mobile Handset Upgrade — May 2026",
+        "buy_type":      "PG",
+        "campaign_id":   "IO-883047",
+        "dsp":           "DV360",
+        "budget":        95_000,
+        "spent":         29_400,
+        "start":         date(2026, 4, 25),
+        "end":           date(2026, 5, 8),
     },
 ]
 
@@ -172,352 +175,465 @@ def calc_pacing(c):
 # Build enriched mock data (used as fallback when no files are uploaded)
 MOCK_CAMPAIGNS = [calc_pacing(c) for c in RAW_CAMPAIGNS]
 
-# ── Mock campaign and line item data per deal ─────────────────────────────────
-# Budgets and spends at each level sum exactly to the client totals in RAW_CAMPAIGNS.
-# Line items are given slightly different pacing so the drill-down shows variety.
+# ── Mock campaign and line item breakdown per campaign ID ─────────────────────
+# Budgets and spends at each level sum to the client totals in RAW_CAMPAIGNS.
 MOCK_CAMPAIGN_BREAKDOWN = {
-    "DL-44821": {  # Grey Goose AU — budget 85k, spent 41.2k
+    "IO-881421": {  # Optus DV360 — Mobile Plans — budget 110k, spent 52.4k
         "campaigns": [
             {
-                "name": "Grey Goose AU — Brand Awareness Q2",
-                "budget": 55_000, "spent": 27_800,
+                "name":   "Optus — Mobile Plans — Brand Awareness — Display",
+                "budget": 70_000, "spent": 35_000,
                 "line_items": [
-                    {"name": "Prospecting Display — Desktop",   "budget": 22_000, "spent": 13_200},
-                    {"name": "Retargeting — Mobile",            "budget": 18_000, "spent":  9_600},
-                    {"name": "YouTube Pre-roll — All Devices",  "budget": 15_000, "spent":  5_000},
+                    {"name": "Prospecting Display — Desktop",          "budget": 28_000, "spent": 15_000},
+                    {"name": "In-Market Telecom Switchers — Mobile",   "budget": 24_000, "spent": 12_000},
+                    {"name": "YouTube TrueView — All Devices",         "budget": 18_000, "spent":  8_000},
                 ],
             },
             {
-                "name": "Grey Goose AU — Premium Spirits Retargeting",
-                "budget": 30_000, "spent": 13_400,
+                "name":   "Optus — Mobile Plans — Retargeting",
+                "budget": 40_000, "spent": 17_400,
                 "line_items": [
-                    {"name": "Site Retargeting — Display",      "budget": 17_000, "spent":  9_400},
-                    {"name": "CRM Match — Programmatic",        "budget": 13_000, "spent":  4_000},
+                    {"name": "Site Retargeting — Display",             "budget": 22_000, "spent": 10_400},
+                    {"name": "CRM Match — Programmatic Display",       "budget": 18_000, "spent":  7_000},
                 ],
             },
         ],
     },
-    "DL-52190": {  # EA Games — budget 120k, spent 72k
+    "CMP-774032": {  # Optus TTD — NBN Broadband — budget 85k, spent 41.2k
         "campaigns": [
             {
-                "name": "EA Games — FC25 Launch AU",
-                "budget": 75_000, "spent": 51_000,
+                "name":   "Optus | NBN Broadband | Prospecting | Display | AU",
+                "budget": 55_000, "spent": 28_000,
                 "line_items": [
-                    {"name": "Gaming Audience — Display Desktop",     "budget": 30_000, "spent": 22_000},
-                    {"name": "In-Game Interest — Mobile Video",       "budget": 25_000, "spent": 19_500},
-                    {"name": "Sports Fans Retargeting",               "budget": 20_000, "spent":  9_500},
+                    {"name": "In-Market Broadband Researchers — Desktop", "budget": 22_000, "spent": 12_000},
+                    {"name": "Home Movers Audience — Display",            "budget": 18_000, "spent":  9_000},
+                    {"name": "Tech Enthusiasts — Mobile",                 "budget": 15_000, "spent":  7_000},
                 ],
             },
             {
-                "name": "EA Games — App Install Prospecting",
-                "budget": 45_000, "spent": 21_000,
+                "name":   "Optus | NBN Broadband | Retargeting | Video | AU",
+                "budget": 30_000, "spent": 13_200,
                 "line_items": [
-                    {"name": "Tech Enthusiasts — Programmatic Display", "budget": 20_000, "spent": 10_500},
-                    {"name": "YouTube Gaming Pre-roll",                 "budget": 15_000, "spent":  7_200},
-                    {"name": "Console Owners — CTV",                   "budget": 10_000, "spent":  3_300},
+                    {"name": "Site Visitors — Pre-roll Video",            "budget": 18_000, "spent":  8_500},
+                    {"name": "Cart Abandoners — Display",                 "budget": 12_000, "spent":  4_700},
                 ],
             },
         ],
     },
-    "DL-39847": {  # Heineken — budget 45k, spent 18.9k
+    "IO-882155": {  # Optus DV360 — Business Solutions — budget 60k, spent 24.8k
         "campaigns": [
             {
-                "name": "Heineken — Winter Warm-Up AU",
-                "budget": 28_000, "spent": 12_400,
+                "name":   "Optus — Business Solutions — SMB Prospecting — Display",
+                "budget": 38_000, "spent": 16_000,
                 "line_items": [
-                    {"name": "Sports Context Display",              "budget": 12_000, "spent":  5_800},
-                    {"name": "Social Entertainment — Mobile",       "budget": 10_000, "spent":  4_600},
-                    {"name": "Video Pre-roll — Premium Publishers", "budget":  6_000, "spent":  2_000},
+                    {"name": "SMB Decision Makers — Desktop Display",     "budget": 16_000, "spent":  7_000},
+                    {"name": "LinkedIn Matched Audience — Programmatic",  "budget": 12_000, "spent":  5_000},
+                    {"name": "Business Context Targeting — Mobile",       "budget": 10_000, "spent":  4_000},
                 ],
             },
             {
-                "name": "Heineken — AFL Season Sponsorship",
-                "budget": 17_000, "spent": 6_500,
+                "name":   "Optus — Business Solutions — Enterprise Video",
+                "budget": 22_000, "spent": 8_800,
                 "line_items": [
-                    {"name": "AFL Fans — Programmatic Display",     "budget": 10_000, "spent":  4_200},
-                    {"name": "Live Sports Retargeting",             "budget":  7_000, "spent":  2_300},
+                    {"name": "Enterprise Audience — CTV",                 "budget": 13_000, "spent":  5_500},
+                    {"name": "IT Decision Makers — Pre-roll",             "budget":  9_000, "spent":  3_300},
                 ],
             },
         ],
     },
-    "DL-61023": {  # eBay AU — budget 95k, spent 25.8k
+    "CMP-774581": {  # Optus TTD — Entertainment Bundle — budget 45k, spent 13.5k
         "campaigns": [
             {
-                "name": "eBay AU — Mid-Year Sales Push",
-                "budget": 60_000, "spent": 16_800,
+                "name":   "Optus | Entertainment Bundle | Sports Context | Display | AU",
+                "budget": 28_000, "spent": 8_500,
                 "line_items": [
-                    {"name": "In-Market Shoppers — Display",        "budget": 25_000, "spent":  7_500},
-                    {"name": "Electronics Buyers — Mobile",         "budget": 20_000, "spent":  6_200},
-                    {"name": "Fashion Retargeting — Desktop",       "budget": 15_000, "spent":  3_100},
+                    {"name": "Sports Fans — Desktop Display",             "budget": 12_000, "spent":  3_800},
+                    {"name": "Streaming Intent Audience — Mobile",        "budget": 10_000, "spent":  3_200},
+                    {"name": "Premium Content — Video Pre-roll",          "budget":  6_000, "spent":  1_500},
                 ],
             },
             {
-                "name": "eBay AU — Seller Acquisition",
-                "budget": 35_000, "spent": 9_000,
+                "name":   "Optus | Entertainment Bundle | Retargeting | All Formats | AU",
+                "budget": 17_000, "spent": 5_000,
                 "line_items": [
-                    {"name": "Small Business Owners — Programmatic", "budget": 20_000, "spent":  5_800},
-                    {"name": "Marketplace Visitors — CTV",           "budget": 15_000, "spent":  3_200},
+                    {"name": "Optus Website Visitors — Display",          "budget": 10_000, "spent":  3_200},
+                    {"name": "App Download Intent — Mobile",              "budget":  7_000, "spent":  1_800},
                 ],
             },
         ],
     },
-    "DL-77345": {  # Continental Tyres — budget 60k, spent 19.8k
+    "AMZ-330921": {  # Optus Amazon DSP — CTV Brand Awareness — budget 75k, spent 64.8k
         "campaigns": [
             {
-                "name": "Continental Tyres — Safety First AU",
-                "budget": 38_000, "spent": 13_200,
+                "name":   "Optus_CTV_BrandAwareness_PrimeTime_2026Q2",
+                "budget": 48_000, "spent": 41_500,
                 "line_items": [
-                    {"name": "Car Owners Prospecting — Display",    "budget": 16_000, "spent":  6_000},
-                    {"name": "Auto Intenders — Mobile Video",       "budget": 12_000, "spent":  4_800},
-                    {"name": "Service Station Context",             "budget": 10_000, "spent":  2_400},
+                    {"name": "Optus_CTV_PrimeTime_AU",                   "budget": 28_000, "spent": 25_000},
+                    {"name": "Optus_CTV_SportStreaming_AU",               "budget": 20_000, "spent": 16_500},
                 ],
             },
             {
-                "name": "Continental Tyres — Summer Drive AU",
-                "budget": 22_000, "spent": 6_600,
+                "name":   "Optus_Display_BrandAwareness_2026Q2",
+                "budget": 27_000, "spent": 23_300,
                 "line_items": [
-                    {"name": "Road Trip Planners — Programmatic",   "budget": 13_000, "spent":  4_500},
-                    {"name": "Premium Car Owners — CTV",            "budget":  9_000, "spent":  2_100},
+                    {"name": "Optus_Display_InMarket_AU",                 "budget": 16_000, "spent": 14_000},
+                    {"name": "Optus_Display_Behavioural_AU",              "budget": 11_000, "spent":  9_300},
                 ],
             },
         ],
     },
-    "DL-33891": {  # Bose — budget 150k, spent 122k
+    "IO-883047": {  # Optus DV360 — Mobile Handset Upgrade — budget 95k, spent 29.4k
         "campaigns": [
             {
-                "name": "Bose — QuietComfort Premium Launch",
-                "budget": 90_000, "spent": 75_000,
+                "name":   "Optus — Handset Upgrade — Trade-In Offer — Display",
+                "budget": 60_000, "spent": 18_500,
                 "line_items": [
-                    {"name": "Tech Affluent — Display Desktop",     "budget": 35_000, "spent": 30_500},
-                    {"name": "Music Streamers — Mobile Video",      "budget": 30_000, "spent": 26_000},
-                    {"name": "Premium Audio Intenders — CTV",       "budget": 25_000, "spent": 18_500},
+                    {"name": "Current Mobile Customers — Desktop",        "budget": 25_000, "spent":  8_500},
+                    {"name": "Handset Intenders — Mobile Display",        "budget": 20_000, "spent":  6_500},
+                    {"name": "Tech Upgrade Audience — Video Pre-roll",    "budget": 15_000, "spent":  3_500},
                 ],
             },
             {
-                "name": "Bose — Sport Headphones Retargeting",
-                "budget": 60_000, "spent": 47_000,
+                "name":   "Optus — Handset Upgrade — Retargeting",
+                "budget": 35_000, "spent": 10_900,
                 "line_items": [
-                    {"name": "Site Visitors Retargeting — Display", "budget": 25_000, "spent": 22_000},
-                    {"name": "Fitness Audience — Mobile",           "budget": 20_000, "spent": 17_500},
-                    {"name": "Sports Events Context",               "budget": 15_000, "spent":  7_500},
+                    {"name": "Store & Web Visitors — Display",            "budget": 20_000, "spent":  7_200},
+                    {"name": "Product Page Visitors — Mobile",            "budget": 15_000, "spent":  3_700},
                 ],
             },
         ],
     },
 }
 
-# ── Deal health diagnostics (one entry per at-risk deal) ──────────────────────
-# Mimics what the TTD Deal Health API or DV360 Troubleshooter API would return.
-# Wording and field names reflect the platform each deal runs on.
+# ── Campaign health diagnostics (one entry per at-risk campaign) ───────────────
+# Mimics what the TTD Deal Health API, DV360 Troubleshooter API, or Amazon DSP
+# reporting would return for campaigns with delivery issues.
 DIAGNOSTICS = {
-    "DL-44821": {  # Grey Goose AU — TTD · Critical 68.8%
-        "health_score": 42,
-        "source":       "TTD Deal Health API",
-        "blockers": [
-            {
-                "rank": 1, "impact": "HIGH",
-                "description": (
-                    'Captify audience segment CAP-7821 "In-market: Premium Spirits" '
-                    "matching only 9% of available TTD inventory — severely limiting bid opportunities"
-                ),
-            },
-            {
-                "rank": 2, "impact": "HIGH",
-                "description": (
-                    "Bid floor below publisher minimum on 67% of PG impressions — "
-                    "effective CPM bid A$2.40 vs publisher floor A$3.80"
-                ),
-            },
-            {
-                "rank": 3, "impact": "MEDIUM",
-                "description": (
-                    "Frequency cap reached — average user hitting 3/day cap after just "
-                    "1.2 days, exhausting available unique reach"
-                ),
-            },
-        ],
-        "segment_callout": {
-            "segment":         "CAP-7821 In-market: Premium Spirits",
-            "match_rate":      "9%",
-            "issue":           (
-                "This segment is the primary delivery bottleneck, restricting the deal "
-                "to a tiny fraction of available TTD supply."
-            ),
-            "alternatives":    [
-                "CAP-4532 Lifestyle: Entertaining & Hosting (est. 4.1× broader reach)",
-                "CAP-9103 Demographic: 25–44 Affluent (est. 6.8× broader reach)",
-                "CAP-2891 Interest: Wine & Spirits Lifestyle (est. 2.9× broader reach)",
-            ],
-            "projected_match": "~35%",
-        },
-    },
-    "DL-39847": {  # Heineken — DV360 · Critical 61.8%
-        "health_score": 35,
+    "IO-881421": {  # Optus DV360 — Mobile Plans — At risk 75.3%
+        "health_score": 62,
         "source":       "DV360 Troubleshooter API",
         "blockers": [
             {
                 "rank": 1, "impact": "HIGH",
                 "description": (
-                    'Captify audience segment CAP-4412 "Interest: Beer & Brewing" '
-                    "matching only 6% of available DV360 inventory — insufficient for required delivery pace"
+                    "Insertion order pacing set to PACING_TYPE_EVEN — too conservative; "
+                    "switch to PACING_TYPE_AHEAD to recover A$17,200 underspend over 18 days remaining"
                 ),
             },
             {
                 "rank": 2, "impact": "HIGH",
                 "description": (
-                    "Insertion Order pacing set to PACING_TYPE_EVEN — too conservative "
-                    "for remaining budget; PACING_TYPE_AHEAD required to recover A$11,100 underspend"
-                ),
-            },
-            {
-                "rank": 3, "impact": "LOW",
-                "description": (
-                    "Brand safety exclusions (brand_safety_categories: ADULT, POLITICS) "
-                    "blocking 38% of eligible DV360 inventory sources"
-                ),
-            },
-        ],
-        "segment_callout": {
-            "segment":         "CAP-4412 Interest: Beer & Brewing",
-            "match_rate":      "6%",
-            "issue":           (
-                "The narrowly defined beer intent segment cuts the addressable pool to "
-                "~6% of the DV360 inventory source group — insufficient for the required delivery pace."
-            ),
-            "alternatives":    [
-                "CAP-8812 Interest: Sports & Social Events (est. 3.2× broader, strong co-indexing)",
-                "CAP-5560 Demographic: 18–35 Male (est. 5.1× broader reach)",
-                "CAP-1190 Behavioural: Weekend Entertainment Seekers (est. 2.7× broader)",
-            ],
-            "projected_match": "~28%",
-        },
-    },
-    "DL-61023": {  # eBay AU — TTD · At risk 90.5%
-        "health_score": 71,
-        "source":       "TTD Deal Health API",
-        "blockers": [
-            {
-                "rank": 1, "impact": "MEDIUM",
-                "description": (
-                    'Captify audience segment CAP-5503 "In-market: Consumer Electronics" '
-                    "matching 23% of available TTD inventory — moderate but improvable"
-                ),
-            },
-            {
-                "rank": 2, "impact": "MEDIUM",
-                "description": (
-                    "PMP deal fill rate at 68% — publisher supply constrained during peak "
-                    "AU hours 6–10 PM AEST"
-                ),
-            },
-            {
-                "rank": 3, "impact": "LOW",
-                "description": (
-                    "Device bid adjustments reducing mobile bids by 40%, limiting access "
-                    "to prime mobile inventory with higher CTR"
-                ),
-            },
-        ],
-        "segment_callout": {
-            "segment":         "CAP-5503 In-market: Consumer Electronics",
-            "match_rate":      "23%",
-            "issue":           (
-                "Match rate is moderate but there is meaningful upside. Adding a "
-                "complementary segment could raise addressable inventory to ~51% and "
-                "close the pacing gap without budget changes."
-            ),
-            "alternatives":    [
-                "CAP-7720 Behavioural: Frequent Online Buyers (additive, est. total match ~52%)",
-                "CAP-3310 Interest: Tech & Electronics Shoppers (strong eBay AU co-index)",
-                "CAP-6640 Demographic: Digital Natives 18–45 (broad scale + commercial intent)",
-            ],
-            "projected_match": "~51%",
-        },
-    },
-    "DL-77345": {  # Continental Tyres — TTD · Critical 61.3%, 6 days left
-        "health_score": 28,
-        "source":       "TTD Deal Health API",
-        "blockers": [
-            {
-                "rank": 1, "impact": "HIGH",
-                "description": (
-                    'Captify audience segment CAP-9934 "In-market: Automotive" matching '
-                    "only 4% of available TTD inventory — smallest addressable segment in portfolio"
-                ),
-            },
-            {
-                "rank": 2, "impact": "HIGH",
-                "description": (
-                    "Bid floor A$12.00 CPM vs PG publisher floor avg A$4.50 — "
-                    "89% of impressions not clearing the deal"
+                    "Audience targeting match rate 12% — In-Market: Telco Switchers segment "
+                    "narrowing available DV360 inventory to a small addressable pool"
                 ),
             },
             {
                 "rank": 3, "impact": "MEDIUM",
                 "description": (
-                    "Geo-targeting restricted to Melbourne & Sydney only, excluding "
-                    "42% of AU programmatic supply"
+                    "Brand safety exclusions blocking 28% of eligible premium publisher inventory; "
+                    "POLITICS and GAMBLING categories applied more broadly than required"
                 ),
             },
         ],
-        "segment_callout": {
-            "segment":         "CAP-9934 In-market: Automotive",
-            "match_rate":      "4%",
+        "targeting_callout": {
+            "segment":         "In-Market: Telco Switchers",
+            "match_rate":      "12%",
             "issue":           (
-                "This hyper-specific segment is critically undersized relative to the "
-                "deal's required daily volume. With only 6 days left, this is the single "
-                "biggest risk to delivery."
+                "Narrow intent segment limiting addressable DV360 inventory; "
+                "broadening to complementary audiences could raise match rate to ~38% "
+                "without sacrificing relevance."
             ),
             "alternatives":    [
-                "CAP-2201 In-market: Automotive (18× more inventory, retains automotive intent)",
-                "CAP-4450 Intent: Car Ownership & Maintenance (est. 9× broader reach)",
-                "CAP-7731 Demographic: Car Owners 30–55 (broad reach, strong proxy signal)",
+                "In-Market: Broadband & Internet Plans (est. 3.4× broader reach)",
+                "Demographic: 25–44 Urban Professionals (est. 5.2× broader reach)",
+                "Behavioural: Mobile Plan Researchers (est. 2.8× broader reach)",
             ],
-            "projected_match": "~31%",
+            "projected_match": "~38%",
+        },
+    },
+    "CMP-774032": {  # Optus TTD — NBN Broadband — At risk 77.2%
+        "health_score": 55,
+        "source":       "TTD Deal Health API",
+        "blockers": [
+            {
+                "rank": 1, "impact": "HIGH",
+                "description": (
+                    "PMP fill rate 61% — publisher supply constrained during peak AU hours "
+                    "6–10 PM AEST; bid floor A$3.20 below publisher minimum A$4.50 on 44% of impressions"
+                ),
+            },
+            {
+                "rank": 2, "impact": "HIGH",
+                "description": (
+                    "Frequency cap reached — average user hitting 3/day cap after 1.4 days, "
+                    "exhausting unique reach faster than new users are entering the pool"
+                ),
+            },
+            {
+                "rank": 3, "impact": "MEDIUM",
+                "description": (
+                    "Pacing mode set to EVEN — insufficient to recover A$12,200 underspend "
+                    "with 13 days remaining; switch to AGGRESSIVE pacing recommended"
+                ),
+            },
+        ],
+        "targeting_callout": {
+            "segment":         "NBN Researchers — Search Behavioural",
+            "match_rate":      "18%",
+            "issue":           (
+                "Behavioural segment built on search intent is too narrow for the available "
+                "PMP inventory pool. Expanding to broader home-internet audiences "
+                "could raise addressable reach to ~44%."
+            ),
+            "alternatives":    [
+                "In-Market: Home Internet & Broadband (est. 2.6× broader, retains intent signal)",
+                "Demographic: Homeowners 30–55 (strong NBN co-index, est. 4.1× broader)",
+                "Behavioural: Frequent Online Streamers (est. 2.2× broader, relevant proxy)",
+            ],
+            "projected_match": "~44%",
+        },
+    },
+    "IO-882155": {  # Optus DV360 — Business Solutions — Critical 60.8%
+        "health_score": 31,
+        "source":       "DV360 Troubleshooter API",
+        "blockers": [
+            {
+                "rank": 1, "impact": "HIGH",
+                "description": (
+                    "Audience targeting match rate 5% — SMB Decision Makers segment "
+                    "is critically undersized relative to the required daily impression volume"
+                ),
+            },
+            {
+                "rank": 2, "impact": "HIGH",
+                "description": (
+                    "Geo-targeting restricted to Sydney CBD only — excluding 71% of AU programmatic "
+                    "supply; Melbourne and Brisbane represent major untapped B2B markets"
+                ),
+            },
+            {
+                "rank": 3, "impact": "MEDIUM",
+                "description": (
+                    "Viewability threshold set to 80%+ — reducing eligible inventory pool significantly; "
+                    "industry standard for B2B display is 70%"
+                ),
+            },
+        ],
+        "targeting_callout": {
+            "segment":         "SMB Decision Makers — B2B Intent",
+            "match_rate":      "5%",
+            "issue":           (
+                "Hyper-specific B2B segment is severely undersized. With only 8 days remaining, "
+                "this is the single biggest risk to delivery. Geo-restriction compounds the problem."
+            ),
+            "alternatives":    [
+                "Business Professionals 30–55 (est. 8× broader, strong B2B proxy)",
+                "In-Market: Business Software & Services (retains intent, est. 5× broader)",
+                "LinkedIn Audience Match — Programmatic (precise but needs list refresh)",
+            ],
+            "projected_match": "~29%",
+        },
+    },
+    "IO-883047": {  # Optus DV360 — Handset Upgrade — Critical 57.4%, 6 days left
+        "health_score": 22,
+        "source":       "DV360 Troubleshooter API",
+        "blockers": [
+            {
+                "rank": 1, "impact": "HIGH",
+                "description": (
+                    "Severe underpacing with only 6 days remaining — A$65,600 unspent against "
+                    "A$95,000 budget; PACING_TYPE_EVEN cannot recover at current daily run rate"
+                ),
+            },
+            {
+                "rank": 2, "impact": "HIGH",
+                "description": (
+                    "Creative approval pending for 3 of 5 ad formats — limiting available ad server "
+                    "inventory and preventing full line item activation"
+                ),
+            },
+            {
+                "rank": 3, "impact": "HIGH",
+                "description": (
+                    "Bid floor A$5.50 below publisher minimum A$7.20 on 62% of targeted inventory; "
+                    "effective CPM uncompetitive for premium handset-adjacent placements"
+                ),
+            },
+        ],
+        "targeting_callout": {
+            "segment":         "Current Mobile Customers — Upgrade Intent",
+            "match_rate":      "21%",
+            "issue":           (
+                "Match rate is moderate but creative approval blockers and low bid floors mean "
+                "even the addressable audience is not being reached. Resolving creative and bid "
+                "issues is the immediate priority before audience expansion."
+            ),
+            "alternatives":    [
+                "Handset Upgrade Intenders — Broad (est. 2.9× broader, retains commercial signal)",
+                "Tech Early Adopters 25–45 (est. 4.7× broader, strong device upgrade co-index)",
+                "Telco Contract Renewal Window — Behavioural (precision timing signal)",
+            ],
+            "projected_match": "~41%",
         },
     },
 }
 
-# ── Push simulator — mock API response data per at-risk deal ──────────────────
-# TTD uses PATCH /v3/deal/{id} — fields: base_bid_cpm, daily_budget, pacing_mode
-# DV360 uses PATCH /v2/advertisers/{id}/insertionOrders/{io_id} — fields:
-#   pacing.pacingType, bidStrategy.fixedBid.bidAmountMicros, budget.budgetSegments
+# ── Delivery push data — mock API response values per at-risk campaign ─────────
+# TTD: PATCH /v3/deal/{id} — fields: base_bid_cpm, daily_budget, pacing_mode
+# DV360: PATCH /v2/advertisers/{id}/insertionOrders/{io_id}
+# Amazon DSP: PATCH /dsp/campaigns/{id}
 PUSH_DATA = {
-    "DL-44821": {  # TTD
-        "bid_from": 2.40,  "bid_to": 3.00,
-        "budget_from": 3_142.86, "budget_to": 3_800.00,
-        "recovery_aud": 8_420, "projected_pacing": 94.2, "confidence": "MEDIUM",
+    "IO-881421": {  # DV360
+        "bid_from": 3.20,  "bid_to": 4.00,
+        "budget_from": 5_238.10, "budget_to": 6_300.00,
+        "recovery_aud": 9_800, "projected_pacing": 93.4, "confidence": "MEDIUM",
     },
-    "DL-39847": {  # DV360
+    "CMP-774032": {  # TTD
+        "bid_from": 3.20,  "bid_to": 4.50,
+        "budget_from": 5_588.24, "budget_to": 6_500.00,
+        "recovery_aud": 7_600, "projected_pacing": 92.1, "confidence": "MEDIUM",
+    },
+    "IO-882155": {  # DV360
         "bid_from": 6.20,  "bid_to": 7.75,
-        "budget_from": 2_250.00, "budget_to": 2_800.00,
-        "recovery_aud": 4_850, "projected_pacing": 91.8, "confidence": "LOW",
+        "budget_from": 3_000.00, "budget_to": 3_800.00,
+        "recovery_aud": 5_200, "projected_pacing": 89.6, "confidence": "LOW",
     },
-    "DL-61023": {  # TTD
-        "bid_from": 4.80,  "bid_to": 6.00,
-        "budget_from": 6_333.33, "budget_to": 6_800.00,
-        "recovery_aud": 3_200, "projected_pacing": 96.1, "confidence": "HIGH",
-    },
-    "DL-77345": {  # TTD
-        "bid_from": 4.50,  "bid_to": 5.63,
-        "budget_from": 5_538.46, "budget_to": 6_500.00,
-        "recovery_aud": 5_620, "projected_pacing": 88.4, "confidence": "LOW",
+    "IO-883047": {  # DV360
+        "bid_from": 5.50,  "bid_to": 7.15,
+        "budget_from": 10_923.08, "budget_to": 13_500.00,
+        "recovery_aud": 14_200, "projected_pacing": 86.2, "confidence": "LOW",
     },
 }
 
-# ── API key — same loading pattern as app.py ──────────────────────────────────
-api_key = (
-    st.secrets.get("ANTHROPIC_API_KEY")
-    if "ANTHROPIC_API_KEY" in st.secrets
-    else os.environ.get("ANTHROPIC_API_KEY")
-)
+# ── Performance data — KPI diagnostics and optimisation push per campaign ──────
+PERFORMANCE_DATA = {
+    "IO-881421": {
+        "performance_score": 52,
+        "issues": [
+            {"rank": 1, "impact": "HIGH",
+             "description": "CTR 0.04% — below display benchmark 0.08%; creative fatigue after 14 days without asset rotation"},
+            {"rank": 2, "impact": "HIGH",
+             "description": "CPM A$18.20 running 34% above planned A$13.60; narrow targeting driving premium inventory costs"},
+            {"rank": 3, "impact": "MEDIUM",
+             "description": "Mobile serving 71% of impressions vs planned 50/50 split; desktop line items underperforming"},
+        ],
+        "recommendations": [
+            "Rotate display creative — introduce 3 new banner variants to counter frequency fatigue",
+            "Broaden audience targeting to reduce CPM inflation — add broadband-to-mobile switcher segments",
+            "Increase desktop line item bids by 15% to rebalance impression distribution",
+        ],
+        "push_data": {
+            "optimisation": "Creative rotation + audience broadening + desktop bid uplift",
+            "projected_ctr": "0.07%", "projected_cpm": "A$15.40", "confidence": "MEDIUM",
+        },
+    },
+    "CMP-774032": {
+        "performance_score": 61,
+        "issues": [
+            {"rank": 1, "impact": "HIGH",
+             "description": "PMP fill rate 61% during peak AU hours 6–10 PM AEST; publisher supply too constrained for evening inventory"},
+            {"rank": 2, "impact": "MEDIUM",
+             "description": "VTR 38% on pre-roll video units — below 50% benchmark; creative hook not landing in first 5 seconds"},
+            {"rank": 3, "impact": "LOW",
+             "description": "Bid shading reducing effective CPM competitiveness on priority PMP packages during peak demand"},
+        ],
+        "recommendations": [
+            "Add 2–3 alternative PMP packages for evening hours to improve fill rate",
+            "A/B test video creative opening — lead message should land within first 3 seconds",
+            "Disable bid shading on PMP deals to maximise fill during constrained inventory windows",
+        ],
+        "push_data": {
+            "optimisation": "PMP package expansion + bid shading disabled + video creative refresh",
+            "projected_ctr": "0.06%", "projected_cpm": "A$16.20", "confidence": "MEDIUM",
+        },
+    },
+    "IO-882155": {
+        "performance_score": 38,
+        "issues": [
+            {"rank": 1, "impact": "HIGH",
+             "description": "Severe underdelivery — 41% of budgeted impressions served; insufficient data volume for reliable performance analysis"},
+            {"rank": 2, "impact": "HIGH",
+             "description": "CTR 0.02% — extremely low for B2B display; likely wrong audience mix for business decision-maker targeting"},
+            {"rank": 3, "impact": "MEDIUM",
+             "description": "Geo-restriction to Sydney CBD reducing addressable inventory by 71%; Melbourne and Brisbane untapped"},
+        ],
+        "recommendations": [
+            "Expand geo-targeting to Melbourne and Brisbane — major B2B markets outside Sydney",
+            "Replace SMB Decision Makers segment with broader Business Professionals audience",
+            "Reduce viewability threshold from 80% to 70% to increase available inventory pool",
+        ],
+        "push_data": {
+            "optimisation": "Geo expansion + audience broadening + viewability threshold reduction",
+            "projected_ctr": "0.05%", "projected_cpm": "A$14.80", "confidence": "LOW",
+        },
+    },
+    "CMP-774581": {
+        "performance_score": 74,
+        "issues": [
+            {"rank": 1, "impact": "MEDIUM",
+             "description": "CTR 0.06% — slightly below benchmark 0.08%; engagement dipping after 3 weeks of same creative"},
+            {"rank": 2, "impact": "LOW",
+             "description": "Evening delivery 68% of impressions vs 24h planned pacing; morning slots underutilised"},
+            {"rank": 3, "impact": "LOW",
+             "description": "CPC A$2.10 above planned A$1.80; smart bidding rules could optimise during low-competition hours"},
+        ],
+        "recommendations": [
+            "Refresh entertainment creative with current sports season messaging to boost CTR",
+            "Adjust dayparting to increase morning bids — lower CPM competition in 6–10 AM window",
+            "Enable automated bid rules for CPC target — set A$1.80 CPC cap across line items",
+        ],
+        "push_data": {
+            "optimisation": "Creative refresh + dayparting adjustment + CPC bid cap rules",
+            "projected_ctr": "0.08%", "projected_cpm": "A$14.20", "confidence": "HIGH",
+        },
+    },
+    "AMZ-330921": {
+        "performance_score": 81,
+        "issues": [
+            {"rank": 1, "impact": "LOW",
+             "description": "VCR 94% and CPM A$42 tracking 5% above planned A$40; strong performance but monitor for budget overrun"},
+            {"rank": 2, "impact": "LOW",
+             "description": "Reach frequency at 4.2× — approaching saturation for prime-time audience; diminishing returns likely within 7 days"},
+            {"rank": 3, "impact": "LOW",
+             "description": "Daytime CTV slots underperforming vs prime-time by 3.1× on VCR — budget allocation suboptimal"},
+        ],
+        "recommendations": [
+            "Maintain current execution — VCR and brand safety metrics are strong",
+            "Introduce frequency cap of 3× weekly to preserve reach quality for final 2 weeks",
+            "Shift 15% of daytime budget to prime-time 7–10 PM slots for better VCR efficiency",
+        ],
+        "push_data": {
+            "optimisation": "Frequency cap + prime-time budget reallocation",
+            "projected_ctr": "N/A (CTV)", "projected_cpm": "A$41.50", "confidence": "HIGH",
+        },
+    },
+    "IO-883047": {
+        "performance_score": 29,
+        "issues": [
+            {"rank": 1, "impact": "HIGH",
+             "description": "Severe underpacing with 6 days remaining — A$65,600 unspent; performance data insufficient for reliable optimisation"},
+            {"rank": 2, "impact": "HIGH",
+             "description": "Creative approval pending for 3 of 5 ad formats — limiting available inventory and preventing full line item activation"},
+            {"rank": 3, "impact": "HIGH",
+             "description": "CPA A$18.40 running 47% above planned A$12.50; low volume makes this statistically unreliable"},
+        ],
+        "recommendations": [
+            "Escalate creative approval with trafficking team — clear blockers within 24 hours",
+            "Switch immediately to approved ad formats while full creative approval is pending",
+            "Extend flight by 5 days or reallocate budget to active campaigns with remaining capacity",
+        ],
+        "push_data": {
+            "optimisation": "Creative unblock + bid uplift + pacing mode switch to AHEAD",
+            "projected_ctr": "0.09%", "projected_cpm": "A$13.20", "confidence": "LOW",
+        },
+    },
+}
 
 # ── Page header ───────────────────────────────────────────────────────────────
 st.title("Live Campaigns")
 st.markdown(
     "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
-    "Live pacing, deal health diagnostics and DSP optimisation tools for Captify direct deals "
-    "(TTD &amp; DV360). "
+    "Live pacing, campaign health diagnostics and DSP optimisation tools. "
     f"All figures in AUD &nbsp;·&nbsp; Reporting date: {TODAY.strftime('%d %b %Y')}"
     "</p>",
     unsafe_allow_html=True,
@@ -526,22 +642,22 @@ st.markdown(
 # ── Column aliases: internal name → list of accepted CSV headers ──────────────
 # Matching is case-insensitive. The first alias that exists in the file wins.
 COLUMN_ALIASES = {
-    "date":         ["date"],
-    "advertiser":   ["advertiser", "partner", "brand name"],
-    "campaign":     ["campaign", "campaign name"],
-    "line_item":    ["line item", "ad group", "line item name"],
-    "deal_id":      ["deal id", "deal id"],
-    "deal_type":    ["deal type", "type"],
-    "budget":       ["budget", "total budget"],
-    "spend":        ["spend", "revenue (usd)", "revenue (aud)", "cost"],
-    "impressions":  ["impressions"],
-    "clicks":       ["clicks"],
-    "cpm":          ["cpm", "cpm (usd)", "cpm (aud)"],
-    "ctr":          ["ctr", "ctr (%)"],
-    "video_views":  ["video views", "views"],
-    "vtr":          ["vtr", "vtr (%)"],
-    "flight_start": ["flight start", "start date"],
-    "flight_end":   ["flight end", "end date"],
+    "date":          ["date"],
+    "advertiser":    ["advertiser", "partner", "brand name"],
+    "campaign":      ["campaign", "campaign name"],
+    "line_item":     ["line item", "ad group", "line item name"],
+    "campaign_id":   ["campaign id", "deal id", "campaign_id", "insertion order id"],
+    "buy_type":      ["buy type", "deal type", "type"],
+    "budget":        ["budget", "total budget"],
+    "spend":         ["spend", "revenue (usd)", "revenue (aud)", "cost"],
+    "impressions":   ["impressions"],
+    "clicks":        ["clicks"],
+    "cpm":           ["cpm", "cpm (usd)", "cpm (aud)"],
+    "ctr":           ["ctr", "ctr (%)"],
+    "video_views":   ["video views", "views"],
+    "vtr":           ["vtr", "vtr (%)"],
+    "flight_start":  ["flight start", "start date"],
+    "flight_end":    ["flight end", "end date"],
 }
 
 
@@ -561,12 +677,14 @@ def map_columns(df):
 
 
 def detect_dsp_from_filename(filename):
-    """Infer DSP from the upload filename — returns 'TTD', 'DV360', or 'Unknown'."""
+    """Infer DSP from the upload filename — returns 'TTD', 'DV360', 'Amazon DSP', or 'Unknown'."""
     name = filename.lower()
     if "ttd" in name or "thetradedesk" in name or "trade_desk" in name:
         return "TTD"
     if "dv360" in name or "dv_360" in name or "displayvideo" in name:
         return "DV360"
+    if "amazon" in name or "amz" in name or "dsp" in name:
+        return "Amazon DSP"
     return "Unknown"
 
 
@@ -574,7 +692,7 @@ def build_campaigns_from_df(df):
     """
     Convert a merged, column-mapped DataFrame into:
       - CAMPAIGNS list  (one dict per advertiser, same shape as mock data)
-      - CAMPAIGN_BREAKDOWN dict  (keyed by deal_id, same shape as mock data)
+      - CAMPAIGN_BREAKDOWN dict  (keyed by campaign_id, same shape as mock data)
     Pacing is calculated relative to today's real date.
     """
     today = date.today()
@@ -582,7 +700,7 @@ def build_campaigns_from_df(df):
     # Ensure all required columns exist; fill with defaults if absent
     defaults = {
         "advertiser": "Unknown", "campaign": "Unknown", "line_item": "Unknown",
-        "deal_id": "N/A", "deal_type": "Unknown", "dsp": "Unknown",
+        "campaign_id": "N/A", "buy_type": "Unknown", "dsp": "Unknown",
         "budget": 0, "spend": 0, "impressions": 0, "clicks": 0, "video_views": 0,
         "flight_start": None, "flight_end": None,
     }
@@ -604,36 +722,34 @@ def build_campaigns_from_df(df):
     for col in ("budget", "spend", "impressions", "clicks", "video_views"):
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # Deduplicate: group by advertiser + campaign + line_item.
-    # Sum delivery metrics; keep the last value for budget, deal info, and dates
-    # (last = most recently uploaded file wins for static fields).
+    # Group by advertiser + campaign + line_item; sum delivery, keep last for static fields
     agg = (
         df.groupby(["advertiser", "campaign", "line_item"], as_index=False)
         .agg(
             dsp          = ("dsp",          "last"),
-            deal_id      = ("deal_id",      "last"),
-            deal_type    = ("deal_type",    "last"),
+            campaign_id  = ("campaign_id",  "last"),
+            buy_type     = ("buy_type",     "last"),
             budget       = ("budget",       "last"),
             spend        = ("spend",        "sum"),
             impressions  = ("impressions",  "sum"),
             clicks       = ("clicks",       "sum"),
             video_views  = ("video_views",  "sum"),
-            flight_start = ("flight_start", "min"),  # earliest start across files
-            flight_end   = ("flight_end",   "max"),  # latest end across files
+            flight_start = ("flight_start", "min"),
+            flight_end   = ("flight_end",   "max"),
         )
     )
 
-    campaigns  = []
-    breakdown  = {}
+    campaigns = []
+    breakdown = {}
 
     for advertiser, adv_df in agg.groupby("advertiser"):
-        start  = adv_df["flight_start"].min()
-        end    = adv_df["flight_end"].max()
-        budget = adv_df["budget"].sum()
-        spent  = adv_df["spend"].sum()
-        dsp       = adv_df["dsp"].iloc[0]
-        deal_id   = adv_df["deal_id"].iloc[0]
-        deal_type = adv_df["deal_type"].iloc[0]
+        start       = adv_df["flight_start"].min()
+        end         = adv_df["flight_end"].max()
+        budget      = adv_df["budget"].sum()
+        spent       = adv_df["spend"].sum()
+        dsp         = adv_df["dsp"].iloc[0]
+        campaign_id = adv_df["campaign_id"].iloc[0]
+        buy_type    = adv_df["buy_type"].iloc[0]
 
         # Pacing calculation — same formula as calc_pacing()
         total_days     = (end - start).days
@@ -653,8 +769,8 @@ def build_campaigns_from_df(df):
 
         campaigns.append({
             "client":         advertiser,
-            "deal_type":      deal_type,
-            "deal_id":        deal_id,
+            "buy_type":       buy_type,
+            "campaign_id":    campaign_id,
             "dsp":            dsp,
             "budget":         budget,
             "spent":          spent,
@@ -686,56 +802,62 @@ def build_campaigns_from_df(df):
                 "spent":      camp_df["spend"].sum(),
                 "line_items": li_list,
             })
-        breakdown[deal_id] = {"campaigns": camp_list}
+        breakdown[campaign_id] = {"campaigns": camp_list}
 
     return campaigns, breakdown
 
 
-# ── File uploader ──────────────────────────────────────────────────────────────
-st.markdown("**Upload pacing reports**")
-uploaded_files = st.file_uploader(
-    "Upload DSP pacing reports",
-    type=["csv"],
-    accept_multiple_files=True,
-    label_visibility="collapsed",
-    help="Upload one or more CSV exports from TTD or DV360. Columns are mapped automatically.",
-)
-
-if uploaded_files:
-    dfs = []
-    for f in uploaded_files:
-        df_raw = pd.read_csv(f)
-        df_raw = map_columns(df_raw)
-        # Inject a 'dsp' column from the filename if the file didn't have one
-        if "dsp" not in df_raw.columns:
-            df_raw["dsp"] = detect_dsp_from_filename(f.name)
-        dfs.append(df_raw)
-
-    merged_df = pd.concat(dfs, ignore_index=True)
-
-    # Upload summary line
-    num_rows  = len(merged_df)
-    num_adv   = merged_df["advertiser"].nunique() if "advertiser" in merged_df.columns else "?"
-    dsp_vals  = sorted(merged_df["dsp"].dropna().unique()) if "dsp" in merged_df.columns else []
-    dsp_str   = " & ".join(dsp_vals) if dsp_vals else "Unknown"
-    n_files   = len(uploaded_files)
-    st.caption(
-        f"Loaded **{n_files}** file{'s' if n_files > 1 else ''}  ·  "
-        f"**{num_rows:,}** rows  ·  "
-        f"**{num_adv}** advertisers across **{dsp_str}**"
+# ── File uploader — collapsed by default ──────────────────────────────────────
+with st.expander("Upload Pacing Reports", expanded=False):
+    uploaded_files = st.file_uploader(
+        "Upload DSP pacing reports",
+        type=["csv"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+        help="Upload one or more CSV exports from TTD, DV360, or Amazon DSP. Columns are mapped automatically.",
     )
 
-    CAMPAIGNS, CAMPAIGN_BREAKDOWN = build_campaigns_from_df(merged_df)
-    _using_upload = True
-    _upload_date  = date.today()
+    if uploaded_files:
+        dfs = []
+        for f in uploaded_files:
+            df_raw = pd.read_csv(f)
+            df_raw = map_columns(df_raw)
+            # Inject a 'dsp' column from the filename if the file didn't have one
+            if "dsp" not in df_raw.columns:
+                df_raw["dsp"] = detect_dsp_from_filename(f.name)
+            dfs.append(df_raw)
 
-else:
-    # Fall back to hardcoded mock data when no files are uploaded
+        merged_df = pd.concat(dfs, ignore_index=True)
+
+        # Upload summary line
+        num_rows = len(merged_df)
+        num_adv  = merged_df["advertiser"].nunique() if "advertiser" in merged_df.columns else "?"
+        dsp_vals = sorted(merged_df["dsp"].dropna().unique()) if "dsp" in merged_df.columns else []
+        dsp_str  = " & ".join(dsp_vals) if dsp_vals else "Unknown"
+        n_files  = len(uploaded_files)
+        st.caption(
+            f"Loaded **{n_files}** file{'s' if n_files > 1 else ''}  ·  "
+            f"**{num_rows:,}** rows  ·  "
+            f"**{num_adv}** advertisers across **{dsp_str}**"
+        )
+
+        CAMPAIGNS, CAMPAIGN_BREAKDOWN = build_campaigns_from_df(merged_df)
+        _using_upload = True
+        _upload_date  = date.today()
+
+    else:
+        # Fall back to hardcoded mock data when no files are uploaded
+        CAMPAIGNS          = MOCK_CAMPAIGNS
+        CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
+        _using_upload      = False
+
+# When no files were uploaded (expander closed), also fall back to mock data
+if not uploaded_files:
     CAMPAIGNS          = MOCK_CAMPAIGNS
     CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
     _using_upload      = False
 
-# Data status indicator — shown between the uploader and the date filters
+# Data status indicator — shown below the uploader
 if _using_upload:
     total_camps = sum(len(b["campaigns"]) for b in CAMPAIGN_BREAKDOWN.values())
     num_adv_str = len(CAMPAIGNS)
@@ -758,7 +880,6 @@ else:
     )
 
 # ── Date range filter ─────────────────────────────────────────────────────────
-# Derive the earliest start and latest end across all campaigns for the defaults
 all_starts = [c["start"] for c in CAMPAIGNS]
 all_ends   = [c["end"]   for c in CAMPAIGNS]
 
@@ -773,12 +894,11 @@ with filter_col2:
 st.markdown("**Operations**")
 ops_col1, ops_col2, ops_col3, ops_col4, ops_col5 = st.columns(5)
 
-# Derive unique values for each filter from the full campaign list
-all_clients   = sorted(set(c["client"]    for c in CAMPAIGNS))
-all_buy_types = sorted(set(c["deal_type"] for c in CAMPAIGNS))
-all_dsps      = sorted(set(c["dsp"]       for c in CAMPAIGNS))
-all_deal_ids  = sorted(set(c["deal_id"]   for c in CAMPAIGNS))
-all_statuses  = ["Critical", "At risk", "On track", "Overpacing"]
+all_clients      = sorted(set(c["client"]      for c in CAMPAIGNS))
+all_buy_types    = sorted(set(c["buy_type"]    for c in CAMPAIGNS))
+all_dsps         = sorted(set(c["dsp"]         for c in CAMPAIGNS))
+all_campaign_ids = sorted(set(c["campaign_id"] for c in CAMPAIGNS))
+all_statuses     = ["Critical", "At risk", "On track", "Overpacing"]
 
 with ops_col1:
     filter_clients = st.multiselect("Client", all_clients, placeholder="All clients")
@@ -787,29 +907,27 @@ with ops_col2:
 with ops_col3:
     filter_dsps = st.multiselect("DSP", all_dsps, placeholder="All DSPs")
 with ops_col4:
-    filter_deal_ids = st.multiselect("Deal ID", all_deal_ids, placeholder="All deals")
+    filter_campaign_ids = st.multiselect("Campaign ID", all_campaign_ids, placeholder="All campaigns")
 with ops_col5:
     filter_statuses = st.multiselect("Status", all_statuses, placeholder="All statuses")
 
-# Keep campaigns whose date range overlaps the selected window,
-# then apply the operations filters (empty selection = show all)
+# Keep campaigns whose date range overlaps the selected window, then apply operations filters
 FILTERED_CAMPAIGNS = [
     c for c in CAMPAIGNS
     if c["start"] <= filter_end and c["end"] >= filter_start
-    and (not filter_clients   or c["client"]    in filter_clients)
-    and (not filter_buy_types or c["deal_type"] in filter_buy_types)
-    and (not filter_dsps      or c["dsp"]       in filter_dsps)
-    and (not filter_deal_ids  or c["deal_id"]   in filter_deal_ids)
-    and (not filter_statuses  or c["risk"]      in filter_statuses)
+    and (not filter_clients      or c["client"]      in filter_clients)
+    and (not filter_buy_types    or c["buy_type"]    in filter_buy_types)
+    and (not filter_dsps         or c["dsp"]         in filter_dsps)
+    and (not filter_campaign_ids or c["campaign_id"] in filter_campaign_ids)
+    and (not filter_statuses     or c["risk"]        in filter_statuses)
 ]
 FILTERED_AT_RISK = [c for c in FILTERED_CAMPAIGNS if c["risk"] in ("Critical", "At risk")]
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SECTION 1 — Summary metric cards
+# SECTION 1 — Portfolio Overview
 # ═══════════════════════════════════════════════════════════════════════════════
 st.subheader("Portfolio Overview")
 
-# Portfolio-level pacing = total actual spend / total expected spend
 total_spent      = sum(c["spent"]          for c in FILTERED_CAMPAIGNS)
 total_expected   = sum(c["expected_spend"] for c in FILTERED_CAMPAIGNS)
 portfolio_pacing = (total_spent / total_expected * 100) if total_expected > 0 else 0
@@ -823,30 +941,33 @@ c2.metric(
     delta=f"{len(FILTERED_AT_RISK)} require action",
     delta_color="inverse",
 )
-c3.metric("Budget at Risk",    f"A${budget_at_risk / 1_000:.0f}k")
-c4.metric("Portfolio Pacing",  f"{portfolio_pacing:.1f}%")
+c3.metric("Budget at Risk",   f"A${budget_at_risk / 1_000:.0f}k")
+c4.metric("Portfolio Pacing", f"{portfolio_pacing:.1f}%")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SECTION 2 — Pacing table
+# SECTION 2 — Pacing Dashboard
 # ═══════════════════════════════════════════════════════════════════════════════
 st.subheader("Pacing Dashboard")
 
 
 def dsp_badge(dsp):
-    """Coloured pill badge for DSP. Handles TTD, DV360, and any other value."""
+    """Coloured pill badge for DSP."""
     if dsp == "TTD":
         return ("<span style='background:#F5F3FF;color:#7C3AED;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>TTD</span>")
     if dsp == "DV360":
         return ("<span style='background:#EFF6FF;color:#2563EB;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>DV360</span>")
+    if dsp == "Amazon DSP":
+        return ("<span style='background:#FFF7ED;color:#EA580C;border-radius:4px;"
+                "padding:2px 8px;font-size:11px;font-weight:700;'>Amazon</span>")
     return (f"<span style='background:#F3F4F6;color:#6B7280;border-radius:4px;"
             f"padding:2px 8px;font-size:11px;font-weight:700;'>{dsp}</span>")
 
 
-def deal_type_badge(deal_type):
-    """Coloured pill badge for PG or PMP deal type."""
-    if deal_type == "PG":
+def buy_type_badge(buy_type):
+    """Coloured pill badge for PG or PMP buy type."""
+    if buy_type == "PG":
         return ("<span style='background:#F0FDF4;color:#16A34A;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>PG</span>")
     return ("<span style='background:#FFF7ED;color:#EA580C;border-radius:4px;"
@@ -863,7 +984,6 @@ def risk_badge(risk, risk_color, risk_bg):
 
 def pacing_bar(pacing_index, risk_color):
     """Inline progress bar + percentage label for the pacing column."""
-    # Cap the visual bar at 100% — overpacing is communicated by the badge
     bar_pct = min(pacing_index, 100)
     return (
         f"<div style='display:flex;align-items:center;gap:8px;'>"
@@ -889,8 +1009,7 @@ def days_cell(days):
 def calc_sub_pacing(budget, spent, start, end):
     """
     Calculate pacing index and risk tier for a campaign or line item.
-    Reuses the same logic as calc_pacing() but takes raw budget/spent values
-    rather than a full campaign dict.
+    Uses the same formula as calc_pacing() but takes raw values instead of a campaign dict.
     """
     total_days     = (end - start).days
     days_elapsed   = (TODAY - start).days
@@ -912,7 +1031,6 @@ def calc_sub_pacing(budget, spent, start, end):
     }
 
 
-# ── Pacing table with expandable client → campaign → line item rows ───────────
 # Table header (rendered once above all client rows)
 st.markdown(
     """
@@ -930,7 +1048,7 @@ st.markdown(
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Type</th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
-                       text-transform:uppercase;letter-spacing:0.06em;'>Deal ID</th>
+                       text-transform:uppercase;letter-spacing:0.06em;'>Campaign ID</th>
             <th style='padding:12px 16px;text-align:right;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Budget</th>
             <th style='padding:12px 16px;text-align:right;font-size:11px;color:#6B7280;
@@ -951,17 +1069,16 @@ st.markdown(
 
 # One white card per client row; the expander below it reveals campaign detail
 for c in FILTERED_CAMPAIGNS:
-    breakdown = CAMPAIGN_BREAKDOWN.get(c["deal_id"], {})
+    breakdown = CAMPAIGN_BREAKDOWN.get(c["campaign_id"], {})
 
-    # Client-level row (HTML table row, same columns as header above)
     client_row = (
         f"<tr style='border-bottom:1px solid #F3F4F6;'>"
         f"<td style='padding:14px 16px;width:28px;color:#9CA3AF;font-size:11px;'>▶</td>"
         f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{c['client']}</td>"
         f"<td style='padding:14px 16px;'>{dsp_badge(c['dsp'])}</td>"
-        f"<td style='padding:14px 16px;'>{deal_type_badge(c['deal_type'])}</td>"
+        f"<td style='padding:14px 16px;'>{buy_type_badge(c['buy_type'])}</td>"
         f"<td style='padding:14px 16px;font-size:12px;color:#6B7280;"
-        f"font-family:monospace;'>{c['deal_id']}</td>"
+        f"font-family:monospace;'>{c['campaign_id']}</td>"
         f"<td style='padding:14px 16px;text-align:right;'>A${c['budget']/1_000:.0f}k</td>"
         f"<td style='padding:14px 16px;text-align:right;'>A${c['spent']/1_000:.1f}k</td>"
         f"<td style='padding:14px 16px;min-width:220px;'>"
@@ -983,11 +1100,10 @@ for c in FILTERED_CAMPAIGNS:
     # Campaign-level expander (only shown if breakdown data exists)
     if breakdown:
         with st.expander(
-            f"↳  Campaign & Line Item Breakdown — {c['client']}",
+            f"↳  Campaign & Line Item Breakdown — {c['client']} ({c['campaign_id']})",
             expanded=False,
         ):
             for camp in breakdown.get("campaigns", []):
-                # Calculate pacing for this campaign using parent flight dates
                 cp = calc_sub_pacing(camp["budget"], camp["spent"], c["start"], c["end"])
 
                 camp_label = (
@@ -997,14 +1113,10 @@ for c in FILTERED_CAMPAIGNS:
                     f"{cp['pacing_index']:.1f}% ({cp['risk']})"
                 )
 
-                # Line item expander nested inside the campaign expander
                 with st.expander(camp_label, expanded=False):
-                    # Build a mini HTML table showing each line item
                     li_rows = ""
                     for li in camp["line_items"]:
-                        lp = calc_sub_pacing(
-                            li["budget"], li["spent"], c["start"], c["end"]
-                        )
+                        lp = calc_sub_pacing(li["budget"], li["spent"], c["start"], c["end"])
                         li_rows += (
                             f"<tr style='border-bottom:1px solid #F3F4F6;'>"
                             f"<td style='padding:10px 14px 10px 24px;color:#374151;"
@@ -1047,104 +1159,19 @@ for c in FILTERED_CAMPAIGNS:
                     )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SECTION 3 — AI analysis
-# ═══════════════════════════════════════════════════════════════════════════════
-st.subheader("AI Deal Analysis")
-st.markdown(
-    "<p style='color:#6b7280;font-size:14px;margin-top:-8px;'>"
-    "Claude reviews deal pacing as a senior programmatic specialist at Captify, "
-    "covering both TTD and DV360.</p>",
-    unsafe_allow_html=True,
-)
-
-if st.button("✨ Run AI Analysis", type="primary"):
-    if not api_key:
-        st.warning(
-            "No Anthropic API key found. Add `ANTHROPIC_API_KEY` to your "
-            "Streamlit secrets or environment variables."
-        )
-    else:
-        # Build plain-text pacing summary including DSP for each campaign
-        lines = []
-        for c in FILTERED_CAMPAIGNS:
-            lines.append(
-                f"- {c['client']} | DSP: {c['dsp']} | {c['deal_type']} | {c['deal_id']} | "
-                f"Budget: A${c['budget']:,} | Spent: A${c['spent']:,} | "
-                f"Expected to date: A${c['expected_spend']:,.0f} | "
-                f"Pacing index: {c['pacing_index']:.1f}% ({c['risk']}) | "
-                f"Days remaining: {c['days_remaining']}"
-            )
-        deal_summary = "\n".join(lines)
-
-        prompt = (
-            "You are a senior programmatic specialist at Captify reviewing direct deals "
-            "running across The Trade Desk (TTD) and Display & Video 360 (DV360) "
-            "for the Australian market.\n\n"
-            f"Today is {TODAY.strftime('%d %B %Y').lstrip('0')}. Current deal pacing:\n\n"
-            f"{deal_summary}\n\n"
-            "Provide a structured analysis with exactly these three sections:\n\n"
-            "**Priority Flags**\n"
-            "List campaigns needing immediate action, ranked by urgency. For each, "
-            "state the DSP, AUD underspend to date, days remaining, and consequence of inaction.\n\n"
-            "**Recommended Actions by Campaign**\n"
-            "For each at-risk or critical campaign, give 2–3 specific DSP actions "
-            "appropriate to its platform (TTD: bid adjustments, pacing mode; "
-            "DV360: insertionOrder pacing type, bid strategy, budget segments). "
-            "Reference the deal ID and specific AUD figures.\n\n"
-            "**Portfolio Insight**\n"
-            "One paragraph identifying any portfolio-wide pattern — including whether "
-            "TTD or DV360 deals are performing differently. "
-            "End with one cross-platform portfolio-level recommendation.\n\n"
-            "Use only the data provided. Be specific with AUD amounts and percentages."
-        )
-
-        client_ai = anthropic.Anthropic(api_key=api_key)
-        with st.spinner("Analysing deal pacing…"):
-            response = client_ai.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=1000,
-                system=(
-                    "You are a senior programmatic advertising specialist at Captify, "
-                    "expert in both TTD and DV360 deal management, PG and PMP deal structures, "
-                    "and Australian programmatic advertising. Be concise, specific, "
-                    "and action-oriented. Always cite deal IDs, DSP names, and AUD figures."
-                ),
-                messages=[{"role": "user", "content": prompt}],
-            )
-        # Store the response so it persists when Streamlit re-runs the page
-        st.session_state["cm_ai_analysis"] = response.content[0].text.strip()
-
-# Show the analysis if it has been generated (persists across re-renders)
-if "cm_ai_analysis" in st.session_state:
-    # Convert **bold** markdown to HTML bold, then wrap in a white card
-    analysis_html = re.sub(
-        r"\*\*(.+?)\*\*",
-        r'<strong style="color:#111827;">\1</strong>',
-        st.session_state["cm_ai_analysis"],
-    ).replace("\n", "<br>")
-
-    st.markdown(
-        f"<div style='background:#FFFFFF;border-radius:12px;padding:24px;"
-        f"box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-top:12px;"
-        f"font-family:-apple-system,Segoe UI,Roboto,sans-serif;"
-        f"font-size:14px;line-height:1.85;color:#374151;'>"
-        f"{analysis_html}</div>",
-        unsafe_allow_html=True,
-    )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SECTION 4 — Delivery troubleshooter
+# SECTION 3 — Delivery Troubleshooter
+# Each at-risk campaign shows its diagnostic panel + DSP Push button together.
 # ═══════════════════════════════════════════════════════════════════════════════
 st.subheader("Delivery Troubleshooter")
 st.markdown(
     "<p style='color:#6b7280;font-size:14px;margin-top:-8px;'>"
-    "Deal health diagnostics for at-risk campaigns. "
-    "TTD deals source from the TTD Deal Health API; "
-    "DV360 deals source from the DV360 Troubleshooter API.</p>",
+    "Campaign health diagnostics for at-risk campaigns. "
+    "TTD campaigns source from the TTD Deal Health API; "
+    "DV360 and Amazon DSP campaigns source from their respective troubleshooter APIs.</p>",
     unsafe_allow_html=True,
 )
 
-# Impact badge colour map: impact level → (background, foreground)
+# Impact badge colour map
 IMPACT_STYLE = {
     "HIGH":   ("#FEF2F2", "#EF4444"),
     "MEDIUM": ("#FFFBEB", "#F59E0B"),
@@ -1153,7 +1180,7 @@ IMPACT_STYLE = {
 
 
 def health_score_colour(score):
-    """Return a hex colour for the deal health score gauge."""
+    """Return a hex colour for the campaign health score gauge."""
     if score < 40:
         return "#EF4444"
     if score < 70:
@@ -1162,20 +1189,21 @@ def health_score_colour(score):
 
 
 for c in FILTERED_AT_RISK:
-    diag  = DIAGNOSTICS.get(c["deal_id"])
+    diag = DIAGNOSTICS.get(c["campaign_id"])
     if not diag:
         continue
     score = diag["health_score"]
-    seg   = diag["segment_callout"]
+    tgt   = diag["targeting_callout"]
     sc    = health_score_colour(score)
     tier  = "CRITICAL" if score < 40 else "POOR" if score < 70 else "FAIR"
+    pd_   = PUSH_DATA.get(c["campaign_id"])
 
     with st.expander(
-        f"{c['client']}  ·  {c['dsp']}  ·  {c['deal_id']}  ·  "
+        f"{c['client']}  ·  {c['dsp']}  ·  {c['campaign_id']}  ·  "
         f"{c['risk']}  ·  {c['days_remaining']}d remaining",
         expanded=False,
     ):
-        # Show which API source this diagnostic came from
+        # API source label
         st.markdown(
             f"<div style='font-size:11px;color:#6B7280;margin-bottom:12px;'>"
             f"Source: <strong>{diag['source']}</strong></div>",
@@ -1184,14 +1212,14 @@ for c in FILTERED_AT_RISK:
 
         col_score, col_blockers = st.columns([1, 3])
 
-        # ── Health score gauge ────────────────────────────────────────────────
+        # ── Campaign health score gauge ───────────────────────────────────────
         with col_score:
             st.markdown(
                 f"<div style='background:#FFFFFF;border-radius:12px;padding:20px;"
                 f"box-shadow:0 2px 8px rgba(0,0,0,0.06);text-align:center;'>"
                 f"<div style='font-size:11px;font-weight:600;color:#6B7280;"
                 f"text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;'>"
-                f"Deal Health Score</div>"
+                f"Campaign Health Score</div>"
                 f"<div style='font-size:52px;font-weight:800;color:{sc};line-height:1;'>"
                 f"{score}</div>"
                 f"<div style='font-size:13px;color:#9CA3AF;margin-top:2px;'>/100</div>"
@@ -1225,175 +1253,284 @@ for c in FILTERED_AT_RISK:
                     unsafe_allow_html=True,
                 )
 
-        # ── Captify segment impact callout ────────────────────────────────────
+        # ── Audience targeting impact callout ────────────────────────────────
         alts_html = "&nbsp;&nbsp;·&nbsp;&nbsp;".join(
-            f"<strong>{a}</strong>" for a in seg["alternatives"]
+            f"<strong>{a}</strong>" for a in tgt["alternatives"]
         )
         st.markdown(
             f"<div style='background:#F0F9FF;border:1px solid #BAE6FD;"
             f"border-radius:8px;padding:14px 16px;margin-top:12px;'>"
             f"<div style='font-size:11px;font-weight:700;color:#0369A1;"
             f"text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;'>"
-            f"Captify Segment Impact</div>"
+            f"Audience Targeting Impact</div>"
             f"<div style='font-size:13px;color:#0C4A6E;margin-bottom:6px;'>"
-            f"<strong>{seg['segment']}</strong> — inventory match rate: "
-            f"<strong>{seg['match_rate']}</strong><br>"
-            f"<span style='color:#374151;'>{seg['issue']}</span></div>"
+            f"<strong>{tgt['segment']}</strong> — inventory match rate: "
+            f"<strong>{tgt['match_rate']}</strong><br>"
+            f"<span style='color:#374151;'>{tgt['issue']}</span></div>"
             f"<div style='font-size:13px;color:#0369A1;'>"
             f"Recommended alternatives: {alts_html}</div>"
             f"<div style='font-size:12px;color:#0369A1;margin-top:4px;'>"
-            f"Projected match rate after swap: <strong>{seg['projected_match']}</strong>"
+            f"Projected match rate after swap: <strong>{tgt['projected_match']}</strong>"
             f"</div></div>",
             unsafe_allow_html=True,
         )
 
+        # ── DSP Push button — inline below the diagnostic panel ───────────────
+        if pd_:
+            st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
+            is_dv360 = c["dsp"] == "DV360"
+            remaining_budget = c["budget"] - c["spent"]
+
+            col_btn, col_resp = st.columns([1, 3])
+            with col_btn:
+                if st.button(
+                    f"⚡ Push Delivery Fix — {c['client']}",
+                    key=f"push_{c['campaign_id']}",
+                    type="primary",
+                ):
+                    st.session_state[f"pushed_{c['campaign_id']}"] = True
+
+                st.markdown(
+                    f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
+                    f"<strong style='color:#111827;'>{c['client']}</strong><br>"
+                    f"{c['dsp']} &nbsp;·&nbsp; {c['buy_type']}<br>"
+                    f"Pacing: {c['pacing_index']:.1f}% "
+                    f"<span style='color:{c['risk_color']};font-weight:700;'>({c['risk']})</span><br>"
+                    f"Remaining: A${remaining_budget/1_000:.1f}k &nbsp;·&nbsp; {c['days_remaining']}d left"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with col_resp:
+                if st.session_state.get(f"pushed_{c['campaign_id']}"):
+                    budget_change_pct = (
+                        (pd_["budget_to"] - pd_["budget_from"]) / pd_["budget_from"] * 100
+                    )
+                    recovery_note = (
+                        "Low confidence due to compressed flight end — monitor daily for first 48h"
+                        if pd_["confidence"] == "LOW"
+                        else "Monitor pacing daily to avoid overspend"
+                    )
+
+                    if is_dv360:
+                        bid_from_micros = int(pd_["bid_from"] * 1_000_000)
+                        bid_to_micros   = int(pd_["bid_to"]   * 1_000_000)
+                        mock_response = {
+                            "status":           200,
+                            "message":          "Insertion order updated successfully",
+                            "advertiserId":     "7841209",
+                            "insertionOrderId": c["campaign_id"],
+                            "advertiser":       c["client"],
+                            "endpoint":         f"PATCH /v2/advertisers/7841209/insertionOrders/{c['campaign_id']}",
+                            "changes_applied": {
+                                "pacing": {
+                                    "from": {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_EVEN"},
+                                    "to":   {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_AHEAD"},
+                                },
+                                "bidStrategy": {
+                                    "fixedBid": {
+                                        "from":   {"bidAmountMicros": bid_from_micros},
+                                        "to":     {"bidAmountMicros": bid_to_micros},
+                                        "change": "+25.0%",
+                                    }
+                                },
+                                "budget_daily_aud": {
+                                    "from":   round(pd_["budget_from"], 2),
+                                    "to":     round(pd_["budget_to"],   2),
+                                    "change": f"+{budget_change_pct:.1f}%",
+                                },
+                            },
+                            "estimated_recovery": {
+                                "additional_spend_aud":       pd_["recovery_aud"],
+                                "projected_end_pacing_index": pd_["projected_pacing"],
+                                "confidence":                 pd_["confidence"],
+                                "note":                       recovery_note,
+                            },
+                            "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
+                        }
+                    else:
+                        # TTD API response
+                        mock_response = {
+                            "status":     200,
+                            "message":    "Campaign updated successfully",
+                            "campaign_id": c["campaign_id"],
+                            "advertiser": c["client"],
+                            "endpoint":   f"PATCH /v3/campaign/{c['campaign_id']}",
+                            "changes_applied": {
+                                "base_bid_cpm_aud": {
+                                    "from":   pd_["bid_from"],
+                                    "to":     pd_["bid_to"],
+                                    "change": "+25.0%",
+                                },
+                                "daily_budget_aud": {
+                                    "from":   round(pd_["budget_from"], 2),
+                                    "to":     round(pd_["budget_to"],   2),
+                                    "change": f"+{budget_change_pct:.1f}%",
+                                },
+                                "pacing_mode": {
+                                    "from": "EVEN",
+                                    "to":   "AGGRESSIVE",
+                                },
+                                "bid_shading": {
+                                    "from": "ENABLED",
+                                    "to":   "DISABLED",
+                                },
+                            },
+                            "estimated_recovery": {
+                                "additional_spend_aud":       pd_["recovery_aud"],
+                                "projected_end_pacing_index": pd_["projected_pacing"],
+                                "confidence":                 pd_["confidence"],
+                                "note":                       recovery_note,
+                            },
+                            "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
+                        }
+
+                    st.code(json.dumps(mock_response, indent=2), language="json")
+                else:
+                    st.markdown(
+                        "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
+                        "border-radius:8px;padding:28px;text-align:center;"
+                        "color:#9CA3AF;font-size:13px;'>"
+                        "Click the button to simulate the DSP PATCH call and see the "
+                        "projected API response.</div>",
+                        unsafe_allow_html=True,
+                    )
+            st.markdown("</div>", unsafe_allow_html=True)
+
 # ═══════════════════════════════════════════════════════════════════════════════
-# SECTION 5 — DSP push simulator
+# SECTION 4 — Campaign Performance Troubleshooter
+# Shows performance KPI diagnostics and an optimisation push per campaign.
 # ═══════════════════════════════════════════════════════════════════════════════
-st.subheader("DSP Push Simulator")
+st.subheader("Campaign Performance Troubleshooter")
 st.markdown(
     "<p style='color:#6b7280;font-size:14px;margin-top:-8px;'>"
-    "Simulate a platform API call to optimise underperforming deals. "
-    "TTD uses <code>PATCH /v3/deal/{id}</code> &nbsp;·&nbsp; "
-    "DV360 uses <code>PATCH /v2/advertisers/{id}/insertionOrders/{io_id}</code>. "
-    "<strong>Simulation only — no real changes are made.</strong></p>",
+    "Performance KPI diagnostics, top issues, and optimisation recommendations per campaign.</p>",
     unsafe_allow_html=True,
 )
 
-for c in FILTERED_AT_RISK:
-    pd_  = PUSH_DATA.get(c["deal_id"])
-    if not pd_:
+for c in FILTERED_CAMPAIGNS:
+    perf = PERFORMANCE_DATA.get(c["campaign_id"])
+    if not perf:
         continue
-    is_dv360 = c["dsp"] == "DV360"
 
-    # Each optimisation is collapsible — label shows client + deal info when collapsed
-    remaining_budget = c["budget"] - c["spent"]
-    risk_color = c["risk_color"]
-    risk_label = c["risk"]
-    _exp_label = (
-        f"⚡ {c['client']}  ·  {c['dsp']} {c['deal_type']}  ·  {c['deal_id']}  ·  "
-        f"Pacing {c['pacing_index']:.1f}% ({risk_label})  ·  "
-        f"A${remaining_budget/1_000:.1f}k remaining"
-    )
-    with st.expander(_exp_label, expanded=False):
-        col_btn, col_resp = st.columns([1, 3])
+    score      = perf["performance_score"]
+    sc         = health_score_colour(score)
+    perf_tier  = "CRITICAL" if score < 40 else "POOR" if score < 70 else "FAIR" if score < 80 else "GOOD"
 
-        with col_btn:
-            if st.button(
-                f"⚡ Push Optimisation — {c['client']}",
-                key=f"push_{c['deal_id']}",
-                type="primary",
-            ):
-                st.session_state[f"pushed_{c['deal_id']}"] = True
+    with st.expander(
+        f"{c['client']}  ·  {c['dsp']}  ·  {c['campaign_id']}  ·  "
+        f"Performance score: {score}/100",
+        expanded=False,
+    ):
+        col_pscore, col_issues = st.columns([1, 3])
 
-            # Campaign summary below the button
+        # ── Performance score gauge ───────────────────────────────────────────
+        with col_pscore:
             st.markdown(
-                f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
-                f"<strong style='color:#111827;'>{c['client']}</strong><br>"
-                f"{c['dsp']} &nbsp;·&nbsp; {c['deal_type']}<br>"
-                f"Pacing: {c['pacing_index']:.1f}% "
-                f"<span style='color:{risk_color};font-weight:700;'>({risk_label})</span><br>"
-                f"Remaining: A${remaining_budget/1_000:.1f}k &nbsp;·&nbsp; {c['days_remaining']}d left"
+                f"<div style='background:#FFFFFF;border-radius:12px;padding:20px;"
+                f"box-shadow:0 2px 8px rgba(0,0,0,0.06);text-align:center;'>"
+                f"<div style='font-size:11px;font-weight:600;color:#6B7280;"
+                f"text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;'>"
+                f"Performance Score</div>"
+                f"<div style='font-size:52px;font-weight:800;color:{sc};line-height:1;'>"
+                f"{score}</div>"
+                f"<div style='font-size:13px;color:#9CA3AF;margin-top:2px;'>/100</div>"
+                f"<div style='font-size:12px;color:{sc};margin-top:10px;"
+                f"font-weight:700;'>{perf_tier}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
 
-        with col_resp:
-            if st.session_state.get(f"pushed_{c['deal_id']}"):
-                budget_change_pct = (
-                    (pd_["budget_to"] - pd_["budget_from"]) / pd_["budget_from"] * 100
-                )
-                recovery_note = (
-                    "Low confidence due to compressed flight end — monitor daily for first 48h"
-                    if pd_["confidence"] == "LOW"
-                    else "Monitor pacing daily to avoid overspend"
+        # ── Top 3 performance issues ──────────────────────────────────────────
+        with col_issues:
+            st.markdown(
+                "<div style='font-size:11px;font-weight:600;color:#6B7280;"
+                "text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;'>"
+                "Top Issues by Impact</div>",
+                unsafe_allow_html=True,
+            )
+            for issue in perf["issues"]:
+                bg, fg = IMPACT_STYLE[issue["impact"]]
+                st.markdown(
+                    f"<div style='background:#FFFFFF;border:1px solid #E5E7EB;"
+                    f"border-left:4px solid {fg};border-radius:8px;"
+                    f"padding:12px 14px;margin-bottom:8px;"
+                    f"display:flex;align-items:flex-start;gap:10px;'>"
+                    f"<span style='background:{bg};color:{fg};border-radius:4px;"
+                    f"padding:2px 7px;font-size:10px;font-weight:700;white-space:nowrap;'>"
+                    f"#{issue['rank']} {issue['impact']}</span>"
+                    f"<span style='font-size:13px;color:#374151;line-height:1.6;'>"
+                    f"{issue['description']}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
 
-                if is_dv360:
-                    # DV360 API response — uses DV360 field names and micros for bid amounts
-                    # bidAmountMicros: $1.00 = 1,000,000 micros
-                    bid_from_micros = int(pd_["bid_from"] * 1_000_000)
-                    bid_to_micros   = int(pd_["bid_to"]   * 1_000_000)
-                    mock_response = {
-                        "status":              200,
-                        "message":             "Insertion order updated successfully",
-                        "advertiserId":        "7841209",
-                        "insertionOrderId":    c["deal_id"],
-                        "advertiser":          c["client"],
-                        "endpoint":            f"PATCH /v2/advertisers/7841209/insertionOrders/{c['deal_id']}",
-                        "changes_applied": {
-                            "pacing": {
-                                "from": {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_EVEN"},
-                                "to":   {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_AHEAD"},
-                            },
-                            "bidStrategy": {
-                                "fixedBid": {
-                                    "from": {"bidAmountMicros": bid_from_micros},
-                                    "to":   {"bidAmountMicros": bid_to_micros},
-                                    "change": "+25.0%",
-                                }
-                            },
-                            "budget_daily_aud": {
-                                "from":   round(pd_["budget_from"], 2),
-                                "to":     round(pd_["budget_to"],   2),
-                                "change": f"+{budget_change_pct:.1f}%",
-                            },
-                        },
-                        "estimated_recovery": {
-                            "additional_spend_aud":       pd_["recovery_aud"],
-                            "projected_end_pacing_index": pd_["projected_pacing"],
-                            "confidence":                 pd_["confidence"],
-                            "note":                       recovery_note,
-                        },
-                        "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
-                    }
-                else:
-                    # TTD API response — uses TTD field names
-                    mock_response = {
-                        "status":     200,
-                        "message":    "Deal updated successfully",
-                        "deal_id":    c["deal_id"],
-                        "advertiser": c["client"],
-                        "endpoint":   f"PATCH /v3/deal/{c['deal_id']}",
-                        "changes_applied": {
-                            "base_bid_cpm_aud": {
-                                "from":   pd_["bid_from"],
-                                "to":     pd_["bid_to"],
-                                "change": "+25.0%",
-                            },
-                            "daily_budget_aud": {
-                                "from":   round(pd_["budget_from"], 2),
-                                "to":     round(pd_["budget_to"],   2),
-                                "change": f"+{budget_change_pct:.1f}%",
-                            },
-                            "pacing_mode": {
-                                "from": "EVEN",
-                                "to":   "AGGRESSIVE",
-                            },
-                            "bid_shading": {
-                                "from": "ENABLED",
-                                "to":   "DISABLED",
-                            },
-                        },
-                        "estimated_recovery": {
-                            "additional_spend_aud":       pd_["recovery_aud"],
-                            "projected_end_pacing_index": pd_["projected_pacing"],
-                            "confidence":                 pd_["confidence"],
-                            "note":                       recovery_note,
-                        },
-                        "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
-                    }
+        # ── Recommendations callout ───────────────────────────────────────────
+        recs_html = "".join(
+            f"<li style='margin-bottom:5px;'>{r}</li>"
+            for r in perf["recommendations"]
+        )
+        st.markdown(
+            f"<div style='background:#F0FDF4;border:1px solid #86EFAC;"
+            f"border-radius:8px;padding:14px 16px;margin-top:12px;'>"
+            f"<div style='font-size:11px;font-weight:700;color:#15803D;"
+            f"text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;'>"
+            f"Recommendations</div>"
+            f"<ul style='font-size:13px;color:#166534;line-height:1.7;"
+            f"margin:0;padding-left:18px;'>{recs_html}</ul>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
-                st.code(json.dumps(mock_response, indent=2), language="json")
+        # ── Push Optimisation button — inline below recommendations ───────────
+        push = perf["push_data"]
+        st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
+
+        col_pbtn, col_presp = st.columns([1, 3])
+        with col_pbtn:
+            if st.button(
+                f"🚀 Push Optimisation — {c['client']}",
+                key=f"perf_push_{c['campaign_id']}",
+                type="primary",
+            ):
+                st.session_state[f"perf_pushed_{c['campaign_id']}"] = True
+
+            st.markdown(
+                f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
+                f"<strong style='color:#111827;'>{c['campaign_id']}</strong><br>"
+                f"{c['dsp']} &nbsp;·&nbsp; {c['buy_type']}<br>"
+                f"Performance score: <span style='color:{sc};font-weight:700;'>{score}/100</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+        with col_presp:
+            if st.session_state.get(f"perf_pushed_{c['campaign_id']}"):
+                perf_response = {
+                    "status":       200,
+                    "message":      "Performance optimisation applied successfully",
+                    "campaign_id":  c["campaign_id"],
+                    "advertiser":   c["client"],
+                    "dsp":          c["dsp"],
+                    "optimisation": push["optimisation"],
+                    "projected_outcomes": {
+                        "ctr":        push["projected_ctr"],
+                        "cpm":        push["projected_cpm"],
+                        "confidence": push["confidence"],
+                    },
+                    "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
+                }
+                st.code(json.dumps(perf_response, indent=2), language="json")
             else:
-                # Placeholder shown before the button is clicked
                 st.markdown(
                     "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
                     "border-radius:8px;padding:28px;text-align:center;"
                     "color:#9CA3AF;font-size:13px;'>"
-                    "Click the button to simulate the DSP PATCH call and see the "
-                    "projected API response.</div>",
+                    "Click the button to simulate pushing the performance optimisation "
+                    "and see the projected API response.</div>",
                     unsafe_allow_html=True,
                 )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 print("Campaign Monitor loaded.")
