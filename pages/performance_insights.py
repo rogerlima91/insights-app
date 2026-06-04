@@ -166,14 +166,17 @@ METRIC_MAP = {
     "click":                       "clicks",
     "total clicks":                "clicks",
     "link clicks":                 "clicks",
-    # Spend / cost
+    # Spend / cost — USD and AUD variants all normalise to spend_usd
     "spend":                       "spend_usd",
     "spend (usd)":                 "spend_usd",
+    "spend (aud)":                 "spend_usd",
     "total spend":                 "spend_usd",
     "total spend (usd)":           "spend_usd",
+    "total spend (aud)":           "spend_usd",
     "media cost":                  "spend_usd",
     "media cost (usd)":            "spend_usd",
     "revenue (usd)":               "spend_usd",
+    "revenue (aud)":               "spend_usd",
     "cost":                        "spend_usd",
     "billed spend":                "spend_usd",
     # Conversions
@@ -183,8 +186,10 @@ METRIC_MAP = {
     # CTR (pre-calculated in export)
     "ctr":                         "ctr_raw",
     "click-through rate":          "ctr_raw",
-    # CPM (pre-calculated in export)
+    # CPM (pre-calculated in export) — currency-suffixed variants also accepted
     "cpm":                         "cpm_raw",
+    "cpm (usd)":                   "cpm_raw",
+    "cpm (aud)":                   "cpm_raw",
     "avg. cpm":                    "cpm_raw",
     "average cpm":                 "cpm_raw",
 }
