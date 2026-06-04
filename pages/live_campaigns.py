@@ -63,32 +63,35 @@ st.markdown("""
 # STYLE LOCK
 
 # ── Fixed demo date — matches the mock campaign data below ────────────────────
-TODAY = date(2026, 5, 2)
+TODAY = date(2026, 6, 4)
 
 # ── Mock campaign data ─────────────────────────────────────────────────────────
 # Optus campaigns running across DV360, TTD, and Amazon DSP. All figures in AUD.
+# Flight dates: 2026-05-01 → 2026-07-31 (91 days total).
+# As of 2026-06-04 (day 34 of 91, 37.4% elapsed) spent values below give
+# a realistic mix of Critical / At risk / On track / Overpacing.
 RAW_CAMPAIGNS = [
     {
         "client":        "Optus",
-        "campaign_name": "Optus — Mobile Plans Spring Offer — Display",
+        "campaign_name": "Optus — Mobile Plans Winter Offer — Display",
         "buy_type":      "PG",
         "campaign_id":   "IO-881421",
         "dsp":           "DV360",
         "budget":        110_000,
-        "spent":         52_400,
-        "start":         date(2026, 4, 1),
-        "end":           date(2026, 5, 20),
+        "spent":         33_000,   # pacing ~80% → At risk
+        "start":         date(2026, 5, 1),
+        "end":           date(2026, 7, 31),
     },
     {
         "client":        "Optus",
-        "campaign_name": "Optus | NBN Broadband | Prospecting | AU | Apr-May 2026",
+        "campaign_name": "Optus | NBN Broadband | Prospecting | AU | May-Jul 2026",
         "buy_type":      "PMP",
         "campaign_id":   "CMP-774032",
         "dsp":           "TTD",
         "budget":        85_000,
-        "spent":         41_200,
-        "start":         date(2026, 4, 10),
-        "end":           date(2026, 5, 15),
+        "spent":         19_100,   # pacing ~60% → Critical
+        "start":         date(2026, 5, 1),
+        "end":           date(2026, 7, 31),
     },
     {
         "client":        "Optus",
@@ -97,20 +100,20 @@ RAW_CAMPAIGNS = [
         "campaign_id":   "IO-882155",
         "dsp":           "DV360",
         "budget":        60_000,
-        "spent":         24_800,
-        "start":         date(2026, 4, 15),
-        "end":           date(2026, 5, 10),
+        "spent":         13_500,   # pacing ~60% → Critical
+        "start":         date(2026, 5, 1),
+        "end":           date(2026, 7, 31),
     },
     {
         "client":        "Optus",
-        "campaign_name": "Optus | Entertainment Bundle | Retargeting | AU | Apr-May 2026",
+        "campaign_name": "Optus | Entertainment Bundle | Retargeting | AU | May-Jul 2026",
         "buy_type":      "PMP",
         "campaign_id":   "CMP-774581",
         "dsp":           "TTD",
         "budget":        45_000,
-        "spent":         13_500,
-        "start":         date(2026, 4, 20),
-        "end":           date(2026, 5, 30),
+        "spent":         16_500,   # pacing ~98% → On track
+        "start":         date(2026, 5, 1),
+        "end":           date(2026, 7, 31),
     },
     {
         "client":        "Optus",
@@ -119,20 +122,20 @@ RAW_CAMPAIGNS = [
         "campaign_id":   "AMZ-330921",
         "dsp":           "Amazon DSP",
         "budget":        75_000,
-        "spent":         64_800,
-        "start":         date(2026, 3, 15),
-        "end":           date(2026, 5, 15),
+        "spent":         29_500,   # pacing ~105% → On track
+        "start":         date(2026, 5, 1),
+        "end":           date(2026, 7, 31),
     },
     {
         "client":        "Optus",
-        "campaign_name": "Optus — Mobile Handset Upgrade — May 2026",
+        "campaign_name": "Optus — Mobile Handset Upgrade — Mid 2026",
         "buy_type":      "PG",
         "campaign_id":   "IO-883047",
         "dsp":           "DV360",
         "budget":        95_000,
-        "spent":         29_400,
-        "start":         date(2026, 4, 25),
-        "end":           date(2026, 5, 8),
+        "spent":         19_500,   # pacing ~55% → Critical
+        "start":         date(2026, 5, 1),
+        "end":           date(2026, 7, 31),
     },
 ]
 
@@ -178,127 +181,127 @@ MOCK_CAMPAIGNS = [calc_pacing(c) for c in RAW_CAMPAIGNS]
 # ── Mock campaign and line item breakdown per campaign ID ─────────────────────
 # Budgets and spends at each level sum to the client totals in RAW_CAMPAIGNS.
 MOCK_CAMPAIGN_BREAKDOWN = {
-    "IO-881421": {  # Optus DV360 — Mobile Plans — budget 110k, spent 52.4k
+    "IO-881421": {  # Optus DV360 — Mobile Plans — budget 110k, spent 33k
         "campaigns": [
             {
                 "name":   "Optus — Mobile Plans — Brand Awareness — Display",
-                "budget": 70_000, "spent": 35_000,
+                "budget": 70_000, "spent": 21_000,
                 "line_items": [
-                    {"name": "Prospecting Display — Desktop",          "budget": 28_000, "spent": 15_000},
-                    {"name": "In-Market Telecom Switchers — Mobile",   "budget": 24_000, "spent": 12_000},
-                    {"name": "YouTube TrueView — All Devices",         "budget": 18_000, "spent":  8_000},
+                    {"name": "Prospecting Display — Desktop",          "budget": 28_000, "spent":  9_500},
+                    {"name": "In-Market Telecom Switchers — Mobile",   "budget": 24_000, "spent":  7_500},
+                    {"name": "YouTube TrueView — All Devices",         "budget": 18_000, "spent":  4_000},
                 ],
             },
             {
                 "name":   "Optus — Mobile Plans — Retargeting",
-                "budget": 40_000, "spent": 17_400,
+                "budget": 40_000, "spent": 12_000,
                 "line_items": [
-                    {"name": "Site Retargeting — Display",             "budget": 22_000, "spent": 10_400},
-                    {"name": "CRM Match — Programmatic Display",       "budget": 18_000, "spent":  7_000},
+                    {"name": "Site Retargeting — Display",             "budget": 22_000, "spent":  7_200},
+                    {"name": "CRM Match — Programmatic Display",       "budget": 18_000, "spent":  4_800},
                 ],
             },
         ],
     },
-    "CMP-774032": {  # Optus TTD — NBN Broadband — budget 85k, spent 41.2k
+    "CMP-774032": {  # Optus TTD — NBN Broadband — budget 85k, spent 19.1k
         "campaigns": [
             {
                 "name":   "Optus | NBN Broadband | Prospecting | Display | AU",
-                "budget": 55_000, "spent": 28_000,
+                "budget": 55_000, "spent": 12_500,
                 "line_items": [
-                    {"name": "In-Market Broadband Researchers — Desktop", "budget": 22_000, "spent": 12_000},
-                    {"name": "Home Movers Audience — Display",            "budget": 18_000, "spent":  9_000},
-                    {"name": "Tech Enthusiasts — Mobile",                 "budget": 15_000, "spent":  7_000},
+                    {"name": "In-Market Broadband Researchers — Desktop", "budget": 22_000, "spent":  5_500},
+                    {"name": "Home Movers Audience — Display",            "budget": 18_000, "spent":  4_000},
+                    {"name": "Tech Enthusiasts — Mobile",                 "budget": 15_000, "spent":  3_000},
                 ],
             },
             {
                 "name":   "Optus | NBN Broadband | Retargeting | Video | AU",
-                "budget": 30_000, "spent": 13_200,
+                "budget": 30_000, "spent":  6_600,
                 "line_items": [
-                    {"name": "Site Visitors — Pre-roll Video",            "budget": 18_000, "spent":  8_500},
-                    {"name": "Cart Abandoners — Display",                 "budget": 12_000, "spent":  4_700},
+                    {"name": "Site Visitors — Pre-roll Video",            "budget": 18_000, "spent":  3_800},
+                    {"name": "Cart Abandoners — Display",                 "budget": 12_000, "spent":  2_800},
                 ],
             },
         ],
     },
-    "IO-882155": {  # Optus DV360 — Business Solutions — budget 60k, spent 24.8k
+    "IO-882155": {  # Optus DV360 — Business Solutions — budget 60k, spent 13.5k
         "campaigns": [
             {
                 "name":   "Optus — Business Solutions — SMB Prospecting — Display",
-                "budget": 38_000, "spent": 16_000,
+                "budget": 38_000, "spent":  8_600,
                 "line_items": [
-                    {"name": "SMB Decision Makers — Desktop Display",     "budget": 16_000, "spent":  7_000},
-                    {"name": "LinkedIn Matched Audience — Programmatic",  "budget": 12_000, "spent":  5_000},
-                    {"name": "Business Context Targeting — Mobile",       "budget": 10_000, "spent":  4_000},
+                    {"name": "SMB Decision Makers — Desktop Display",     "budget": 16_000, "spent":  3_800},
+                    {"name": "LinkedIn Matched Audience — Programmatic",  "budget": 12_000, "spent":  2_800},
+                    {"name": "Business Context Targeting — Mobile",       "budget": 10_000, "spent":  2_000},
                 ],
             },
             {
                 "name":   "Optus — Business Solutions — Enterprise Video",
-                "budget": 22_000, "spent": 8_800,
+                "budget": 22_000, "spent":  4_900,
                 "line_items": [
-                    {"name": "Enterprise Audience — CTV",                 "budget": 13_000, "spent":  5_500},
-                    {"name": "IT Decision Makers — Pre-roll",             "budget":  9_000, "spent":  3_300},
+                    {"name": "Enterprise Audience — CTV",                 "budget": 13_000, "spent":  2_900},
+                    {"name": "IT Decision Makers — Pre-roll",             "budget":  9_000, "spent":  2_000},
                 ],
             },
         ],
     },
-    "CMP-774581": {  # Optus TTD — Entertainment Bundle — budget 45k, spent 13.5k
+    "CMP-774581": {  # Optus TTD — Entertainment Bundle — budget 45k, spent 16.5k
         "campaigns": [
             {
                 "name":   "Optus | Entertainment Bundle | Sports Context | Display | AU",
-                "budget": 28_000, "spent": 8_500,
+                "budget": 28_000, "spent": 10_300,
                 "line_items": [
-                    {"name": "Sports Fans — Desktop Display",             "budget": 12_000, "spent":  3_800},
-                    {"name": "Streaming Intent Audience — Mobile",        "budget": 10_000, "spent":  3_200},
-                    {"name": "Premium Content — Video Pre-roll",          "budget":  6_000, "spent":  1_500},
+                    {"name": "Sports Fans — Desktop Display",             "budget": 12_000, "spent":  4_600},
+                    {"name": "Streaming Intent Audience — Mobile",        "budget": 10_000, "spent":  3_800},
+                    {"name": "Premium Content — Video Pre-roll",          "budget":  6_000, "spent":  1_900},
                 ],
             },
             {
                 "name":   "Optus | Entertainment Bundle | Retargeting | All Formats | AU",
-                "budget": 17_000, "spent": 5_000,
+                "budget": 17_000, "spent":  6_200,
                 "line_items": [
-                    {"name": "Optus Website Visitors — Display",          "budget": 10_000, "spent":  3_200},
-                    {"name": "App Download Intent — Mobile",              "budget":  7_000, "spent":  1_800},
+                    {"name": "Optus Website Visitors — Display",          "budget": 10_000, "spent":  3_900},
+                    {"name": "App Download Intent — Mobile",              "budget":  7_000, "spent":  2_300},
                 ],
             },
         ],
     },
-    "AMZ-330921": {  # Optus Amazon DSP — CTV Brand Awareness — budget 75k, spent 64.8k
+    "AMZ-330921": {  # Optus Amazon DSP — CTV Brand Awareness — budget 75k, spent 29.5k
         "campaigns": [
             {
                 "name":   "Optus_CTV_BrandAwareness_PrimeTime_2026Q2",
-                "budget": 48_000, "spent": 41_500,
+                "budget": 48_000, "spent": 19_000,
                 "line_items": [
-                    {"name": "Optus_CTV_PrimeTime_AU",                   "budget": 28_000, "spent": 25_000},
-                    {"name": "Optus_CTV_SportStreaming_AU",               "budget": 20_000, "spent": 16_500},
+                    {"name": "Optus_CTV_PrimeTime_AU",                   "budget": 28_000, "spent": 11_500},
+                    {"name": "Optus_CTV_SportStreaming_AU",               "budget": 20_000, "spent":  7_500},
                 ],
             },
             {
                 "name":   "Optus_Display_BrandAwareness_2026Q2",
-                "budget": 27_000, "spent": 23_300,
+                "budget": 27_000, "spent": 10_500,
                 "line_items": [
-                    {"name": "Optus_Display_InMarket_AU",                 "budget": 16_000, "spent": 14_000},
-                    {"name": "Optus_Display_Behavioural_AU",              "budget": 11_000, "spent":  9_300},
+                    {"name": "Optus_Display_InMarket_AU",                 "budget": 16_000, "spent":  6_300},
+                    {"name": "Optus_Display_Behavioural_AU",              "budget": 11_000, "spent":  4_200},
                 ],
             },
         ],
     },
-    "IO-883047": {  # Optus DV360 — Mobile Handset Upgrade — budget 95k, spent 29.4k
+    "IO-883047": {  # Optus DV360 — Mobile Handset Upgrade — budget 95k, spent 19.5k
         "campaigns": [
             {
                 "name":   "Optus — Handset Upgrade — Trade-In Offer — Display",
-                "budget": 60_000, "spent": 18_500,
+                "budget": 60_000, "spent": 12_300,
                 "line_items": [
-                    {"name": "Current Mobile Customers — Desktop",        "budget": 25_000, "spent":  8_500},
-                    {"name": "Handset Intenders — Mobile Display",        "budget": 20_000, "spent":  6_500},
-                    {"name": "Tech Upgrade Audience — Video Pre-roll",    "budget": 15_000, "spent":  3_500},
+                    {"name": "Current Mobile Customers — Desktop",        "budget": 25_000, "spent":  5_600},
+                    {"name": "Handset Intenders — Mobile Display",        "budget": 20_000, "spent":  4_300},
+                    {"name": "Tech Upgrade Audience — Video Pre-roll",    "budget": 15_000, "spent":  2_400},
                 ],
             },
             {
                 "name":   "Optus — Handset Upgrade — Retargeting",
-                "budget": 35_000, "spent": 10_900,
+                "budget": 35_000, "spent":  7_200,
                 "line_items": [
-                    {"name": "Store & Web Visitors — Display",            "budget": 20_000, "spent":  7_200},
-                    {"name": "Product Page Visitors — Mobile",            "budget": 15_000, "spent":  3_700},
+                    {"name": "Store & Web Visitors — Display",            "budget": 20_000, "spent":  4_800},
+                    {"name": "Product Page Visitors — Mobile",            "budget": 15_000, "spent":  2_400},
                 ],
             },
         ],
@@ -724,11 +727,10 @@ def build_campaigns_from_df(df):
     for col in ("budget", "spend", "impressions", "clicks", "video_views"):
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # Group by advertiser + campaign + line_item; sum delivery, keep last for static fields
+    # First agg: sum spend per (client, dsp, campaign, line_item); budget is static so take last.
     agg = (
-        df.groupby(["advertiser", "campaign", "line_item"], as_index=False)
+        df.groupby(["advertiser", "dsp", "campaign", "line_item"], as_index=False)
         .agg(
-            dsp          = ("dsp",          "last"),
             campaign_id  = ("campaign_id",  "last"),
             buy_type     = ("buy_type",     "last"),
             budget       = ("budget",       "last"),
@@ -744,14 +746,14 @@ def build_campaigns_from_df(df):
     campaigns = []
     breakdown = {}
 
-    for advertiser, adv_df in agg.groupby("advertiser"):
-        start       = adv_df["flight_start"].min()
-        end         = adv_df["flight_end"].max()
-        budget      = adv_df["budget"].sum()
-        spent       = adv_df["spend"].sum()
-        dsp         = adv_df["dsp"].iloc[0]
-        campaign_id = adv_df["campaign_id"].iloc[0]
-        buy_type    = adv_df["buy_type"].iloc[0]
+    # One row per (client, dsp, campaign) so multiple DSPs per client show separately.
+    for (advertiser, dsp, campaign_name), grp_df in agg.groupby(["advertiser", "dsp", "campaign"]):
+        start       = grp_df["flight_start"].min()
+        end         = grp_df["flight_end"].max()
+        budget      = grp_df["budget"].sum()
+        spent       = grp_df["spend"].sum()
+        campaign_id = grp_df["campaign_id"].iloc[0]
+        buy_type    = grp_df["buy_type"].iloc[0]
 
         # Pacing calculation — same formula as calc_pacing()
         total_days     = (end - start).days
@@ -769,8 +771,12 @@ def build_campaigns_from_df(df):
         else:
             risk, risk_color, risk_bg = "Overpacing", "#7C3AED", "#F5F3FF"
 
+        # Composite key used to look up the line-item breakdown in the pacing table.
+        breakdown_key = f"{advertiser}|{dsp}|{campaign_name}"
+
         campaigns.append({
             "client":         advertiser,
+            "campaign_name":  campaign_name,
             "buy_type":       buy_type,
             "campaign_id":    campaign_id,
             "dsp":            dsp,
@@ -786,25 +792,23 @@ def build_campaigns_from_df(df):
             "risk":           risk,
             "risk_color":     risk_color,
             "risk_bg":        risk_bg,
+            "_breakdown_key": breakdown_key,
         })
 
-        # Build campaign → line item breakdown for the drill-down table
-        camp_list = []
-        for camp_name, camp_df in adv_df.groupby("campaign"):
-            li_list = []
-            for _, li_row in camp_df.iterrows():
-                li_list.append({
-                    "name":   li_row["line_item"],
-                    "budget": li_row["budget"],
-                    "spent":  li_row["spend"],
-                })
-            camp_list.append({
-                "name":       camp_name,
-                "budget":     camp_df["budget"].sum(),
-                "spent":      camp_df["spend"].sum(),
+        # Build line item list for the drill-down; wrap in "campaigns" shape so the
+        # rendering loop works identically for mock data and uploaded data.
+        li_list = [
+            {"name": row["line_item"], "budget": row["budget"], "spent": row["spend"]}
+            for _, row in grp_df.iterrows()
+        ]
+        breakdown[breakdown_key] = {
+            "campaigns": [{
+                "name":       campaign_name,
+                "budget":     budget,
+                "spent":      spent,
                 "line_items": li_list,
-            })
-        breakdown[campaign_id] = {"campaigns": camp_list}
+            }]
+        }
 
     return campaigns, breakdown
 
@@ -1057,8 +1061,6 @@ st.markdown(
                        text-transform:uppercase;letter-spacing:0.06em;'>DSP</th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Type</th>
-            <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
-                       text-transform:uppercase;letter-spacing:0.06em;'>Campaign ID</th>
             <th style='padding:12px 16px;text-align:right;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Budget</th>
             <th style='padding:12px 16px;text-align:right;font-size:11px;color:#6B7280;
@@ -1077,9 +1079,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# One white card per client row; the expander below it reveals campaign detail
+# One white card per client row; the expander below it reveals campaign detail.
+# Uses _breakdown_key (uploaded data) or campaign_id (mock data) for drill-down lookup.
 for c in FILTERED_CAMPAIGNS:
-    breakdown = CAMPAIGN_BREAKDOWN.get(c["campaign_id"], {})
+    _lookup_key = c.get("_breakdown_key", c["campaign_id"])
+    breakdown = CAMPAIGN_BREAKDOWN.get(_lookup_key, {})
 
     client_row = (
         f"<tr style='border-bottom:1px solid #F3F4F6;'>"
@@ -1087,8 +1091,6 @@ for c in FILTERED_CAMPAIGNS:
         f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{c['client']}</td>"
         f"<td style='padding:14px 16px;'>{dsp_badge(c['dsp'])}</td>"
         f"<td style='padding:14px 16px;'>{buy_type_badge(c['buy_type'])}</td>"
-        f"<td style='padding:14px 16px;font-size:12px;color:#6B7280;"
-        f"font-family:monospace;'>{c['campaign_id']}</td>"
         f"<td style='padding:14px 16px;text-align:right;'>A${c['budget']/1_000:.0f}k</td>"
         f"<td style='padding:14px 16px;text-align:right;'>A${c['spent']/1_000:.1f}k</td>"
         f"<td style='padding:14px 16px;min-width:220px;'>"
@@ -1110,20 +1112,42 @@ for c in FILTERED_CAMPAIGNS:
     # Campaign-level expander (only shown if breakdown data exists)
     if breakdown:
         with st.expander(
-            f"↳  Campaign & Line Item Breakdown — {c['client']} ({c['campaign_id']})",
+            f"↳  Campaign & Line Item Breakdown — {c['client']}",
             expanded=False,
         ):
             for camp in breakdown.get("campaigns", []):
                 cp = calc_sub_pacing(camp["budget"], camp["spent"], c["start"], c["end"])
 
-                camp_label = (
-                    f"📊  {camp['name']}  ·  "
-                    f"A${camp['budget']/1_000:.0f}k budget  ·  "
-                    f"A${camp['spent']/1_000:.1f}k spent  ·  "
-                    f"{cp['pacing_index']:.1f}% ({cp['risk']})"
+                # Campaign row — matches client row column structure
+                camp_row = (
+                    f"<tr style='border-bottom:1px solid #E5E7EB;background:#F9FAFB;'>"
+                    f"<td style='padding:10px 16px;width:28px;color:#9CA3AF;font-size:11px;'>📊</td>"
+                    f"<td style='padding:10px 16px;font-size:13px;font-weight:600;"
+                    f"color:#374151;'>{camp['name']}</td>"
+                    f"<td style='padding:10px 16px;'>{dsp_badge(c['dsp'])}</td>"
+                    f"<td style='padding:10px 16px;'>{buy_type_badge(c['buy_type'])}</td>"
+                    f"<td style='padding:10px 16px;text-align:right;font-size:13px;'>"
+                    f"A${camp['budget']/1_000:.0f}k</td>"
+                    f"<td style='padding:10px 16px;text-align:right;font-size:13px;'>"
+                    f"A${camp['spent']/1_000:.1f}k</td>"
+                    f"<td style='padding:10px 16px;min-width:200px;'>"
+                    f"{pacing_bar(cp['pacing_index'], cp['risk_color'])}</td>"
+                    f"<td style='padding:10px 16px;text-align:center;font-size:13px;'>"
+                    f"{days_cell(c['days_remaining'])}</td>"
+                    f"<td style='padding:10px 16px;'>"
+                    f"{risk_badge(cp['risk'], cp['risk_color'], cp['risk_bg'])}</td>"
+                    f"</tr>"
+                )
+                st.markdown(
+                    f"<div style='background:#F9FAFB;border-radius:8px;"
+                    f"overflow:hidden;margin-bottom:4px;'>"
+                    f"<table style='width:100%;border-collapse:collapse;'>"
+                    f"<tbody>{camp_row}</tbody>"
+                    f"</table></div>",
+                    unsafe_allow_html=True,
                 )
 
-                with st.expander(camp_label, expanded=False):
+                with st.expander(f"↳  Line Items — {camp['name']}", expanded=False):
                     li_rows = ""
                     for li in camp["line_items"]:
                         lp = calc_sub_pacing(li["budget"], li["spent"], c["start"], c["end"])
@@ -1201,6 +1225,18 @@ def health_score_colour(score):
 for c in FILTERED_AT_RISK:
     diag = DIAGNOSTICS.get(c["campaign_id"])
     if not diag:
+        # No mock diagnostic for this campaign (e.g. uploaded data) — show a placeholder
+        with st.expander(
+            f"{c['client']}  ·  {c['dsp']}  ·  {c['risk']}  ·  {c['days_remaining']}d remaining",
+            expanded=False,
+        ):
+            st.markdown(
+                "<div style='background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"
+                "padding:14px 16px;font-size:13px;color:#92400E;'>"
+                "⚠️ No diagnostic data available for this campaign. "
+                "Connect to the DSP troubleshooter API to retrieve live blockers.</div>",
+                unsafe_allow_html=True,
+            )
         continue
     score = diag["health_score"]
     tgt   = diag["targeting_callout"]
@@ -1421,6 +1457,18 @@ st.markdown(
 for c in FILTERED_CAMPAIGNS:
     perf = PERFORMANCE_DATA.get(c["campaign_id"])
     if not perf:
+        # No mock performance data for this campaign (e.g. uploaded data) — show a placeholder
+        with st.expander(
+            f"{c['client']}  ·  {c['dsp']}  ·  Performance data unavailable",
+            expanded=False,
+        ):
+            st.markdown(
+                "<div style='background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"
+                "padding:14px 16px;font-size:13px;color:#92400E;'>"
+                "⚠️ No performance diagnostic data available for this campaign. "
+                "Upload a performance report with CTR, CPM, or VTR columns to generate insights.</div>",
+                unsafe_allow_html=True,
+            )
         continue
 
     score      = perf["performance_score"]
