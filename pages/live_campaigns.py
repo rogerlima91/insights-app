@@ -908,10 +908,10 @@ with filter_col2:
 st.markdown("**Operations**")
 ops_col1, ops_col2, ops_col3, ops_col4, ops_col5 = st.columns(5)
 
-all_clients      = sorted(set(c["client"]      for c in CAMPAIGNS))
-all_buy_types    = sorted(set(c["buy_type"]    for c in CAMPAIGNS))
-all_dsps         = sorted(set(c["dsp"]         for c in CAMPAIGNS))
-all_campaign_ids = sorted(set(c["campaign_id"] for c in CAMPAIGNS))
+all_clients      = sorted(set(c["client"]      for c in CAMPAIGNS if c["client"]      is not None))
+all_buy_types    = sorted(set(c["buy_type"]    for c in CAMPAIGNS if c["buy_type"]    is not None))
+all_dsps         = sorted(set(c["dsp"]         for c in CAMPAIGNS if c["dsp"]         is not None))
+all_campaign_ids = sorted(set(c["campaign_id"] for c in CAMPAIGNS if c["campaign_id"] is not None))
 all_statuses     = ["Critical", "At risk", "On track", "Overpacing"]
 
 with ops_col1:
