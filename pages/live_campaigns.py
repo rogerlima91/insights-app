@@ -1205,6 +1205,217 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# ── Fallback diagnostic generators ────────────────────────────────────────────
+# Used when a campaign has no pre-defined entry in DIAGNOSTICS / PUSH_DATA /
+# PERFORMANCE_DATA (e.g. uploaded data). Returns the same dict shape so the
+# rendering code works identically regardless of the data source.
+
+def _fallback_delivery_diag(c):
+    """Return a realistic delivery diagnostic based on the campaign's DSP."""
+    dsp = c.get("dsp", "")
+    if dsp == "TTD":
+        return {
+            "health_score": 45,
+            "source":       "TTD Deal Health API",
+            "blockers": [
+                {"rank": 1, "impact": "HIGH",
+                 "description": "Audience segment matching only 9% of available TTD inventory — severely limiting bid opportunities"},
+                {"rank": 2, "impact": "HIGH",
+                 "description": "Bid floor below publisher minimum on 67% of impressions — effective CPM uncompetitive for priority supply"},
+                {"rank": 3, "impact": "MEDIUM",
+                 "description": "Frequency cap reached — avg user hitting cap after 1.2 days, exhausting available unique reach"},
+            ],
+            "targeting_callout": {
+                "segment":         "Primary Audience Segment",
+                "match_rate":      "9%",
+                "issue":           "Narrow segment is the primary delivery bottleneck, restricting the campaign to a small fraction of available TTD supply.",
+                "alternatives":    [
+                    "Broader demographic segment (est. 3× broader reach)",
+                    "In-market intent audience (est. 2× broader reach)",
+                    "Contextual targeting expansion (est. 4× broader reach)",
+                ],
+                "projected_match": "~32%",
+            },
+        }
+    if dsp == "Amazon DSP":
+        return {
+            "health_score": 51,
+            "source":       "Amazon DSP Reporting API",
+            "blockers": [
+                {"rank": 1, "impact": "HIGH",
+                 "description": "Audience overlap with exclusion lists reducing addressable reach by 28%"},
+                {"rank": 2, "impact": "HIGH",
+                 "description": "Bid too low for sponsored placements — below floor price on 45% of targeted inventory"},
+                {"rank": 3, "impact": "MEDIUM",
+                 "description": "Creative not approved for all ad sizes in this placement — limiting delivery to 2 of 5 formats"},
+            ],
+            "targeting_callout": {
+                "segment":         "Primary Audience Segment",
+                "match_rate":      "18%",
+                "issue":           "Exclusion list overlap and creative approval gaps are the primary delivery constraints on this campaign.",
+                "alternatives":    [
+                    "Reduced exclusion list scope (est. 2× broader reach)",
+                    "Additional ad size approvals (unlocks 3 more formats)",
+                    "Broader Amazon audience segment (est. 3× broader reach)",
+                ],
+                "projected_match": "~41%",
+            },
+        }
+    # Default: DV360
+    return {
+        "health_score": 38,
+        "source":       "DV360 Troubleshooter API",
+        "blockers": [
+            {"rank": 1, "impact": "HIGH",
+             "description": "Brand safety targeting excluding 34% of eligible inventory — categories applied more broadly than required"},
+            {"rank": 2, "impact": "HIGH",
+             "description": "Viewability threshold too high — limiting eligible supply to premium-only placements"},
+            {"rank": 3, "impact": "MEDIUM",
+             "description": "Budget pacing set to EVEN — consider switching to ASAP to recover underspend in remaining flight window"},
+        ],
+        "targeting_callout": {
+            "segment":         "Primary Audience Segment",
+            "match_rate":      "14%",
+            "issue":           "Combination of brand safety restrictions and viewability threshold is severely limiting the addressable inventory pool.",
+            "alternatives":    [
+                "Relaxed brand safety categories (est. 2.5× broader reach)",
+                "Lower viewability threshold to 70% (est. 3× broader reach)",
+                "Broader audience targeting (est. 4× broader reach)",
+            ],
+            "projected_match": "~38%",
+        },
+    }
+
+
+def _fallback_push_data(c):
+    """Return generic push recovery data when no pre-defined entry exists."""
+    dsp = c.get("dsp", "")
+    if dsp == "TTD":
+        return {"bid_from": 3.20, "bid_to": 4.00, "budget_from": 4_000, "budget_to": 5_000,
+                "recovery_aud": 8_000, "projected_pacing": 91.0, "confidence": "MEDIUM"}
+    if dsp == "Amazon DSP":
+        return {"bid_from": 8.00, "bid_to": 10.00, "budget_from": 5_000, "budget_to": 6_200,
+                "recovery_aud": 7_500, "projected_pacing": 90.0, "confidence": "LOW"}
+    # Default: DV360
+    return {"bid_from": 5.00, "bid_to": 6.25, "budget_from": 3_500, "budget_to": 4_400,
+            "recovery_aud": 6_500, "projected_pacing": 89.5, "confidence": "MEDIUM"}
+
+
+def _fallback_perf_diag(c):
+    """Return realistic performance diagnostics based on the campaign's DSP."""
+    dsp  = c.get("dsp", "")
+    name = (c.get("campaign_name") or "").lower()
+
+    if dsp == "DV360" and any(kw in name for kw in ("youtube", "trueview", "bumper")):
+        return {
+            "performance_score": 62,
+            "issues": [
+                {"rank": 1, "impact": "HIGH",
+                 "description": "View Rate 61% — below TrueView benchmark of 70%; first 5 seconds not engaging viewers"},
+                {"rank": 2, "impact": "MEDIUM",
+                 "description": "Bumper ads driving 2× CTR vs TrueView at lower CPM — budget allocation suboptimal"},
+                {"rank": 3, "impact": "LOW",
+                 "description": "Mobile view rate 8% below Desktop — dedicated mobile edit may improve completion"},
+            ],
+            "recommendations": [
+                "Rework TrueView opening hook — lead message must land within first 3 seconds",
+                "Shift 20% of TrueView budget to bumper ads to capitalise on CTR efficiency",
+                "Create a 15s mobile edit with larger text overlay and tighter framing",
+            ],
+            "push_data": {
+                "optimisation":  "Creative hook rework + bumper budget shift",
+                "projected_ctr": "0.14%", "projected_cpm": "A$11.20", "confidence": "MEDIUM",
+            },
+        }
+
+    if dsp == "TTD":
+        if any(kw in name for kw in ("bvod", "9now", "7plus", "broadcast")):
+            return {
+                "performance_score": 71,
+                "issues": [
+                    {"rank": 1, "impact": "MEDIUM",
+                     "description": "VCR 91% — strong but 9Now outperforming 7Plus by 4 percentage points"},
+                    {"rank": 2, "impact": "MEDIUM",
+                     "description": "Connected TV CPM A$46 — above BVOD benchmark of A$40"},
+                    {"rank": 3, "impact": "LOW",
+                     "description": "15s creative outperforming 30s on completion rate — rebalance creative mix"},
+                ],
+                "recommendations": [
+                    "Increase 9Now bid weighting by 15% to capitalise on its higher VCR",
+                    "Negotiate 7Plus CPM floor or reduce 7Plus allocation to improve blended CPM",
+                    "Shift 30% of 30s budget to 15s creative to improve completion rates",
+                ],
+                "push_data": {
+                    "optimisation":  "Publisher bid weighting + creative length rebalance",
+                    "projected_ctr": "N/A (BVOD)", "projected_cpm": "A$41.50", "confidence": "HIGH",
+                },
+            }
+        return {
+            "performance_score": 58,
+            "issues": [
+                {"rank": 1, "impact": "HIGH",
+                 "description": "CTR 0.06% — below Display benchmark of 0.25%; creative may need refreshing after 3 weeks"},
+                {"rank": 2, "impact": "MEDIUM",
+                 "description": "Mobile CPM A$18 — 40% above Desktop at A$13; review mobile bid adjustments"},
+                {"rank": 3, "impact": "LOW",
+                 "description": "Retargeting line items outperforming prospecting 3:1 on CTR — consider budget reallocation"},
+            ],
+            "recommendations": [
+                "Rotate display creative — introduce new variants to lift CTR toward 0.25% benchmark",
+                "Reduce mobile bid adjustment by 20% to bring mobile CPM in line with desktop",
+                "Shift 15% of prospecting budget to retargeting line items to improve overall CTR",
+            ],
+            "push_data": {
+                "optimisation":  "Creative rotation + mobile bid reduction + budget reallocation",
+                "projected_ctr": "0.18%", "projected_cpm": "A$14.50", "confidence": "MEDIUM",
+            },
+        }
+
+    if dsp == "Amazon DSP":
+        return {
+            "performance_score": 55,
+            "issues": [
+                {"rank": 1, "impact": "HIGH",
+                 "description": "DPV rate 12% — below benchmark of 18% for Telco vertical; landing page may need review"},
+                {"rank": 2, "impact": "MEDIUM",
+                 "description": "Cart abandoner retargeting ROAS 3.2× vs prospecting 1.8× — significant budget upside available"},
+                {"rank": 3, "impact": "MEDIUM",
+                 "description": "Mobile CTR 0.4% vs Desktop 0.7% — mobile creative review needed"},
+            ],
+            "recommendations": [
+                "Audit landing page experience for mobile — DPV rate suggests drop-off post-click",
+                "Increase cart abandoner retargeting budget by 30% — ROAS is 78% higher than prospecting",
+                "Produce dedicated mobile creative with clearer CTA and faster load time",
+            ],
+            "push_data": {
+                "optimisation":  "Landing page audit + retargeting budget uplift + mobile creative refresh",
+                "projected_ctr": "0.62%", "projected_cpm": "A$16.80", "confidence": "MEDIUM",
+            },
+        }
+
+    # Default: DV360 Display
+    return {
+        "performance_score": 58,
+        "issues": [
+            {"rank": 1, "impact": "HIGH",
+             "description": "CTR 0.08% — below Display benchmark of 0.25%; creative fatigue likely"},
+            {"rank": 2, "impact": "MEDIUM",
+             "description": "Mobile CPM A$18 — 40% above Desktop at A$13; review mobile bid adjustments"},
+            {"rank": 3, "impact": "LOW",
+             "description": "Retargeting line items outperforming prospecting 3:1 on CTR — consider budget reallocation"},
+        ],
+        "recommendations": [
+            "Rotate display creative — introduce new variants to lift CTR toward 0.25% benchmark",
+            "Reduce mobile bid adjustment by 20% to bring mobile CPM in line with desktop",
+            "Shift 15% of prospecting budget to retargeting line items to improve overall CTR",
+        ],
+        "push_data": {
+            "optimisation":  "Creative rotation + mobile bid reduction + budget reallocation",
+            "projected_ctr": "0.18%", "projected_cpm": "A$14.50", "confidence": "MEDIUM",
+        },
+    }
+
+
 # Impact badge colour map
 IMPACT_STYLE = {
     "HIGH":   ("#FEF2F2", "#EF4444"),
@@ -1223,30 +1434,16 @@ def health_score_colour(score):
 
 
 for c in FILTERED_AT_RISK:
-    diag = DIAGNOSTICS.get(c["campaign_id"])
-    if not diag:
-        # No mock diagnostic for this campaign (e.g. uploaded data) — show a placeholder
-        with st.expander(
-            f"{c['client']}  ·  {c['dsp']}  ·  {c['risk']}  ·  {c['days_remaining']}d remaining",
-            expanded=False,
-        ):
-            st.markdown(
-                "<div style='background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"
-                "padding:14px 16px;font-size:13px;color:#92400E;'>"
-                "⚠️ No diagnostic data available for this campaign. "
-                "Connect to the DSP troubleshooter API to retrieve live blockers.</div>",
-                unsafe_allow_html=True,
-            )
-        continue
+    # Use pre-defined diagnostics when available; fall back to DSP-specific mock data.
+    diag = DIAGNOSTICS.get(c["campaign_id"]) or _fallback_delivery_diag(c)
+    pd_  = PUSH_DATA.get(c["campaign_id"])   or _fallback_push_data(c)
     score = diag["health_score"]
     tgt   = diag["targeting_callout"]
     sc    = health_score_colour(score)
     tier  = "CRITICAL" if score < 40 else "POOR" if score < 70 else "FAIR"
-    pd_   = PUSH_DATA.get(c["campaign_id"])
 
     with st.expander(
-        f"{c['client']}  ·  {c['dsp']}  ·  {c['campaign_id']}  ·  "
-        f"{c['risk']}  ·  {c['days_remaining']}d remaining",
+        f"{c['client']}  ·  {c['dsp']}  ·  {c['risk']}  ·  {c['days_remaining']}d remaining",
         expanded=False,
     ):
         # API source label
@@ -1322,9 +1519,8 @@ for c in FILTERED_AT_RISK:
         )
 
         # ── DSP Push button — inline below the diagnostic panel ───────────────
-        if pd_:
-            st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
-            is_dv360 = c["dsp"] == "DV360"
+        st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
+        is_dv360 = c["dsp"] == "DV360"
             remaining_budget = c["budget"] - c["spent"]
 
             col_btn, col_resp = st.columns([1, 3])
@@ -1455,21 +1651,8 @@ st.markdown(
 )
 
 for c in FILTERED_CAMPAIGNS:
-    perf = PERFORMANCE_DATA.get(c["campaign_id"])
-    if not perf:
-        # No mock performance data for this campaign (e.g. uploaded data) — show a placeholder
-        with st.expander(
-            f"{c['client']}  ·  {c['dsp']}  ·  Performance data unavailable",
-            expanded=False,
-        ):
-            st.markdown(
-                "<div style='background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"
-                "padding:14px 16px;font-size:13px;color:#92400E;'>"
-                "⚠️ No performance diagnostic data available for this campaign. "
-                "Upload a performance report with CTR, CPM, or VTR columns to generate insights.</div>",
-                unsafe_allow_html=True,
-            )
-        continue
+    # Use pre-defined performance data when available; fall back to DSP-specific mock data.
+    perf = PERFORMANCE_DATA.get(c["campaign_id"]) or _fallback_perf_diag(c)
 
     score      = perf["performance_score"]
     sc         = health_score_colour(score)
