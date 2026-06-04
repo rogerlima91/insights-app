@@ -827,14 +827,17 @@ with st.expander("Upload Pacing Reports", expanded=False):
         dfs = []
         for f in uploaded_files:
             df_raw = pd.read_csv(f)
-            # Tag each row with the filename-detected DSP before merging,
-            # so we can fall back to it if the CSV has no DSP column.
+            # Tag each row with the filename-detected DSP before mapping.
             df_raw["_dsp_hint"] = detect_dsp_from_filename(f.name)
-            dfs.append(df_raw)
+            # Map columns per-file so DSP-specific headers (e.g. Amazon uses
+            # "Order" instead of "Campaign") are resolved before merging.
+            # If we merged first, a DV360 "Campaign" column would shadow
+            # Amazon's "Order" column and Amazon rows would lose their campaign name.
+            df_mapped = map_columns(df_raw)
+            dfs.append(df_mapped)
 
-        # Concatenate all raw files first, then map columns once on the merged result.
+        # Concatenate already-mapped files — columns are now standardised.
         merged_df = pd.concat(dfs, ignore_index=True)
-        merged_df = map_columns(merged_df)
 
         # Use the filename-detected DSP wherever the data has no DSP value.
         if "dsp" not in merged_df.columns:
@@ -1079,26 +1082,47 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# One white card per client row; the expander below it reveals campaign detail.
-# Uses _breakdown_key (uploaded data) or campaign_id (mock data) for drill-down lookup.
+# ── Group campaigns by client for the one-client-row hierarchy ────────────────
+# One white card per client; inside a "Campaigns" expander one row per campaign;
+# inside each campaign a "Line Items" expander with line item detail.
+clients_map = {}
 for c in FILTERED_CAMPAIGNS:
-    _lookup_key = c.get("_breakdown_key", c["campaign_id"])
-    breakdown = CAMPAIGN_BREAKDOWN.get(_lookup_key, {})
+    clients_map.setdefault(c["client"], []).append(c)
 
+for client_name, client_campaigns in clients_map.items():
+    # Aggregate totals across all campaigns for this client
+    total_budget   = sum(c["budget"]         for c in client_campaigns)
+    total_spent    = sum(c["spent"]           for c in client_campaigns)
+    total_expected = sum(c["expected_spend"]  for c in client_campaigns)
+    agg_pacing     = (total_spent / total_expected * 100) if total_expected > 0 else 0
+    min_days_left  = min(c["days_remaining"]  for c in client_campaigns)
+
+    if agg_pacing < 75:
+        agg_risk, agg_rc, agg_rb = "Critical",   "#EF4444", "#FEF2F2"
+    elif agg_pacing < 92:
+        agg_risk, agg_rc, agg_rb = "At risk",    "#F59E0B", "#FFFBEB"
+    elif agg_pacing <= 110:
+        agg_risk, agg_rc, agg_rb = "On track",   "#10B981", "#ECFDF5"
+    else:
+        agg_risk, agg_rc, agg_rb = "Overpacing", "#7C3AED", "#F5F3FF"
+
+    n_camps = len(client_campaigns)
     client_row = (
         f"<tr style='border-bottom:1px solid #F3F4F6;'>"
         f"<td style='padding:14px 16px;width:28px;color:#9CA3AF;font-size:11px;'>▶</td>"
-        f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{c['client']}</td>"
-        f"<td style='padding:14px 16px;'>{dsp_badge(c['dsp'])}</td>"
-        f"<td style='padding:14px 16px;'>{buy_type_badge(c['buy_type'])}</td>"
-        f"<td style='padding:14px 16px;text-align:right;'>A${c['budget']/1_000:.0f}k</td>"
-        f"<td style='padding:14px 16px;text-align:right;'>A${c['spent']/1_000:.1f}k</td>"
+        f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{client_name}"
+        f"<span style='font-size:11px;color:#6B7280;font-weight:400;margin-left:8px;'>"
+        f"{n_camps} campaign{'s' if n_camps != 1 else ''}</span></td>"
+        f"<td style='padding:14px 16px;'></td>"
+        f"<td style='padding:14px 16px;'></td>"
+        f"<td style='padding:14px 16px;text-align:right;'>A${total_budget/1_000:.0f}k</td>"
+        f"<td style='padding:14px 16px;text-align:right;'>A${total_spent/1_000:.1f}k</td>"
         f"<td style='padding:14px 16px;min-width:220px;'>"
-        f"{pacing_bar(c['pacing_index'], c['risk_color'])}</td>"
+        f"{pacing_bar(agg_pacing, agg_rc)}</td>"
         f"<td style='padding:14px 16px;text-align:center;'>"
-        f"{days_cell(c['days_remaining'])}</td>"
+        f"{days_cell(min_days_left)}</td>"
         f"<td style='padding:14px 16px;'>"
-        f"{risk_badge(c['risk'], c['risk_color'], c['risk_bg'])}</td>"
+        f"{risk_badge(agg_risk, agg_rc, agg_rb)}</td>"
         f"</tr>"
     )
     st.markdown(
@@ -1109,88 +1133,93 @@ for c in FILTERED_CAMPAIGNS:
         unsafe_allow_html=True,
     )
 
-    # Campaign-level expander (only shown if breakdown data exists)
-    if breakdown:
-        with st.expander(
-            f"↳  Campaign & Line Item Breakdown — {c['client']}",
-            expanded=False,
-        ):
-            for camp in breakdown.get("campaigns", []):
-                cp = calc_sub_pacing(camp["budget"], camp["spent"], c["start"], c["end"])
+    # "Campaigns" expander — one row per campaign under this client
+    with st.expander("Campaigns", expanded=False):
+        for c in client_campaigns:
+            _lookup_key = c.get("_breakdown_key", c["campaign_id"])
+            breakdown = CAMPAIGN_BREAKDOWN.get(_lookup_key, {})
 
-                # Campaign row — matches client row column structure
-                camp_row = (
-                    f"<tr style='border-bottom:1px solid #E5E7EB;background:#F9FAFB;'>"
-                    f"<td style='padding:10px 16px;width:28px;color:#9CA3AF;font-size:11px;'>📊</td>"
-                    f"<td style='padding:10px 16px;font-size:13px;font-weight:600;"
-                    f"color:#374151;'>{camp['name']}</td>"
-                    f"<td style='padding:10px 16px;'>{dsp_badge(c['dsp'])}</td>"
-                    f"<td style='padding:10px 16px;'>{buy_type_badge(c['buy_type'])}</td>"
-                    f"<td style='padding:10px 16px;text-align:right;font-size:13px;'>"
-                    f"A${camp['budget']/1_000:.0f}k</td>"
-                    f"<td style='padding:10px 16px;text-align:right;font-size:13px;'>"
-                    f"A${camp['spent']/1_000:.1f}k</td>"
-                    f"<td style='padding:10px 16px;min-width:200px;'>"
-                    f"{pacing_bar(cp['pacing_index'], cp['risk_color'])}</td>"
-                    f"<td style='padding:10px 16px;text-align:center;font-size:13px;'>"
-                    f"{days_cell(c['days_remaining'])}</td>"
-                    f"<td style='padding:10px 16px;'>"
-                    f"{risk_badge(cp['risk'], cp['risk_color'], cp['risk_bg'])}</td>"
-                    f"</tr>"
-                )
-                st.markdown(
-                    f"<div style='background:#F9FAFB;border-radius:8px;"
-                    f"overflow:hidden;margin-bottom:4px;'>"
-                    f"<table style='width:100%;border-collapse:collapse;'>"
-                    f"<tbody>{camp_row}</tbody>"
-                    f"</table></div>",
-                    unsafe_allow_html=True,
-                )
+            # Campaign row — DSP badge, type, budget, spent, pacing, days left, status
+            camp_row = (
+                f"<tr style='border-bottom:1px solid #E5E7EB;background:#F9FAFB;'>"
+                f"<td style='padding:10px 16px;width:28px;color:#9CA3AF;font-size:11px;'>📊</td>"
+                f"<td style='padding:10px 16px;font-size:13px;font-weight:600;"
+                f"color:#374151;'>{c['campaign_name']}</td>"
+                f"<td style='padding:10px 16px;'>{dsp_badge(c['dsp'])}</td>"
+                f"<td style='padding:10px 16px;'>{buy_type_badge(c['buy_type'])}</td>"
+                f"<td style='padding:10px 16px;text-align:right;font-size:13px;'>"
+                f"A${c['budget']/1_000:.0f}k</td>"
+                f"<td style='padding:10px 16px;text-align:right;font-size:13px;'>"
+                f"A${c['spent']/1_000:.1f}k</td>"
+                f"<td style='padding:10px 16px;min-width:200px;'>"
+                f"{pacing_bar(c['pacing_index'], c['risk_color'])}</td>"
+                f"<td style='padding:10px 16px;text-align:center;font-size:13px;'>"
+                f"{days_cell(c['days_remaining'])}</td>"
+                f"<td style='padding:10px 16px;'>"
+                f"{risk_badge(c['risk'], c['risk_color'], c['risk_bg'])}</td>"
+                f"</tr>"
+            )
+            st.markdown(
+                f"<div style='background:#F9FAFB;border-radius:8px;"
+                f"overflow:hidden;margin-bottom:4px;'>"
+                f"<table style='width:100%;border-collapse:collapse;'>"
+                f"<tbody>{camp_row}</tbody>"
+                f"</table></div>",
+                unsafe_allow_html=True,
+            )
 
-                with st.expander(f"↳  Line Items — {camp['name']}", expanded=False):
-                    li_rows = ""
-                    for li in camp["line_items"]:
-                        lp = calc_sub_pacing(li["budget"], li["spent"], c["start"], c["end"])
-                        li_rows += (
-                            f"<tr style='border-bottom:1px solid #F3F4F6;'>"
-                            f"<td style='padding:10px 14px 10px 24px;color:#374151;"
-                            f"font-size:13px;'>{li['name']}</td>"
-                            f"<td style='padding:10px 14px;text-align:right;"
-                            f"font-size:13px;'>A${li['budget']/1_000:.0f}k</td>"
-                            f"<td style='padding:10px 14px;text-align:right;"
-                            f"font-size:13px;'>A${li['spent']/1_000:.1f}k</td>"
-                            f"<td style='padding:10px 14px;min-width:200px;'>"
-                            f"{pacing_bar(lp['pacing_index'], lp['risk_color'])}</td>"
-                            f"<td style='padding:10px 14px;'>"
-                            f"{risk_badge(lp['risk'], lp['risk_color'], lp['risk_bg'])}</td>"
-                            f"</tr>"
+            # "Line Items" expander — flatten line items from all sub-campaigns
+            if breakdown:
+                all_li = [
+                    li
+                    for sub in breakdown.get("campaigns", [])
+                    for li in sub.get("line_items", [])
+                ]
+                if all_li:
+                    with st.expander("Line Items", expanded=False):
+                        li_rows = ""
+                        for li in all_li:
+                            lp = calc_sub_pacing(li["budget"], li["spent"], c["start"], c["end"])
+                            li_rows += (
+                                f"<tr style='border-bottom:1px solid #F3F4F6;'>"
+                                f"<td style='padding:10px 14px 10px 24px;color:#374151;"
+                                f"font-size:13px;'>{li['name']}</td>"
+                                f"<td style='padding:10px 14px;text-align:right;"
+                                f"font-size:13px;'>A${li['budget']/1_000:.0f}k</td>"
+                                f"<td style='padding:10px 14px;text-align:right;"
+                                f"font-size:13px;'>A${li['spent']/1_000:.1f}k</td>"
+                                f"<td style='padding:10px 14px;min-width:200px;'>"
+                                f"{pacing_bar(lp['pacing_index'], lp['risk_color'])}</td>"
+                                f"<td style='padding:10px 14px;'>"
+                                f"{risk_badge(lp['risk'], lp['risk_color'], lp['risk_bg'])}</td>"
+                                f"</tr>"
+                            )
+
+                        st.markdown(
+                            f"<div style='background:#F9FAFB;border-radius:8px;"
+                            f"overflow:hidden;margin-top:8px;'>"
+                            f"<table style='width:100%;border-collapse:collapse;'>"
+                            f"<thead><tr style='background:#F3F4F6;border-bottom:1px solid #E5E7EB;'>"
+                            f"<th style='padding:8px 14px 8px 24px;text-align:left;font-size:11px;"
+                            f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                            f"Line Item</th>"
+                            f"<th style='padding:8px 14px;text-align:right;font-size:11px;"
+                            f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                            f"Budget</th>"
+                            f"<th style='padding:8px 14px;text-align:right;font-size:11px;"
+                            f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                            f"Spent</th>"
+                            f"<th style='padding:8px 14px;text-align:left;font-size:11px;"
+                            f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                            f"Pacing</th>"
+                            f"<th style='padding:8px 14px;text-align:left;font-size:11px;"
+                            f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
+                            f"Status</th>"
+                            f"</tr></thead>"
+                            f"<tbody>{li_rows}</tbody>"
+                            f"</table></div>",
+                            unsafe_allow_html=True,
                         )
-
-                    st.markdown(
-                        f"<div style='background:#F9FAFB;border-radius:8px;"
-                        f"overflow:hidden;margin-top:8px;'>"
-                        f"<table style='width:100%;border-collapse:collapse;'>"
-                        f"<thead><tr style='background:#F3F4F6;border-bottom:1px solid #E5E7EB;'>"
-                        f"<th style='padding:8px 14px 8px 24px;text-align:left;font-size:11px;"
-                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
-                        f"Line Item</th>"
-                        f"<th style='padding:8px 14px;text-align:right;font-size:11px;"
-                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
-                        f"Budget</th>"
-                        f"<th style='padding:8px 14px;text-align:right;font-size:11px;"
-                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
-                        f"Spent</th>"
-                        f"<th style='padding:8px 14px;text-align:left;font-size:11px;"
-                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
-                        f"Pacing</th>"
-                        f"<th style='padding:8px 14px;text-align:left;font-size:11px;"
-                        f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
-                        f"Status</th>"
-                        f"</tr></thead>"
-                        f"<tbody>{li_rows}</tbody>"
-                        f"</table></div>",
-                        unsafe_allow_html=True,
-                    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 3 — Delivery Troubleshooter
