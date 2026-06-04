@@ -1522,10 +1522,30 @@ for c in FILTERED_AT_RISK:
             unsafe_allow_html=True,
         )
 
-        # ── DSP Push button — inline below the diagnostic panel ───────────────
+        # ── Select fixes to push ───────────────────────────────────────────────
+        st.markdown(
+            "<div style='font-size:12px;font-weight:700;color:#374151;"
+            "text-transform:uppercase;letter-spacing:0.05em;"
+            "margin-top:16px;margin-bottom:6px;'>"
+            "Select Fixes to Push</div>",
+            unsafe_allow_html=True,
+        )
+        select_all_delivery = st.checkbox("Select All", key=f"deliv_all_{_ck}", value=False)
+        selected_blockers = []
+        for i, b in enumerate(diag["blockers"]):
+            checked = st.checkbox(
+                b["description"],
+                key=f"deliv_cb_{_ck}_{i}",
+                value=select_all_delivery,
+            )
+            if checked or select_all_delivery:
+                selected_blockers.append(b)
+
+        # ── DSP Push button — disabled until at least one fix is selected ──────
         st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
         is_dv360 = c["dsp"] == "DV360"
         remaining_budget = c["budget"] - c["spent"]
+        no_delivery_selection = len(selected_blockers) == 0
 
         col_btn, col_resp = st.columns([1, 3])
         with col_btn:
@@ -1533,8 +1553,12 @@ for c in FILTERED_AT_RISK:
                 f"⚡ Push Delivery Fix — {c['client']}",
                 key=f"push_{_ck}",
                 type="primary",
+                disabled=no_delivery_selection,
+                help="Select at least one optimisation to push" if no_delivery_selection else None,
             ):
                 st.session_state[f"pushed_{_ck}"] = True
+                # Store the selected fixes at push time so the response stays stable
+                st.session_state[f"pushed_blockers_{_ck}"] = [b["description"] for b in selected_blockers]
 
             st.markdown(
                 f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
@@ -1549,6 +1573,11 @@ for c in FILTERED_AT_RISK:
 
         with col_resp:
             if st.session_state.get(f"pushed_{_ck}"):
+                # Use the fixes that were selected at push time
+                pushed_fixes = st.session_state.get(
+                    f"pushed_blockers_{_ck}",
+                    [b["description"] for b in selected_blockers],
+                )
                 budget_change_pct = (
                     (pd_["budget_to"] - pd_["budget_from"]) / pd_["budget_from"] * 100
                 )
@@ -1568,6 +1597,7 @@ for c in FILTERED_AT_RISK:
                         "insertionOrderId": c["campaign_id"],
                         "advertiser":       c["client"],
                         "endpoint":         f"PATCH /v2/advertisers/7841209/insertionOrders/{c['campaign_id']}",
+                        "selected_fixes":   pushed_fixes,
                         "changes_applied": {
                             "pacing": {
                                 "from": {"pacingPeriod": "PACING_PERIOD_DAILY", "pacingType": "PACING_TYPE_EVEN"},
@@ -1597,11 +1627,12 @@ for c in FILTERED_AT_RISK:
                 else:
                     # TTD API response
                     mock_response = {
-                        "status":      200,
-                        "message":     "Campaign updated successfully",
-                        "campaign_id": c["campaign_id"],
-                        "advertiser":  c["client"],
-                        "endpoint":    f"PATCH /v3/campaign/{c['campaign_id']}",
+                        "status":        200,
+                        "message":       "Campaign updated successfully",
+                        "campaign_id":   c["campaign_id"],
+                        "advertiser":    c["client"],
+                        "endpoint":      f"PATCH /v3/campaign/{c['campaign_id']}",
+                        "selected_fixes": pushed_fixes,
                         "changes_applied": {
                             "base_bid_cpm_aud": {
                                 "from":   pd_["bid_from"],
@@ -1637,8 +1668,8 @@ for c in FILTERED_AT_RISK:
                     "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
                     "border-radius:8px;padding:28px;text-align:center;"
                     "color:#9CA3AF;font-size:13px;'>"
-                    "Click the button to simulate the DSP PATCH call and see the "
-                    "projected API response.</div>",
+                    "Select fixes above then click the button to simulate the DSP PATCH call "
+                    "and see the projected API response.</div>",
                     unsafe_allow_html=True,
                 )
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1713,26 +1744,29 @@ for c in FILTERED_CAMPAIGNS:
                     unsafe_allow_html=True,
                 )
 
-        # ── Recommendations callout ───────────────────────────────────────────
-        recs_html = "".join(
-            f"<li style='margin-bottom:5px;'>{r}</li>"
-            for r in perf["recommendations"]
-        )
+        # ── Recommendations with checkboxes — select what to push ────────────
         st.markdown(
-            f"<div style='background:#F0FDF4;border:1px solid #86EFAC;"
-            f"border-radius:8px;padding:14px 16px;margin-top:12px;'>"
-            f"<div style='font-size:11px;font-weight:700;color:#15803D;"
-            f"text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;'>"
-            f"Recommendations</div>"
-            f"<ul style='font-size:13px;color:#166534;line-height:1.7;"
-            f"margin:0;padding-left:18px;'>{recs_html}</ul>"
-            f"</div>",
+            "<div style='font-size:11px;font-weight:700;color:#15803D;"
+            "text-transform:uppercase;letter-spacing:0.05em;"
+            "margin-top:14px;margin-bottom:6px;'>"
+            "Select Recommendations to Push</div>",
             unsafe_allow_html=True,
         )
+        select_all_perf = st.checkbox("Select All", key=f"perf_all_{_ck}", value=False)
+        selected_recs = []
+        for i, rec in enumerate(perf["recommendations"]):
+            checked = st.checkbox(
+                rec,
+                key=f"perf_cb_{_ck}_{i}",
+                value=select_all_perf,
+            )
+            if checked or select_all_perf:
+                selected_recs.append(rec)
 
-        # ── Push Optimisation button — inline below recommendations ───────────
+        # ── Push Optimisation button — disabled until at least one rec selected ─
         push = perf["push_data"]
         st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
+        no_perf_selection = len(selected_recs) == 0
 
         col_pbtn, col_presp = st.columns([1, 3])
         with col_pbtn:
@@ -1740,8 +1774,12 @@ for c in FILTERED_CAMPAIGNS:
                 f"🚀 Push Optimisation — {c['client']}",
                 key=f"perf_push_{_ck}",
                 type="primary",
+                disabled=no_perf_selection,
+                help="Select at least one optimisation to push" if no_perf_selection else None,
             ):
                 st.session_state[f"perf_pushed_{_ck}"] = True
+                # Store the selected recommendations at push time so the response stays stable
+                st.session_state[f"perf_pushed_recs_{_ck}"] = selected_recs[:]
 
             st.markdown(
                 f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
@@ -1754,17 +1792,23 @@ for c in FILTERED_CAMPAIGNS:
 
         with col_presp:
             if st.session_state.get(f"perf_pushed_{_ck}"):
+                # Use the recommendations that were selected at push time
+                pushed_recs = st.session_state.get(
+                    f"perf_pushed_recs_{_ck}",
+                    selected_recs,
+                )
                 perf_response = {
                     "status":       200,
                     "message":      "Performance optimisation applied successfully",
                     "campaign_id":  c["campaign_id"],
                     "advertiser":   c["client"],
                     "dsp":          c["dsp"],
-                    "optimisation": push["optimisation"],
+                    "optimisation": pushed_recs,
                     "projected_outcomes": {
-                        "ctr":        push["projected_ctr"],
-                        "cpm":        push["projected_cpm"],
-                        "confidence": push["confidence"],
+                        "ctr":                     push["projected_ctr"],
+                        "cpm":                     push["projected_cpm"],
+                        "confidence":              push["confidence"],
+                        "applied_recommendations": pushed_recs,
                     },
                     "timestamp": f"{TODAY.isoformat()}T09:14:32+10:00",
                 }
@@ -1774,8 +1818,8 @@ for c in FILTERED_CAMPAIGNS:
                     "<div style='background:#F9FAFB;border:1px dashed #D1D5DB;"
                     "border-radius:8px;padding:28px;text-align:center;"
                     "color:#9CA3AF;font-size:13px;'>"
-                    "Click the button to simulate pushing the performance optimisation "
-                    "and see the projected API response.</div>",
+                    "Select recommendations above then click the button to simulate "
+                    "pushing the performance optimisation and see the projected API response.</div>",
                     unsafe_allow_html=True,
                 )
 
