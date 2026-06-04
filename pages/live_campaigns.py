@@ -1434,6 +1434,10 @@ def health_score_colour(score):
 
 
 for c in FILTERED_AT_RISK:
+    # Unique key for widgets — _breakdown_key is always set for uploaded data;
+    # fall back to campaign_id, then client+dsp if both are None.
+    _ck = c.get("_breakdown_key") or c.get("campaign_id") or f"{c['client']}_{c['dsp']}"
+
     # Use pre-defined diagnostics when available; fall back to DSP-specific mock data.
     diag = DIAGNOSTICS.get(c["campaign_id"]) or _fallback_delivery_diag(c)
     pd_  = PUSH_DATA.get(c["campaign_id"])   or _fallback_push_data(c)
@@ -1527,10 +1531,10 @@ for c in FILTERED_AT_RISK:
         with col_btn:
             if st.button(
                 f"⚡ Push Delivery Fix — {c['client']}",
-                key=f"push_{c['campaign_id']}",
+                key=f"push_{_ck}",
                 type="primary",
             ):
-                st.session_state[f"pushed_{c['campaign_id']}"] = True
+                st.session_state[f"pushed_{_ck}"] = True
 
             st.markdown(
                 f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
@@ -1544,7 +1548,7 @@ for c in FILTERED_AT_RISK:
             )
 
         with col_resp:
-            if st.session_state.get(f"pushed_{c['campaign_id']}"):
+            if st.session_state.get(f"pushed_{_ck}"):
                 budget_change_pct = (
                     (pd_["budget_to"] - pd_["budget_from"]) / pd_["budget_from"] * 100
                 )
@@ -1651,6 +1655,9 @@ st.markdown(
 )
 
 for c in FILTERED_CAMPAIGNS:
+    # Unique key for widgets — same pattern as the delivery troubleshooter loop.
+    _ck = c.get("_breakdown_key") or c.get("campaign_id") or f"{c['client']}_{c['dsp']}"
+
     # Use pre-defined performance data when available; fall back to DSP-specific mock data.
     perf = PERFORMANCE_DATA.get(c["campaign_id"]) or _fallback_perf_diag(c)
 
@@ -1731,10 +1738,10 @@ for c in FILTERED_CAMPAIGNS:
         with col_pbtn:
             if st.button(
                 f"🚀 Push Optimisation — {c['client']}",
-                key=f"perf_push_{c['campaign_id']}",
+                key=f"perf_push_{_ck}",
                 type="primary",
             ):
-                st.session_state[f"perf_pushed_{c['campaign_id']}"] = True
+                st.session_state[f"perf_pushed_{_ck}"] = True
 
             st.markdown(
                 f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
@@ -1746,7 +1753,7 @@ for c in FILTERED_CAMPAIGNS:
             )
 
         with col_presp:
-            if st.session_state.get(f"perf_pushed_{c['campaign_id']}"):
+            if st.session_state.get(f"perf_pushed_{_ck}"):
                 perf_response = {
                     "status":       200,
                     "message":      "Performance optimisation applied successfully",
