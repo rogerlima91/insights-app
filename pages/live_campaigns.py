@@ -643,13 +643,15 @@ st.markdown(
 # Matching is case-insensitive. The first alias that exists in the file wins.
 COLUMN_ALIASES = {
     "date":          ["date"],
-    "advertiser":    ["advertiser", "partner", "brand name"],
-    "campaign":      ["campaign", "campaign name"],
+    "advertiser":    ["client", "advertiser", "partner", "brand name"],
+    "campaign":      ["campaign", "campaign name", "order"],
     "line_item":     ["line item", "ad group", "line item name"],
     "campaign_id":   ["campaign id", "deal id", "campaign_id", "insertion order id"],
     "buy_type":      ["buy type", "deal type", "type"],
-    "budget":        ["budget", "total budget"],
-    "spend":         ["spend", "revenue (usd)", "revenue (aud)", "cost"],
+    "budget":        ["budget (aud)", "budget (usd)", "budget", "total budget (aud)", "total budget"],
+    "spend":         ["spend (aud)", "total spend (aud)", "spend (usd)", "total spend (usd)",
+                      "revenue (aud)", "revenue (usd)", "spend", "cost"],
+    "dsp":           ["dsp"],
     "impressions":   ["impressions"],
     "clicks":        ["clicks"],
     "cpm":           ["cpm", "cpm (usd)", "cpm (aud)"],
@@ -821,13 +823,21 @@ with st.expander("Upload Pacing Reports", expanded=False):
         dfs = []
         for f in uploaded_files:
             df_raw = pd.read_csv(f)
-            df_raw = map_columns(df_raw)
-            # Inject a 'dsp' column from the filename if the file didn't have one
-            if "dsp" not in df_raw.columns:
-                df_raw["dsp"] = detect_dsp_from_filename(f.name)
+            # Tag each row with the filename-detected DSP before merging,
+            # so we can fall back to it if the CSV has no DSP column.
+            df_raw["_dsp_hint"] = detect_dsp_from_filename(f.name)
             dfs.append(df_raw)
 
+        # Concatenate all raw files first, then map columns once on the merged result.
         merged_df = pd.concat(dfs, ignore_index=True)
+        merged_df = map_columns(merged_df)
+
+        # Use the filename-detected DSP wherever the data has no DSP value.
+        if "dsp" not in merged_df.columns:
+            merged_df["dsp"] = merged_df["_dsp_hint"]
+        else:
+            merged_df["dsp"] = merged_df["dsp"].fillna(merged_df["_dsp_hint"])
+        merged_df = merged_df.drop(columns=["_dsp_hint"])
 
         # Upload summary line
         num_rows = len(merged_df)
