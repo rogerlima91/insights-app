@@ -723,6 +723,30 @@ def build_campaigns_from_df(df):
         lambda x: x if pd.notna(x) and x else today + timedelta(days=30)
     )
 
+    # Normalise inventory-type values to short codes (handles full DSP names from CSV exports)
+    INVENTORY_TYPE_MAP = {
+        # DV360
+        "programmatic guaranteed": "PG",
+        "private marketplace":     "PMP",
+        "open auction":            "Open",
+        # TTD
+        "open exchange":           "Open",
+        # Amazon DSP
+        "amazon publisher direct": "APD",
+        # Already-short values pass through unchanged
+        "pg":    "PG",
+        "pmp":   "PMP",
+        "open":  "Open",
+        "apd":   "APD",
+    }
+    df["buy_type"] = (
+        df["buy_type"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .map(lambda v: INVENTORY_TYPE_MAP.get(v, v.upper()))
+    )
+
     # Coerce numeric delivery columns
     for col in ("budget", "spend", "impressions", "clicks", "video_views"):
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -983,12 +1007,21 @@ def dsp_badge(dsp):
 
 
 def buy_type_badge(buy_type):
-    """Coloured pill badge for PG or PMP buy type."""
+    """Coloured pill badge for inventory type (PG, PMP, Open, APD)."""
     if buy_type == "PG":
         return ("<span style='background:#F0FDF4;color:#16A34A;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>PG</span>")
-    return ("<span style='background:#FFF7ED;color:#EA580C;border-radius:4px;"
-            "padding:2px 8px;font-size:11px;font-weight:700;'>PMP</span>")
+    if buy_type == "PMP":
+        return ("<span style='background:#FFF7ED;color:#EA580C;border-radius:4px;"
+                "padding:2px 8px;font-size:11px;font-weight:700;'>PMP</span>")
+    if buy_type == "Open":
+        return ("<span style='background:#EFF6FF;color:#2563EB;border-radius:4px;"
+                "padding:2px 8px;font-size:11px;font-weight:700;'>Open</span>")
+    if buy_type == "APD":
+        return ("<span style='background:#F5F3FF;color:#7C3AED;border-radius:4px;"
+                "padding:2px 8px;font-size:11px;font-weight:700;'>APD</span>")
+    return ("<span style='background:#F3F4F6;color:#6B7280;border-radius:4px;"
+            f"padding:2px 8px;font-size:11px;font-weight:700;'>{buy_type}</span>")
 
 
 def risk_badge(risk, risk_color, risk_bg):
@@ -1053,17 +1086,28 @@ st.markdown(
     """
     <div style='background:#F9FAFB;border-radius:12px 12px 0 0;
                 border-bottom:2px solid #E5E7EB;margin-bottom:0;'>
-      <table style='width:100%;border-collapse:collapse;'>
+      <table style='width:100%;border-collapse:collapse;table-layout:fixed;'>
+        <colgroup>
+          <col style='width:3%;'>
+          <col style='width:24%;'>
+          <col style='width:9%;'>
+          <col style='width:11%;'>
+          <col style='width:8%;'>
+          <col style='width:8%;'>
+          <col style='width:22%;'>
+          <col style='width:7%;'>
+          <col style='width:8%;'>
+        </colgroup>
         <thead>
           <tr>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
-                       text-transform:uppercase;letter-spacing:0.06em;width:28px;'></th>
+                       text-transform:uppercase;letter-spacing:0.06em;'></th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Client</th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>DSP</th>
             <th style='padding:12px 16px;text-align:left;font-size:11px;color:#6B7280;
-                       text-transform:uppercase;letter-spacing:0.06em;'>Type</th>
+                       text-transform:uppercase;letter-spacing:0.06em;'>Inventory Type</th>
             <th style='padding:12px 16px;text-align:right;font-size:11px;color:#6B7280;
                        text-transform:uppercase;letter-spacing:0.06em;'>Budget</th>
             <th style='padding:12px 16px;text-align:right;font-size:11px;color:#6B7280;
@@ -1127,7 +1171,12 @@ for client_name, client_campaigns in clients_map.items():
     )
     st.markdown(
         f"<div style='background:#FFFFFF;box-shadow:0 1px 0 #F3F4F6;'>"
-        f"<table style='width:100%;border-collapse:collapse;'>"
+        f"<table style='width:100%;border-collapse:collapse;table-layout:fixed;'>"
+        f"<colgroup>"
+        f"<col style='width:3%;'><col style='width:24%;'><col style='width:9%;'>"
+        f"<col style='width:11%;'><col style='width:8%;'><col style='width:8%;'>"
+        f"<col style='width:22%;'><col style='width:7%;'><col style='width:8%;'>"
+        f"</colgroup>"
         f"<tbody>{client_row}</tbody>"
         f"</table></div>",
         unsafe_allow_html=True,
@@ -1162,7 +1211,12 @@ for client_name, client_campaigns in clients_map.items():
             st.markdown(
                 f"<div style='background:#F9FAFB;border-radius:8px;"
                 f"overflow:hidden;margin-bottom:4px;'>"
-                f"<table style='width:100%;border-collapse:collapse;'>"
+                f"<table style='width:100%;border-collapse:collapse;table-layout:fixed;'>"
+                f"<colgroup>"
+                f"<col style='width:3%;'><col style='width:24%;'><col style='width:9%;'>"
+                f"<col style='width:11%;'><col style='width:8%;'><col style='width:8%;'>"
+                f"<col style='width:22%;'><col style='width:7%;'><col style='width:8%;'>"
+                f"</colgroup>"
                 f"<tbody>{camp_row}</tbody>"
                 f"</table></div>",
                 unsafe_allow_html=True,
