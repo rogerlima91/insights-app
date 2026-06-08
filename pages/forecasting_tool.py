@@ -120,6 +120,7 @@ _ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 BENCHMARKS_PATH    = os.path.normpath(os.path.join(_ROOT, "benchmarks.json"))
 FORECASTS_LOG_PATH = os.path.normpath(os.path.join(_ROOT, "forecasts_log.json"))
 ACCURACY_LOG_PATH  = os.path.normpath(os.path.join(_ROOT, "accuracy_log.json"))
+BRAND_MEMORY_PATH  = os.path.normpath(os.path.join(_ROOT, "brand_memory.json"))
 
 # ── Keyword → vertical mapping ────────────────────────────────────────────────
 # Matched case-insensitively against the Advertiser column of uploaded files.
@@ -311,6 +312,24 @@ def load_benchmarks():
         with open(BENCHMARKS_PATH, "r") as f:
             return json.load(f)
     return None
+
+
+def load_brand_memory():
+    """Load brand_memory.json from the project root. Returns {} if absent."""
+    if os.path.exists(BRAND_MEMORY_PATH):
+        with open(BRAND_MEMORY_PATH, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def get_brand_context(advertiser, brand_memory):
+    """Return the stored rationale for an advertiser using partial/case-insensitive matching."""
+    if not advertiser or not brand_memory:
+        return ""
+    for key, val in brand_memory.items():
+        if key.lower() in advertiser.lower() or advertiser.lower() in key.lower():
+            return val.get("rationale", "")
+    return ""
 
 
 def save_benchmarks(data):
@@ -954,6 +973,10 @@ if "fc_inputs" in st.session_state:
             devices_str = ", ".join(device_types) if device_types else "Not specified"
             flags_str   = "\n".join(f"- {t}" for _, t in flags) if flags else "None"
 
+            # Load brand memory and look up context for this advertiser
+            _bm        = load_brand_memory()
+            _bm_ctx    = get_brand_context(adv_name or "", _bm)
+
             prompt = (
                 f"You are a senior programmatic trader at Captify reviewing a campaign "
                 f"brief from a seller. Here are the campaign details and feasibility results:\n\n"
@@ -989,6 +1012,14 @@ if "fc_inputs" in st.session_state:
                 f"Be direct and specific. Use real programmatic terminology. "
                 f"All currency values are in AUD."
             )
+
+            # Append brand memory context when available — takes priority over defaults
+            if _bm_ctx:
+                prompt += (
+                    f"\n\nBRAND MEMORY OVERRIDE — These instructions take priority over "
+                    f"all default instructions above. Where there is any conflict, always "
+                    f"follow these brand-specific instructions instead:\n\n{_bm_ctx}"
+                )
 
             client_ai = anthropic.Anthropic(api_key=api_key)
             with st.spinner("Generating recommendations…"):

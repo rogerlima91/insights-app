@@ -3,18 +3,21 @@ import streamlit as st
 # ── Page config — called once here, not in individual page files ───────────────
 st.set_page_config(page_title="Insights App", layout="wide")
 
-# ── Navigation — dict syntax groups pages into sidebar sections ───────────────
-# Brand Settings is nested under "Performance & Insights" as a sub-item.
-# Streamlit doesn't support collapsible nav natively, so we use a section
-# header + arrow prefix to create the visual sub-item effect.
+# ── Navigation ────────────────────────────────────────────────────────────────
 pg = st.navigation({
-    "Performance & Insights": [
-        st.Page("pages/performance_insights.py", title="Performance & Insights"),
-        st.Page("pages/brand_settings.py",       title="↳ Brand Settings"),
+    "Reporting": [
+        st.Page("pages/performance_insights.py",  title="Performance & Insights"),
+        st.Page("pages/attribution_analysis.py",  title="Attribution Analysis"),
     ],
     "Operations": [
-        st.Page("pages/live_campaigns.py",    title="Live Campaigns"),
-        st.Page("pages/forecasting_tool.py",  title="Feasibility Checker"),
+        st.Page("pages/live_campaigns.py",         title="Live Campaigns"),
+    ],
+    "Planning": [
+        st.Page("pages/budget_allocation.py",      title="Budget Allocation Recommender"),
+        st.Page("pages/forecasting_tool.py",       title="Feasibility Checker"),
+    ],
+    "Settings": [
+        st.Page("pages/brand_settings.py",         title="Brand Settings"),
     ],
 })
 pg.run()

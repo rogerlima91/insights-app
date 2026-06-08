@@ -898,6 +898,10 @@ if not uploaded_files:
     CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
     _using_upload      = False
 
+# Store campaigns in session state so Budget Allocation Recommender can read pacing data
+st.session_state["lc_campaigns"]    = CAMPAIGNS
+st.session_state["lc_using_upload"] = _using_upload
+
 # Data status indicator — shown below the uploader
 if _using_upload:
     total_camps = sum(len(b["campaigns"]) for b in CAMPAIGN_BREAKDOWN.values())
