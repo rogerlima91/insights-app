@@ -19,5 +19,10 @@ pg = st.navigation({
     "Settings": [
         st.Page("pages/brand_settings.py",         title="Brand Settings"),
     ],
+    "Sell-Side": [
+        st.Page("pages/agency_brief_responder.py",   title="Agency Brief Responder"),
+        st.Page("pages/cross_dsp_buyer_analysis.py", title="Cross-DSP Buyer Analysis"),
+        st.Page("pages/measurement_framework.py",    title="Measurement Framework"),
+    ],
 })
 pg.run()
