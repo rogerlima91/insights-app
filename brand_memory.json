@@ -8,5 +8,15 @@
       }
     ],
     "rationale": "Meeting transcript (saved 2026-04-25 20:56, file: 'Recording.m4a'):\n\nFor KFC, I want to know how much revenue each device type is generating for the current campaigns."
+  },
+  "Coke Festive Campaign": {
+    "entries": [
+      {
+        "type": "manual",
+        "timestamp": "2026-05-05 16:26",
+        "text": "For Display campaigns, focus on best performing CTR and most cost efficient CPC"
+      }
+    ],
+    "rationale": "For Display campaigns, focus on best performing CTR and most cost efficient CPC"
   }
 }

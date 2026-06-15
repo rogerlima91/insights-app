@@ -5,7 +5,18 @@
       "Bash(tasklist)",
       "Bash(taskkill:*)",
       "Bash(cmd.exe /c \"taskkill /PID 40648 /F\")",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python:*)",
+      "Bash(grep -r \"stSidebarContent\\\\|stSidebarUser\\\\|sidebar-content\\\\|secondaryBackground\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstatic --include=*.css -l)",
+      "Bash(find C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstatic -name *.css)",
+      "Bash(grep -o stSidebar[A-Za-z]* C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.BuwrT-ty.css)",
+      "Bash(grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.BuwrT-ty.css)",
+      "Bash(sort -u grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.CwxM5zkf.css)",
+      "Bash(sort -u grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.DgR7E2CV.css)"
     ]
   }
 }
