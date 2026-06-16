@@ -221,6 +221,56 @@ def _get_status(actual, target, lower_is_better=False):
         return "❌", "#EF4444"
 
 
+# ── Campaign file parser (Tab 2) ────────────────────────────────────────────────
+
+# Column name candidates for each metric — checked in order, first match wins
+_UPLOAD_COLUMN_CANDIDATES = {
+    "spend":        ["spend", "cost", "total spend", "ad spend"],
+    "total_orders": ["orders", "total orders", "conversions"],
+    "incr_orders":  ["incremental orders", "incremental conversions"],
+    "impressions":  ["impressions"],
+    "clicks":       ["clicks"],
+}
+
+
+def parse_campaign_file(uploaded_file):
+    """
+    Parse a CSV or XLSX Uber Ads export.
+    Auto-detects metric columns using _UPLOAD_COLUMN_CANDIDATES,
+    sums all rows, and returns campaign totals.
+
+    Returns:
+        detected   — dict {metric: summed_float} for each column found
+        col_found  — dict {metric: matched_column_name} for the preview label
+    """
+    try:
+        if uploaded_file.name.lower().endswith(".xlsx"):
+            df = pd.read_excel(uploaded_file)
+        else:
+            df = pd.read_csv(uploaded_file)
+    except Exception:
+        return {}, {}
+
+    if df.empty:
+        return {}, {}
+
+    # Build a lowercase → actual column name lookup
+    col_lower = {c.lower().strip(): c for c in df.columns}
+
+    detected  = {}
+    col_found = {}
+    for metric, candidates in _UPLOAD_COLUMN_CANDIDATES.items():
+        for cand in candidates:
+            if cand in col_lower:
+                actual_col = col_lower[cand]
+                numeric    = pd.to_numeric(df[actual_col], errors="coerce")
+                detected[metric]  = float(numeric.sum())
+                col_found[metric] = actual_col
+                break
+
+    return detected, col_found
+
+
 # ── Core ROI calculation (Tab 1) ─────────────────────────────────────────────────
 
 def compute_roi(category, avg_order_value, num_locations, rating,
@@ -1037,36 +1087,118 @@ with tab_outcome:
             "Actual Results</p>",
             unsafe_allow_html=True,
         )
-        oc_spend = st.number_input(
-            "Total ad spend, AUD",
-            min_value=0.0, max_value=10_000_000.0,
-            value=5_000.00, step=100.0, format="%.2f",
-            key="oc_spend",
+
+        # ── File uploader ─────────────────────────────────────────────────────
+        # Accepts CSV or XLSX Uber Ads exports. Auto-detects and sums metric columns.
+        # Falls back to manual inputs when no file is uploaded.
+        oc_file = st.file_uploader(
+            "Upload Uber Ads campaign export (CSV)",
+            type=["csv", "xlsx"],
+            key="oc_upload",
         )
-        oc_total_orders = st.number_input(
-            "Total orders driven",
-            min_value=0, max_value=1_000_000,
-            value=500, step=10,
-            key="oc_total_orders",
-        )
-        oc_incr_orders = st.number_input(
-            "Incremental orders",
-            min_value=0, max_value=1_000_000,
-            value=290, step=10,
-            key="oc_incr_orders",
-            help="Orders that would not have occurred without advertising",
-        )
-        oc_impressions = st.number_input(
-            "Total impressions",
-            min_value=0, max_value=1_000_000_000,
-            value=250_000, step=1_000,
-            key="oc_impressions",
-        )
-        oc_clicks = st.number_input(
-            "Total clicks",
-            min_value=0, max_value=10_000_000,
-            value=7_500, step=100,
-            key="oc_clicks",
+
+        if oc_file:
+            # Use filename + size as a stable ID so override widget keys change
+            # whenever a different file is uploaded, forcing them to reset.
+            file_id = f"{oc_file.name}_{oc_file.size}"
+            detected, col_found = parse_campaign_file(oc_file)
+
+            if not detected:
+                st.error(
+                    "Could not read this file. Please check it is a valid CSV or XLSX "
+                    "and that column headers are on the first row."
+                )
+                # Fallback manual inputs when file is unreadable
+                oc_spend        = st.number_input("Total ad spend, AUD",      min_value=0.0, max_value=10_000_000.0, value=0.0,   step=100.0, format="%.2f", key=f"oc_spend_{file_id}")
+                oc_total_orders = st.number_input("Total orders driven",       min_value=0,   max_value=1_000_000,     value=0,     step=10,    key=f"oc_total_orders_{file_id}")
+                oc_incr_orders  = st.number_input("Incremental orders",        min_value=0,   max_value=1_000_000,     value=0,     step=10,    key=f"oc_incr_orders_{file_id}", help="Orders that would not have occurred without advertising")
+                oc_impressions  = st.number_input("Total impressions",         min_value=0,   max_value=1_000_000_000, value=0,     step=1_000, key=f"oc_impressions_{file_id}")
+                oc_clicks       = st.number_input("Total clicks",              min_value=0,   max_value=10_000_000,    value=0,     step=100,   key=f"oc_clicks_{file_id}")
+            else:
+                # ── Detected values preview ───────────────────────────────────
+                # Show which value was found for each metric and from which column
+                def _preview_row(metric, label, fmt):
+                    if metric in detected:
+                        src = col_found.get(metric, "")
+                        src_note = f" <span style='color:#6B7280;font-size:11px;'>from \"{src}\"</span>" if src else ""
+                        return (
+                            f"<div style='display:flex;justify-content:space-between;"
+                            f"padding:4px 0;border-bottom:1px solid #D1FAE5;'>"
+                            f"<span style='font-size:13px;color:#065F46;'>{label}{src_note}</span>"
+                            f"<span style='font-weight:600;font-size:13px;color:#065F46;'>{fmt(detected[metric])}</span>"
+                            f"</div>"
+                        )
+                    return (
+                        f"<div style='display:flex;justify-content:space-between;"
+                        f"padding:4px 0;border-bottom:1px solid #D1FAE5;'>"
+                        f"<span style='font-size:13px;color:#9CA3AF;'>{label}</span>"
+                        f"<span style='font-size:12px;color:#9CA3AF;font-style:italic;'>Not detected</span>"
+                        f"</div>"
+                    )
+
+                preview_html = (
+                    "<div style='background:#ECFDF5;border:1px solid #6EE7B7;border-radius:10px;"
+                    "padding:14px 16px;margin-bottom:12px;'>"
+                    "<p style='font-weight:700;font-size:13px;color:#065F46;margin:0 0 10px 0;'>"
+                    "✅ Detected from upload:</p>"
+                    + _preview_row("spend",        "Spend",               lambda v: f"A${v:,.2f}")
+                    + _preview_row("total_orders",  "Total Orders",        lambda v: f"{v:,.0f}")
+                    + _preview_row("incr_orders",   "Incremental Orders",  lambda v: f"{v:,.0f}")
+                    + _preview_row("impressions",   "Impressions",         lambda v: f"{v:,.0f}")
+                    + _preview_row("clicks",        "Clicks",              lambda v: f"{v:,.0f}")
+                    + "</div>"
+                )
+                st.markdown(preview_html, unsafe_allow_html=True)
+
+                # ── Override expander ─────────────────────────────────────────
+                # Pre-filled with detected values. User can edit if the export
+                # needs correction (e.g. partial date range, test rows, etc.).
+                with st.expander("✏️ Edit detected values"):
+                    oc_spend        = st.number_input("Spend (AUD)",          min_value=0.0, max_value=10_000_000.0, value=float(detected.get("spend",        0.0)), step=100.0, format="%.2f", key=f"oc_spend_{file_id}")
+                    oc_total_orders = st.number_input("Total orders",          min_value=0,   max_value=1_000_000,     value=int(detected.get("total_orders",  0)),   step=10,    key=f"oc_total_orders_{file_id}")
+                    oc_incr_orders  = st.number_input("Incremental orders",    min_value=0,   max_value=1_000_000,     value=int(detected.get("incr_orders",   0)),   step=10,    key=f"oc_incr_orders_{file_id}", help="Orders that would not have occurred without advertising")
+                    oc_impressions  = st.number_input("Impressions",           min_value=0,   max_value=1_000_000_000, value=int(detected.get("impressions",   0)),   step=1_000, key=f"oc_impressions_{file_id}")
+                    oc_clicks       = st.number_input("Clicks",                min_value=0,   max_value=10_000_000,    value=int(detected.get("clicks",        0)),   step=100,   key=f"oc_clicks_{file_id}")
+
+        else:
+            # ── No file uploaded — manual inputs ──────────────────────────────
+            oc_spend = st.number_input(
+                "Total ad spend, AUD",
+                min_value=0.0, max_value=10_000_000.0,
+                value=5_000.00, step=100.0, format="%.2f",
+                key="oc_spend_manual",
+            )
+            oc_total_orders = st.number_input(
+                "Total orders driven",
+                min_value=0, max_value=1_000_000,
+                value=500, step=10,
+                key="oc_total_orders_manual",
+            )
+            oc_incr_orders = st.number_input(
+                "Incremental orders",
+                min_value=0, max_value=1_000_000,
+                value=290, step=10,
+                key="oc_incr_orders_manual",
+                help="Orders that would not have occurred without advertising",
+            )
+            oc_impressions = st.number_input(
+                "Total impressions",
+                min_value=0, max_value=1_000_000_000,
+                value=250_000, step=1_000,
+                key="oc_impressions_manual",
+            )
+            oc_clicks = st.number_input(
+                "Total clicks",
+                min_value=0, max_value=10_000_000,
+                value=7_500, step=100,
+                key="oc_clicks_manual",
+            )
+
+        # ── Campaign targets — always manual (from the original brief) ────────
+        st.markdown(
+            "<p style='font-weight:700;font-size:13px;color:#374151;"
+            "margin-top:16px;margin-bottom:2px;'>Campaign Targets</p>",
+            unsafe_allow_html=True,
         )
         oc_budget_target = st.number_input(
             "Original budget target, AUD",
