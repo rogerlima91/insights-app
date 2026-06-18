@@ -20,5 +20,9 @@ pg = st.navigation({
     "Retail Media": [
         st.Page("pages/uber_roi_calculator.py",    title="Uber Ads ROI Calculator"),
     ],
+    "Telco": [
+        st.Page("pages/telco_cross_channel.py",    title="Cross-Channel Dashboard"),
+        st.Page("pages/telco_budget_optimiser.py", title="Channel Budget Optimiser"),
+    ],
 })
 pg.run()
