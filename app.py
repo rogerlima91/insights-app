@@ -11,6 +11,53 @@ st.set_page_config(page_title="Pacebird", layout="wide")
 # Background Light: #F8F9FA  Background Dark: #0F1117
 # Text Primary: #111827  Text Secondary: #6B7280
 
+# ── Config helpers ───────────────────────────────────────────────────────────
+CONFIG_FILE  = "config.json"
+PREFS_FILE   = "user_prefs.json"
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"current_tier": "full_access"}
+
+def save_config(cfg):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+def load_prefs():
+    if os.path.exists(PREFS_FILE):
+        try:
+            with open(PREFS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_prefs(p):
+    with open(PREFS_FILE, "w") as f:
+        json.dump(p, f, indent=2)
+
+cfg   = load_config()
+prefs = load_prefs()
+
+TIER_MAP = {
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "File Upload"]},
+    "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
+    "upload_only":  {"label": "📁 Upload Mode",  "visible": ["File Upload"]},
+}
+current_tier    = cfg.get("current_tier", "full_access")
+visible_sections = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["visible"]
+tier_label       = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["label"]
+
+st.session_state["current_tier"] = current_tier
+
+# ── Onboarding step (used for CSS highlights) ────────────────────────────────
+ob_step = st.session_state.get("onboarding_step", 1)
+
 # ── Global CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -26,10 +73,55 @@ st.markdown("""
         font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
     }
+
+    /* ── Onboarding highlight class ────────────────────────────── */
+    .onboarding-highlight {
+        border: 3px solid #7C3AED !important;
+        border-radius: 8px !important;
+        animation: pulse-border 2s infinite !important;
+    }
+    @keyframes pulse-border {
+        0%   { box-shadow: 0 0 0 0   rgba(124,58,237,0.4); }
+        70%  { box-shadow: 0 0 0 10px rgba(124,58,237,0);   }
+        100% { box-shadow: 0 0 0 0   rgba(124,58,237,0);   }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Dark mode CSS (applied when dark mode is active) ─────────────────────────
+# ── Step-specific onboarding highlight CSS ───────────────────────────────────
+if not prefs.get("onboarding_complete", False):
+    if ob_step == 2:
+        # Step 2: highlight file upload area
+        st.markdown("""
+        <style>
+        [data-testid="stFileUploader"] {
+            border: 3px solid #7C3AED !important;
+            border-radius: 8px !important;
+            animation: pulse-border 2s infinite !important;
+        }
+        </style>""", unsafe_allow_html=True)
+    elif ob_step == 3:
+        # Step 3: highlight Settings nav items in sidebar
+        st.markdown("""
+        <style>
+        section[data-testid="stSidebar"] a[href*="settings"] {
+            border: 2px solid #7C3AED !important;
+            border-radius: 6px !important;
+            animation: pulse-border 2s infinite !important;
+        }
+        </style>""", unsafe_allow_html=True)
+    elif ob_step == 4:
+        # Step 4: highlight Performance & Insights nav links
+        st.markdown("""
+        <style>
+        section[data-testid="stSidebar"] a[href*="performance"] {
+            border: 2px solid #7C3AED !important;
+            border-radius: 6px !important;
+            animation: pulse-border 2s infinite !important;
+        }
+        </style>""", unsafe_allow_html=True)
+
+# ── Dark mode CSS ────────────────────────────────────────────────────────────
 if st.session_state.get("dark_mode", False):
     st.markdown("""
     <style>
@@ -41,40 +133,51 @@ if st.session_state.get("dark_mode", False):
         .element-container:has([data-testid="stPlotlyChart"]) { background: #1E2130 !important; }
         h1, h2, h3, h4, h5, h6 { color: #FAFAFA !important; }
         .stButton > button[kind="primary"],
-        [data-testid="baseButton-primary"] {
-            background-color: #7C3AED !important;
-        }
+        [data-testid="baseButton-primary"] { background-color: #7C3AED !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# ── Sidebar: logo + dark/light toggle ────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🐦 Pacebird")
-    st.markdown("---")
+    # Pacebird logo — top of sidebar
+    st.markdown("""
+    <div style="padding: 20px 0 10px 0;">
+        <div style="font-size:22px;font-weight:800;color:#7C3AED;letter-spacing:-0.5px;">🐦 Pacebird</div>
+        <div style="font-size:12px;color:#6B7280;margin-top:2px;">Programmatic Intelligence</div>
+    </div>
+    <hr style="border:none;border-top:2px solid #7C3AED;margin:0 0 12px 0;">
+    """, unsafe_allow_html=True)
 
     # Dark/Light mode toggle
     dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
     st.session_state["dark_mode"] = dark_mode
 
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
+    # Tier badge — bottom of sidebar area
+    st.markdown(
+        f"<div style='font-size:11px;color:#6B7280;padding:4px 0 2px 0;'>{tier_label}</div>",
+        unsafe_allow_html=True
+    )
+
 # ── Onboarding flow ───────────────────────────────────────────────────────────
-PREFS_FILE = "user_prefs.json"
-
-def load_prefs():
-    if os.path.exists(PREFS_FILE):
-        with open(PREFS_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_prefs(prefs):
-    with open(PREFS_FILE, "w") as f:
-        json.dump(prefs, f, indent=2)
-
-prefs = load_prefs()
-
 if not prefs.get("onboarding_complete", False):
     @st.dialog("Welcome to Pacebird 👋", width="large")
     def show_onboarding():
         step = st.session_state.get("onboarding_step", 1)
+
+        # Floating step indicator
+        st.markdown(f"""
+        <div style="
+            position:fixed; bottom:24px; right:24px;
+            background:#7C3AED; color:#fff;
+            padding:8px 16px; border-radius:20px;
+            font-size:13px; font-weight:600;
+            box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+            z-index:9999;">
+            Step {step} of 4
+        </div>
+        """, unsafe_allow_html=True)
 
         if step == 1:
             st.markdown("### Welcome to Pacebird 👋")
@@ -84,21 +187,25 @@ if not prefs.get("onboarding_complete", False):
             Upload DSP exports (DV360, TTD) to get instant performance charts,
             AI-generated insights, and PowerPoint reports ready for clients.
             """)
-            if st.button("Get Started →", type="primary"):
-                st.session_state["onboarding_step"] = 2
-                st.rerun()
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("Get Started →", type="primary"):
+                    st.session_state["onboarding_step"] = 2
+                    st.rerun()
 
         elif step == 2:
-            st.markdown("### Upload your first report")
+            st.markdown("### 📁 Upload your first report")
             st.markdown("""
             Drag and drop your DSP CSV export to get started.
 
-            **Accepted formats:**
+            **Accepted formats:** CSV, XLSX, XLS, TSV
             - DV360 CSV exports
             - The Trade Desk (TTD) CSV reports
             - Generic programmatic CSV files
 
-            Find the upload panel in **Performance & Insights** (One-Off section).
+            Find the upload panel in **File Upload → Performance & Insights**.
+
+            *(The file upload area is now highlighted in purple on that page.)*
             """)
             col1, col2 = st.columns(2)
             with col1:
@@ -111,12 +218,14 @@ if not prefs.get("onboarding_complete", False):
                     st.rerun()
 
         elif step == 3:
-            st.markdown("### Set up your first brand")
+            st.markdown("### ⚙️ Set up your first brand")
             st.markdown("""
-            Brand Settings lets you store context about each advertiser —
+            **Settings** lets you store context about each advertiser —
             objectives, KPIs, and notes — so AI insights are tailored to your clients.
 
-            Navigate to **Settings → Brand Settings** to set up your brands.
+            Navigate to **Settings** (in the sidebar) to set up your brands.
+
+            *(The Settings nav link is now highlighted in purple.)*
             """)
             col1, col2 = st.columns(2)
             with col1:
@@ -129,42 +238,56 @@ if not prefs.get("onboarding_complete", False):
                     st.rerun()
 
         elif step == 4:
-            st.markdown("### You're ready! 🚀")
+            st.markdown("### 🚀 You're ready!")
             st.markdown("""
             Here's how to navigate Pacebird:
 
-            **Ongoing** — Live API-connected workflows
-            &nbsp;&nbsp;📊 Performance & Insights · 📋 Portfolio Overview · 🎯 Live Campaigns
+            **📡 API Data** — Live API-connected workflows
+            &nbsp;&nbsp;📊 Performance & Insights · 📋 Portfolio Overview · 🎯 Live Campaigns · 📡 Cross-Channel
 
-            **One-Off** — Drag-and-drop file analysis
-            &nbsp;&nbsp;📊 Performance & Insights · ⏱ Pacing Checker · 📡 Telco
+            **📁 File Upload** — Drag-and-drop file analysis
+            &nbsp;&nbsp;📊 Performance & Insights · ⏱ Pacing Checker · 📡 Cross-Channel
 
-            **Settings** — Brand memory, KPI targets, scheduled reports
+            **⚙️ Settings** — Brand memory, KPI targets, alert settings, scheduled reports
+
+            *(Navigate to Performance & Insights and click **Generate Insights** to get started.)*
             """)
-            if st.button("Start exploring →", type="primary"):
-                prefs_data = load_prefs()
-                prefs_data["onboarding_complete"] = True
-                save_prefs(prefs_data)
-                st.session_state.pop("onboarding_step", None)
-                st.rerun()
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("← Back"):
+                    st.session_state["onboarding_step"] = 3
+                    st.rerun()
+            with col2:
+                if st.button("Start exploring →", type="primary"):
+                    p = load_prefs()
+                    p["onboarding_complete"] = True
+                    save_prefs(p)
+                    st.session_state.pop("onboarding_step", None)
+                    st.rerun()
 
     show_onboarding()
 
-# ── Navigation ────────────────────────────────────────────────────────────────
-pg = st.navigation({
-    "Ongoing": [
-        st.Page("pages/ongoing_performance.py",   title="Performance & Insights"),
-        st.Page("pages/portfolio_overview.py",     title="Portfolio Overview"),
-        st.Page("pages/live_campaigns.py",         title="Live Campaigns"),
-    ],
-    "One-Off": [
-        st.Page("pages/performance_insights.py",   title="Performance & Insights"),
-        st.Page("pages/pacing_checker.py",         title="Pacing Checker"),
-        st.Page("pages/telco_cross_channel.py",    title="Cross-Channel Dashboard"),
-        st.Page("pages/telco_budget_optimiser.py", title="Channel Budget Optimiser"),
-    ],
-    "Settings": [
-        st.Page("pages/brand_settings.py",         title="Brand Settings"),
-    ],
-})
+# ── Navigation — feature-gated by tier ───────────────────────────────────────
+API_DATA_PAGES = [
+    st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
+    st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
+    st.Page("pages/live_campaigns.py",            title="Live Campaigns"),
+    st.Page("pages/telco_cross_channel.py",       title="Cross-Channel Dashboard"),
+    st.Page("pages/settings.py",                  title="Settings"),
+]
+
+FILE_UPLOAD_PAGES = [
+    st.Page("pages/performance_insights.py",         title="Performance & Insights"),
+    st.Page("pages/pacing_checker.py",               title="Pacing Checker"),
+    st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
+    st.Page("pages/settings_link.py",                title="Settings"),
+]
+
+nav_sections = {}
+if "API Data" in visible_sections:
+    nav_sections["📡 API Data"] = API_DATA_PAGES
+if "File Upload" in visible_sections:
+    nav_sections["📁 File Upload"] = FILE_UPLOAD_PAGES
+
+pg = st.navigation(nav_sections)
 pg.run()
