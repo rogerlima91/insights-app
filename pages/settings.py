@@ -17,6 +17,14 @@ try:
 except ImportError:
     _GMAIL_AVAILABLE = False
 
+# Sentence-transformers for semantic email search — lazy import for performance
+def _load_sentence_transformer():
+    try:
+        from sentence_transformers import SentenceTransformer, util as st_util
+        return SentenceTransformer("all-MiniLM-L6-v2"), st_util
+    except ImportError:
+        return None, None
+
 # ── Global CSS ────────────────────────────────────────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
 st.markdown("""
@@ -450,6 +458,60 @@ with tab_email:
                     except Exception as e:
                         st.error(f"Gmail error: {e}")
 
+        # ── Semantic similarity scoring ────────────────────────────────────────────
+        # Score each email against the search query using sentence-transformers.
+        # Only show emails with similarity > 0.3, sorted by score descending.
+        # Runs immediately after fetch so the scored list is stored back in session state.
+        if st.session_state.get("fetched_emails"):
+            _st_model, _st_util = _load_sentence_transformer()
+            _scored_emails = st.session_state["fetched_emails"]
+
+            if _st_model is not None:
+                # Build the query text: brand name + any selected keywords
+                _search_text = f"{st.session_state.get('fetched_query', '')} {' '.join(selected_keywords)}"
+
+                try:
+                    with st.spinner("Scoring email relevance..."):
+                        # Encode the query into a vector
+                        _query_emb = _st_model.encode(_search_text, convert_to_tensor=True)
+
+                        # Encode each email's subject + snippet into vectors
+                        _email_texts = [
+                            f"{e.get('subject', '')} {e.get('snippet', '')}"
+                            for e in _scored_emails
+                        ]
+                        _email_embs = _st_model.encode(_email_texts, convert_to_tensor=True)
+
+                        # Calculate cosine similarity between query and each email
+                        _scores = _st_util.cos_sim(_query_emb, _email_embs)[0].tolist()
+
+                        # Attach the similarity score to each email dict
+                        for _i, _e in enumerate(_scored_emails):
+                            _e["_similarity"] = round(_scores[_i], 3)
+
+                        # Filter: keep only emails with similarity above threshold
+                        _scored_emails = [e for e in _scored_emails if e.get("_similarity", 0) > 0.3]
+
+                        # Sort: highest similarity first
+                        _scored_emails.sort(key=lambda e: e.get("_similarity", 0), reverse=True)
+
+                        # Save scored + filtered list back to session state
+                        st.session_state["fetched_emails"] = _scored_emails
+
+                        # Reset checkboxes to match the new filtered list
+                        for _i in range(len(_scored_emails)):
+                            st.session_state[f"email_check_{_i}"] = True
+
+                except Exception as _sem_err:
+                    # If scoring fails, show all emails unfiltered
+                    st.caption(f"Semantic scoring unavailable: {_sem_err}")
+                    for _e in _scored_emails:
+                        _e.setdefault("_similarity", None)
+            else:
+                # sentence-transformers not installed — show all without scores
+                for _e in _scored_emails:
+                    _e.setdefault("_similarity", None)
+
         # ── Email results ─────────────────────────────────────────────────────
         emails      = st.session_state.get("fetched_emails", [])
         brand_query = st.session_state.get("fetched_query", "")
@@ -476,17 +538,18 @@ with tab_email:
                         st.session_state[f"email_check_{i}"] = False
                     st.rerun()
 
-            h_chk, h_date, h_sender, h_subject, h_snippet = st.columns([0.4, 1.6, 2.5, 2.5, 3.0])
+            h_chk, h_date, h_sender, h_subject, h_snippet, h_match = st.columns([0.4, 1.6, 2.5, 2.5, 2.8, 0.7])
             h_chk.markdown    ("")
             h_date.markdown   ("<small><b>Date</b></small>",    unsafe_allow_html=True)
             h_sender.markdown ("<small><b>From</b></small>",    unsafe_allow_html=True)
             h_subject.markdown("<small><b>Subject</b></small>", unsafe_allow_html=True)
             h_snippet.markdown("<small><b>Snippet</b></small>", unsafe_allow_html=True)
+            h_match.markdown  ("<small><b>Match</b></small>",   unsafe_allow_html=True)
             st.markdown("<hr style='margin:4px 0 8px 0;'>", unsafe_allow_html=True)
 
             for i, email in enumerate(emails):
-                col_chk, col_date, col_sender, col_subject, col_snippet = st.columns(
-                    [0.4, 1.6, 2.5, 2.5, 3.0]
+                col_chk, col_date, col_sender, col_subject, col_snippet, col_match = st.columns(
+                    [0.4, 1.6, 2.5, 2.5, 2.8, 0.7]
                 )
                 with col_chk:
                     st.checkbox("", key=f"email_check_{i}", label_visibility="collapsed")
@@ -512,6 +575,15 @@ with tab_email:
                     snip_display = snip[:100] + "…" if len(snip) > 100 else snip
                     st.markdown(
                         f"<small style='color:#6b7280;'>{snip_display}</small>",
+                        unsafe_allow_html=True,
+                    )
+                with col_match:
+                    # Show similarity score badge if available, otherwise a dash
+                    _score = email.get("_similarity")
+                    _match_str = f"{int(_score * 100)}%" if _score is not None else "—"
+                    st.markdown(
+                        f"<span style='background:#7C3AED22;color:#7C3AED;padding:2px 8px;"
+                        f"border-radius:10px;font-size:11px;font-weight:700;'>{_match_str}</span>",
                         unsafe_allow_html=True,
                     )
 
