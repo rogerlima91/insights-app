@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 import streamlit as st
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 # ── Global CSS (identical to app.py — STYLE LOCK) ─────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
@@ -61,6 +61,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 # STYLE LOCK
+
+# Show source mode badge
+_lc_source_mode = st.session_state.get('_lc_source_mode', 'ongoing')
+if _lc_source_mode == 'one-off':
+    st.markdown('<span style="background:#2563EB;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · Pacing Checker</span>', unsafe_allow_html=True)
+else:
+    st.markdown('<span style="background:#10B981;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">🎯 ONGOING · Live Campaigns</span>', unsafe_allow_html=True)
+st.session_state.pop('_lc_source_mode', None)
 
 # ── Fixed demo date — matches the mock campaign data below ────────────────────
 TODAY = date(2026, 6, 4)
@@ -641,6 +649,111 @@ st.markdown(
     "</p>",
     unsafe_allow_html=True,
 )
+
+# ── Alert Settings ────────────────────────────────────────────────────────────
+ALERT_SETTINGS_FILE = "alert_settings.json"
+
+def load_alert_settings():
+    if os.path.exists(ALERT_SETTINGS_FILE):
+        try:
+            with open(ALERT_SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_alert_settings(settings):
+    with open(ALERT_SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
+alert_cfg = load_alert_settings()
+
+with st.expander("🔔 Alert Settings", expanded=False):
+    st.warning("⚠️ Live alert delivery requires server infrastructure. Configure settings here for production deployment.")
+
+    with st.form("alert_settings_form"):
+        alert_method = st.selectbox(
+            "Alert method",
+            ["Email", "Slack", "Both"],
+            index=["Email", "Slack", "Both"].index(alert_cfg.get("method", "Email"))
+        )
+
+        col_alert1, col_alert2 = st.columns(2)
+        with col_alert1:
+            alert_email = st.text_input(
+                "Email address",
+                value=alert_cfg.get("email", ""),
+                placeholder="ops@agency.com",
+                disabled=(alert_method == "Slack")
+            )
+        with col_alert2:
+            alert_slack = st.text_input(
+                "Slack webhook URL",
+                value=alert_cfg.get("slack_webhook", ""),
+                placeholder="https://hooks.slack.com/...",
+                disabled=(alert_method == "Email")
+            )
+
+        alert_threshold = st.selectbox(
+            "Alert threshold",
+            ["Any Critical campaign", "Critical + At Risk", "Pacing below threshold %"],
+            index=["Any Critical campaign", "Critical + At Risk", "Pacing below threshold %"].index(
+                alert_cfg.get("threshold", "Any Critical campaign")
+            )
+        )
+
+        pacing_threshold_val = 75
+        if alert_threshold == "Pacing below threshold %":
+            pacing_threshold_val = st.number_input(
+                "Pacing threshold %", min_value=10, max_value=100,
+                value=alert_cfg.get("pacing_threshold_value", 75)
+            )
+
+        save_alerts = st.form_submit_button("💾 Save Alert Settings", type="primary")
+        if save_alerts:
+            save_alert_settings({
+                "method": alert_method,
+                "email": alert_email,
+                "slack_webhook": alert_slack,
+                "threshold": alert_threshold,
+                "pacing_threshold_value": pacing_threshold_val,
+            })
+            st.success("✅ Alert settings saved.")
+
+# ── Alert banner — shown when campaigns breach threshold ─────────────────────
+try:
+    _alert_cfg = load_alert_settings()
+    if _alert_cfg:
+        # Count campaigns at risk based on threshold setting
+        _threshold_type = _alert_cfg.get("threshold", "Any Critical campaign")
+        _alert_dest = _alert_cfg.get("method", "Email")
+        _alert_addr = _alert_cfg.get("email", "") or _alert_cfg.get("slack_webhook", "")
+
+        # Use the campaigns list (may be mock or uploaded)
+        _all_campaigns = list(CAMPAIGNS.values()) if 'CAMPAIGNS' in dir() else []
+
+        _critical_count = 0
+        _atrisk_count = 0
+        for _c in _all_campaigns:
+            _pacing = calc_pacing(_c)
+            if _pacing["tier"] == "critical":
+                _critical_count += 1
+            elif _pacing["tier"] == "at_risk":
+                _atrisk_count += 1
+
+        _show_banner = False
+        _banner_count = 0
+        if _threshold_type == "Any Critical campaign" and _critical_count > 0:
+            _show_banner = True
+            _banner_count = _critical_count
+        elif _threshold_type == "Critical + At Risk" and (_critical_count + _atrisk_count) > 0:
+            _show_banner = True
+            _banner_count = _critical_count + _atrisk_count
+
+        if _show_banner and _alert_addr:
+            st.error(f"🚨 {_banner_count} campaign(s) require attention — alerts would be sent to {_alert_addr} in production")
+except Exception:
+    pass  # Silently skip if campaigns not yet loaded
 
 # ── Column aliases: internal name → list of accepted CSV headers ──────────────
 # Matching is case-insensitive. The first alias that exists in the file wins.
@@ -1646,6 +1759,29 @@ for c in FILTERED_AT_RISK:
                 st.session_state[f"pushed_{_ck}"] = True
                 # Store the selected fixes at push time so the response stays stable
                 st.session_state[f"pushed_blockers_{_ck}"] = [b["description"] for b in selected_blockers]
+                # Log this action
+                try:
+                    _log_entry = {
+                        "timestamp": datetime.now().isoformat(),
+                        "page": "Live Campaigns",
+                        "campaign": str(c.get("campaign_name", "Unknown")),
+                        "action": "Push Delivery Fix",
+                        "simulated_response": "Success",
+                        "user_note": ""
+                    }
+                    _log_path = "action_log.json"
+                    _existing_log = []
+                    if os.path.exists(_log_path):
+                        try:
+                            with open(_log_path, "r") as _f:
+                                _existing_log = json.load(_f)
+                        except Exception:
+                            _existing_log = []
+                    _existing_log.append(_log_entry)
+                    with open(_log_path, "w") as _f:
+                        json.dump(_existing_log, _f, indent=2)
+                except Exception:
+                    pass
 
             st.markdown(
                 f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
@@ -1867,6 +2003,29 @@ for c in FILTERED_CAMPAIGNS:
                 st.session_state[f"perf_pushed_{_ck}"] = True
                 # Store the selected recommendations at push time so the response stays stable
                 st.session_state[f"perf_pushed_recs_{_ck}"] = selected_recs[:]
+                # Log this action
+                try:
+                    _log_entry = {
+                        "timestamp": datetime.now().isoformat(),
+                        "page": "Live Campaigns",
+                        "campaign": str(c.get("campaign_name", "Unknown")),
+                        "action": "Push Optimisation",
+                        "simulated_response": "Success",
+                        "user_note": ""
+                    }
+                    _log_path = "action_log.json"
+                    _existing_log = []
+                    if os.path.exists(_log_path):
+                        try:
+                            with open(_log_path, "r") as _f:
+                                _existing_log = json.load(_f)
+                        except Exception:
+                            _existing_log = []
+                    _existing_log.append(_log_entry)
+                    with open(_log_path, "w") as _f:
+                        json.dump(_existing_log, _f, indent=2)
+                except Exception:
+                    pass
 
             st.markdown(
                 f"<div style='font-size:12px;color:#6B7280;margin-top:8px;line-height:1.7;'>"
@@ -1911,5 +2070,61 @@ for c in FILTERED_CAMPAIGNS:
                 )
 
         st.markdown("</div>", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ACTION LOG — collapsible record of all push actions
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown("---")
+
+def load_action_log():
+    log_path = "action_log.json"
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def save_action_log(log_data):
+    with open("action_log.json", "w") as f:
+        json.dump(log_data, f, indent=2)
+
+with st.expander("📋 Action Log", expanded=False):
+    action_log = load_action_log()
+
+    if not action_log:
+        st.info("No actions logged yet. Push actions will appear here.")
+    else:
+        st.markdown(f"**{len(action_log)} action(s) logged**")
+
+        # Show table with notes
+        for i, entry in enumerate(reversed(action_log)):
+            idx = len(action_log) - 1 - i
+            with st.container():
+                log_cols = st.columns([2, 2, 2, 2, 3])
+                with log_cols[0]:
+                    st.markdown(f"**{entry.get('timestamp', '')[:16]}**")
+                with log_cols[1]:
+                    st.markdown(entry.get('campaign', ''))
+                with log_cols[2]:
+                    st.markdown(entry.get('action', ''))
+                with log_cols[3]:
+                    st.markdown(f"✅ {entry.get('simulated_response', '')}")
+                with log_cols[4]:
+                    current_note = entry.get("user_note", "")
+                    new_note = st.text_input(
+                        "Add note",
+                        value=current_note,
+                        key=f"log_note_{idx}",
+                        placeholder="What actually happened...",
+                        label_visibility="collapsed"
+                    )
+                    if new_note != current_note:
+                        full_log = load_action_log()
+                        full_log[idx]["user_note"] = new_note
+                        save_action_log(full_log)
+                        st.rerun()
+                st.markdown("---")
 
 print("Campaign Monitor loaded.")
