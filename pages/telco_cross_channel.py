@@ -1,7 +1,8 @@
 import io
+import json
 import os
 import random
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import anthropic
 import pandas as pd
@@ -301,8 +302,8 @@ def build_pptx(summary_dict, channel_df, ai_text=""):
         return txBox
 
     def add_footer(slide, slide_num):
-        """Add 'Insights App' footer label and slide number."""
-        add_textbox(slide, "Insights App", 0.3, 7.1, 3, 0.35,
+        """Add 'Pacebird' footer label and slide number."""
+        add_textbox(slide, "Pacebird", 0.3, 7.1, 3, 0.35,
                     font_size=9, colour=GREY)
         add_textbox(slide, str(slide_num), 12.7, 7.1, 0.5, 0.35,
                     font_size=9, colour=GREY, align=PP_ALIGN.RIGHT)
@@ -921,3 +922,56 @@ if st.session_state.get("cc_pptx"):
     )
 
 print("Cross-Channel Performance Dashboard loaded.")
+
+# ── Action Log ────────────────────────────────────────────────────────────────
+st.markdown("---")
+
+def _load_action_log_telco():
+    log_path = "action_log.json"
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def _save_action_log_telco(log_data):
+    with open("action_log.json", "w") as f:
+        json.dump(log_data, f, indent=2)
+
+with st.expander("📋 Action Log", expanded=False):
+    _action_log = _load_action_log_telco()
+
+    # Filter to just this page's actions
+    _page_name = "Telco Cross-Channel"
+    _page_log = [e for e in _action_log if e.get("page", "") == _page_name]
+
+    if not _page_log:
+        st.info("No actions logged yet. Push actions will appear here.")
+    else:
+        st.markdown(f"**{len(_page_log)} action(s) logged for this page**")
+        for _i, _entry in enumerate(reversed(_page_log)):
+            _global_idx = _action_log.index(_entry)
+            _log_c1, _log_c2, _log_c3, _log_c4 = st.columns([2, 2, 2, 3])
+            with _log_c1:
+                st.markdown(f"**{_entry.get('timestamp', '')[:16]}**")
+            with _log_c2:
+                st.markdown(_entry.get('action', ''))
+            with _log_c3:
+                st.markdown(f"✅ {_entry.get('simulated_response', '')}")
+            with _log_c4:
+                _current_note = _entry.get("user_note", "")
+                _new_note = st.text_input(
+                    "Add note",
+                    value=_current_note,
+                    key=f"telco_log_note_{_global_idx}",
+                    placeholder="What actually happened...",
+                    label_visibility="collapsed"
+                )
+                if _new_note != _current_note:
+                    _full_log = _load_action_log_telco()
+                    _full_log[_global_idx]["user_note"] = _new_note
+                    _save_action_log_telco(_full_log)
+                    st.rerun()
+            st.markdown("---")

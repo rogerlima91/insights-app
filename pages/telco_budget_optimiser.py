@@ -1,4 +1,6 @@
+import json
 import os
+from datetime import datetime
 import anthropic
 import pandas as pd
 import plotly.graph_objects as go
@@ -746,3 +748,56 @@ with tab_live:
         st.info("Upload channel reports in the Cross-Channel Dashboard to enable live reallocation analysis.")
 
 print("Channel Budget Optimiser loaded.")
+
+# ── Action Log ────────────────────────────────────────────────────────────────
+st.markdown("---")
+
+def _load_action_log_telco():
+    log_path = "action_log.json"
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def _save_action_log_telco(log_data):
+    with open("action_log.json", "w") as f:
+        json.dump(log_data, f, indent=2)
+
+with st.expander("📋 Action Log", expanded=False):
+    _action_log = _load_action_log_telco()
+
+    # Filter to just this page's actions
+    _page_name = "Telco Budget Optimiser"
+    _page_log = [e for e in _action_log if e.get("page", "") == _page_name]
+
+    if not _page_log:
+        st.info("No actions logged yet. Push actions will appear here.")
+    else:
+        st.markdown(f"**{len(_page_log)} action(s) logged for this page**")
+        for _i, _entry in enumerate(reversed(_page_log)):
+            _global_idx = _action_log.index(_entry)
+            _log_c1, _log_c2, _log_c3, _log_c4 = st.columns([2, 2, 2, 3])
+            with _log_c1:
+                st.markdown(f"**{_entry.get('timestamp', '')[:16]}**")
+            with _log_c2:
+                st.markdown(_entry.get('action', ''))
+            with _log_c3:
+                st.markdown(f"✅ {_entry.get('simulated_response', '')}")
+            with _log_c4:
+                _current_note = _entry.get("user_note", "")
+                _new_note = st.text_input(
+                    "Add note",
+                    value=_current_note,
+                    key=f"telco_log_note_{_global_idx}",
+                    placeholder="What actually happened...",
+                    label_visibility="collapsed"
+                )
+                if _new_note != _current_note:
+                    _full_log = _load_action_log_telco()
+                    _full_log[_global_idx]["user_note"] = _new_note
+                    _save_action_log_telco(_full_log)
+                    st.rerun()
+            st.markdown("---")
