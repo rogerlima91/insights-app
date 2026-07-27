@@ -650,79 +650,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Alert Settings ────────────────────────────────────────────────────────────
-ALERT_SETTINGS_FILE = "alert_settings.json"
-
-def load_alert_settings():
-    if os.path.exists(ALERT_SETTINGS_FILE):
-        try:
-            with open(ALERT_SETTINGS_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-def save_alert_settings(settings):
-    with open(ALERT_SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
-
-alert_cfg = load_alert_settings()
-
-with st.expander("🔔 Alert Settings", expanded=False):
-    st.warning("⚠️ Live alert delivery requires server infrastructure. Configure settings here for production deployment.")
-
-    with st.form("alert_settings_form"):
-        alert_method = st.selectbox(
-            "Alert method",
-            ["Email", "Slack", "Both"],
-            index=["Email", "Slack", "Both"].index(alert_cfg.get("method", "Email"))
-        )
-
-        col_alert1, col_alert2 = st.columns(2)
-        with col_alert1:
-            alert_email = st.text_input(
-                "Email address",
-                value=alert_cfg.get("email", ""),
-                placeholder="ops@agency.com",
-                disabled=(alert_method == "Slack")
-            )
-        with col_alert2:
-            alert_slack = st.text_input(
-                "Slack webhook URL",
-                value=alert_cfg.get("slack_webhook", ""),
-                placeholder="https://hooks.slack.com/...",
-                disabled=(alert_method == "Email")
-            )
-
-        alert_threshold = st.selectbox(
-            "Alert threshold",
-            ["Any Critical campaign", "Critical + At Risk", "Pacing below threshold %"],
-            index=["Any Critical campaign", "Critical + At Risk", "Pacing below threshold %"].index(
-                alert_cfg.get("threshold", "Any Critical campaign")
-            )
-        )
-
-        pacing_threshold_val = 75
-        if alert_threshold == "Pacing below threshold %":
-            pacing_threshold_val = st.number_input(
-                "Pacing threshold %", min_value=10, max_value=100,
-                value=alert_cfg.get("pacing_threshold_value", 75)
-            )
-
-        save_alerts = st.form_submit_button("💾 Save Alert Settings", type="primary")
-        if save_alerts:
-            save_alert_settings({
-                "method": alert_method,
-                "email": alert_email,
-                "slack_webhook": alert_slack,
-                "threshold": alert_threshold,
-                "pacing_threshold_value": pacing_threshold_val,
-            })
-            st.success("✅ Alert settings saved.")
-
 # ── Alert banner — shown when campaigns breach threshold ─────────────────────
+# Read alert settings inline (settings managed in Settings page)
 try:
-    _alert_cfg = load_alert_settings()
+    _alert_settings_path = "alert_settings.json"
+    _alert_cfg = {}
+    if os.path.exists(_alert_settings_path):
+        with open(_alert_settings_path, "r") as _f:
+            _alert_cfg = json.load(_f)
+except Exception:
+    _alert_cfg = {}
+
+try:
     if _alert_cfg:
         # Count campaigns at risk based on threshold setting
         _threshold_type = _alert_cfg.get("threshold", "Any Critical campaign")
