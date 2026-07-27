@@ -2,12 +2,14 @@ import io
 import json
 import os
 import re
+import random
 from datetime import date
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 import anthropic
 from pptx import Presentation
@@ -123,6 +125,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 # STYLE LOCK
+
+# ── Source mode badge ─────────────────────────────────────────────────────────
+# Show a badge at the top of the page indicating how data was sourced.
+# _pi_source_mode is set by the calling page before navigating here.
+_pi_source_mode = st.session_state.get('_pi_source_mode', 'one-off')
+if _pi_source_mode == 'ongoing':
+    st.markdown('<span style="background:#10B981;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📡 ONGOING · Live API Data</span>', unsafe_allow_html=True)
+else:
+    st.markdown('<span style="background:#2563EB;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · File Upload</span>', unsafe_allow_html=True)
+st.session_state.pop('_pi_source_mode', None)  # reset after reading
 
 # ── Column name normalisation maps ────────────────────────────────────────────
 # COLUMN_MAP: internal dimension name → list of possible source column names.
@@ -240,6 +252,40 @@ def save_brand_memory(memory):
     """Save brand memory dict back to JSON file."""
     with open(BRAND_MEMORY_PATH, "w") as f:
         json.dump(memory, f, indent=2)
+
+
+def load_kpi_targets(brand_name):
+    """Load KPI targets for a brand from brand_memory.json."""
+    try:
+        with open("brand_memory.json", "r") as f:
+            bm = json.load(f)
+    except Exception:
+        return {}
+    # Case-insensitive partial match
+    for key, val in bm.items():
+        if key.lower() in brand_name.lower() or brand_name.lower() in key.lower():
+            return val.get("kpi_targets", {})
+    return {}
+
+def rag_color(actual, target, higher_is_better=True):
+    """Return RAG colour based on how far actual is from target."""
+    if not target or target == 0:
+        return None
+    pct_diff = (actual - target) / target * 100
+    if higher_is_better:
+        if pct_diff >= -10:
+            return "🟢"
+        elif pct_diff >= -25:
+            return "🟡"
+        else:
+            return "🔴"
+    else:  # lower is better (CPA, CPM)
+        if pct_diff <= 10:
+            return "🟢"
+        elif pct_diff <= 25:
+            return "🟡"
+        else:
+            return "🔴"
 
 # ── File loader and normaliser ────────────────────────────────────────────────
 def load_and_normalise(uploaded_file):
@@ -1035,6 +1081,57 @@ else:
     col4.metric("Avg CTR",           f"{avg_ctr:.2%}"    if avg_ctr is not None else "N/A")
     col5.metric("Avg CPM",           f"${avg_cpm:,.2f}"  if avg_cpm is not None else "N/A")
 
+    # ── KPI RAG Status (shown per brand if targets are set) ───────────────────
+    if 'campaign' in df_metrics.columns:
+        brands_with_targets = []
+        for brand in df_metrics['campaign'].dropna().unique():
+            targets = load_kpi_targets(str(brand))
+            if targets:
+                brands_with_targets.append((brand, targets))
+
+        if brands_with_targets:
+            st.markdown("### 🎯 KPI RAG Status")
+            for brand, targets in brands_with_targets:
+                brand_df = df_metrics[df_metrics['campaign'] == brand]
+                imps = brand_df['impressions'].sum() if 'impressions' in brand_df.columns else 0
+                clicks = brand_df['clicks'].sum() if 'clicks' in brand_df.columns else 0
+                spend = brand_df['spend_usd'].sum() if 'spend_usd' in brand_df.columns else 0
+                ctr = (clicks / imps * 100) if imps > 0 else 0
+                cpm = (spend / imps * 1000) if imps > 0 else 0
+                cpa = (spend / brand_df['conversions'].sum()) if 'conversions' in brand_df.columns and brand_df['conversions'].sum() > 0 else 0
+
+                with st.expander(f"📊 {brand} — KPI Status", expanded=True):
+                    rag_cols = st.columns(5)
+                    metrics_map = [
+                        ("CTR %", ctr, targets.get("target_ctr"), True),
+                        ("CPA (AUD)", cpa, targets.get("target_cpa"), False),
+                        ("CPM (AUD)", cpm, targets.get("target_cpm"), False),
+                        ("VTR %", None, targets.get("target_vtr"), True),
+                        ("ROAS", None, targets.get("target_roas"), True),
+                    ]
+                    for i, (label, actual, target, higher) in enumerate(metrics_map):
+                        with rag_cols[i]:
+                            if target and actual is not None:
+                                icon = rag_color(actual, target, higher)
+                                color_map = {"🟢": "#10B981", "🟡": "#F59E0B", "🔴": "#EF4444"}
+                                bg = color_map.get(icon, "#F3F4F6")
+                                st.markdown(f"""
+                                <div style="background:{bg}22;border:2px solid {bg};border-radius:8px;padding:12px;text-align:center;">
+                                    <div style="font-size:24px;">{icon}</div>
+                                    <div style="font-weight:700;font-size:13px;">{label}</div>
+                                    <div style="font-size:18px;font-weight:700;">{actual:.2f}</div>
+                                    <div style="font-size:11px;color:#6B7280;">Target: {target}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            elif target:
+                                st.markdown(f"""
+                                <div style="background:#F3F4F6;border:2px solid #D1D5DB;border-radius:8px;padding:12px;text-align:center;">
+                                    <div style="font-size:24px;">⚪</div>
+                                    <div style="font-weight:700;font-size:13px;">{label}</div>
+                                    <div style="font-size:11px;color:#6B7280;">No data · Target: {target}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
     # Build top-level summary for PPTX export — group by best available dimension
     _top_col = next((c for c in ("advertiser", "campaign", "insertion_order")
                      if c in df_all.columns), None)
@@ -1439,6 +1536,104 @@ else:
                             config={"displaylogo": False},
                             key="chart_daily_performance")
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # PERIOD COMPARISON — Week-on-Week / Month-on-Month
+    # Only shown when date column spans at least 14 days
+    # ─────────────────────────────────────────────────────────────────────────
+    if 'date' in df_all.columns:
+        try:
+            df_all['_date_parsed'] = pd.to_datetime(df_all['date'], errors='coerce')
+            date_range = (df_all['_date_parsed'].max() - df_all['_date_parsed'].min()).days
+
+            if date_range >= 14:
+                st.markdown("---")
+                st.markdown("## 📅 Period Comparison")
+
+                period_toggle = st.radio(
+                    "Comparison period:",
+                    ["Week-on-Week", "Month-on-Month"],
+                    horizontal=True,
+                    key="period_toggle"
+                )
+
+                today = df_all['_date_parsed'].max()
+
+                if period_toggle == "Week-on-Week":
+                    current_start = today - pd.Timedelta(days=6)
+                    previous_start = today - pd.Timedelta(days=13)
+                    previous_end = today - pd.Timedelta(days=7)
+                else:  # Month-on-Month
+                    current_start = today - pd.Timedelta(days=29)
+                    previous_start = today - pd.Timedelta(days=59)
+                    previous_end = today - pd.Timedelta(days=30)
+
+                current_df = df_all[df_all['_date_parsed'] >= current_start]
+                previous_df = df_all[(df_all['_date_parsed'] >= previous_start) & (df_all['_date_parsed'] <= previous_end)]
+
+                def safe_sum(d, col):
+                    return d[col].sum() if col in d.columns and len(d) > 0 else 0
+
+                def calc_metrics(d):
+                    imps = safe_sum(d, 'impressions')
+                    clicks = safe_sum(d, 'clicks')
+                    spend = safe_sum(d, 'spend_usd')
+                    convs = safe_sum(d, 'conversions')
+                    return {
+                        'Spend': spend,
+                        'Impressions': imps,
+                        'Clicks': clicks,
+                        'CTR': (clicks / imps * 100) if imps > 0 else 0,
+                        'CPA': (spend / convs) if convs > 0 else 0,
+                    }
+
+                cur = calc_metrics(current_df)
+                prev = calc_metrics(previous_df)
+
+                # Build comparison table
+                rows = []
+                format_map = {
+                    'Spend': '${:,.0f}',
+                    'Impressions': '{:,.0f}',
+                    'Clicks': '{:,.0f}',
+                    'CTR': '{:.2f}%',
+                    'CPA': '${:.2f}',
+                }
+                higher_better = {'Spend': True, 'Impressions': True, 'Clicks': True, 'CTR': True, 'CPA': False}
+
+                for metric, fmt in format_map.items():
+                    c_val = cur[metric]
+                    p_val = prev[metric]
+                    if p_val > 0:
+                        change_pct = (c_val - p_val) / p_val * 100
+                        change_str = f"{change_pct:+.1f}%"
+                        hib = higher_better[metric]
+                        is_improvement = (change_pct > 0 and hib) or (change_pct < 0 and not hib)
+                        is_decline = (change_pct < 0 and hib) or (change_pct > 0 and not hib)
+                        abs_change = abs(change_pct)
+
+                        if abs_change > 10 and is_improvement:
+                            status = "✅"
+                        elif abs_change > 10 and is_decline:
+                            status = "⚠️"
+                        else:
+                            status = "➡️"
+                    else:
+                        change_str = "N/A"
+                        status = "➡️"
+
+                    rows.append({
+                        "Metric": metric,
+                        "This Period": fmt.format(c_val),
+                        "Last Period": fmt.format(p_val) if p_val > 0 else "—",
+                        "Change": change_str,
+                        "Status": status,
+                    })
+
+                comparison_df = pd.DataFrame(rows)
+                st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+        except Exception:
+            pass  # Silently skip if date parsing fails
+
     # ── AI Insights ───────────────────────────────────────────────────────────
     # Detect the best grouping column — works with any DSP export structure
     group_col, group_label = detect_grouping_column(df_all)
@@ -1752,6 +1947,282 @@ else:
                     placeholder.markdown(_insight_html(accumulated),
                                          unsafe_allow_html=True)
                 st.session_state["insights_overall"] = accumulated
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # AI-DRIVEN DYNAMIC ANALYSIS
+    # Sends column headers + 50 sample rows to Claude to recommend 3 charts
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("## 🤖 AI-Driven Analysis")
+
+    # Load brand context for the AI analysis prompt
+    def get_brand_context_for_ai(df):
+        try:
+            with open("brand_memory.json", "r") as f:
+                bm = json.load(f)
+            contexts = []
+            if 'campaign' in df.columns:
+                for brand in df['campaign'].dropna().unique()[:3]:
+                    for key, val in bm.items():
+                        if key.lower() in str(brand).lower() or str(brand).lower() in key.lower():
+                            rationale = val.get("rationale", "")
+                            if rationale:
+                                contexts.append(f"{brand}: {rationale[:200]}")
+            return "\n".join(contexts)
+        except Exception:
+            return ""
+
+    if st.button("🔄 Refresh AI Analysis", key="refresh_ai_analysis"):
+        st.session_state.pop("ai_analysis_result", None)
+
+    if "ai_analysis_result" not in st.session_state:
+        # Build the prompt using column names and a data sample
+        columns_list = list(df_all.columns)
+        sample_rows = df_all.head(50).to_string(index=False, max_cols=20)
+        brand_ctx = get_brand_context_for_ai(df_all)
+
+        brand_ctx_injection = ""
+        if brand_ctx:
+            brand_ctx_injection = f"\n\nBrand context to consider: {brand_ctx}\nWeight your chart recommendations toward metrics relevant to this brand's objectives."
+
+        # Random seed varies results when the user clicks Refresh
+        seed_val = random.randint(1, 9999)
+
+        prompt = f"""You are an expert data analyst reviewing a programmatic advertising dataset. Here are the columns available: {columns_list}. Here is a sample of the data:
+
+{sample_rows}
+{brand_ctx_injection}
+
+Return a JSON response only, no other text, with this exact structure:
+{{
+  "insights": [
+    {{
+      "title": "Chart title",
+      "chart_type": "bar|line|scatter|pie",
+      "x_axis": "column name",
+      "y_axis": "column name",
+      "rationale": "Why this chart surfaces a useful insight",
+      "anomaly": "Any anomaly detected in this dimension or null"
+    }}
+  ],
+  "summary": "One paragraph summary of the most important patterns in this dataset",
+  "top_anomaly": "The single most important anomaly or finding across the whole dataset"
+}}
+Return exactly 3 chart recommendations. Seed: {seed_val}"""
+
+        try:
+            _ai_key = (
+                st.secrets.get("ANTHROPIC_API_KEY")
+                if "ANTHROPIC_API_KEY" in st.secrets
+                else os.environ.get("ANTHROPIC_API_KEY", "")
+            )
+            client_driven = anthropic.Anthropic(api_key=_ai_key)
+
+            with st.spinner(""):
+                st.markdown("""
+                <div style="margin:8px 0;">
+                  <div style="height:16px;width:70%;border-radius:4px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;margin-bottom:8px;"></div>
+                  <div style="height:16px;width:50%;border-radius:4px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;"></div>
+                </div>
+                <style>@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>
+                """, unsafe_allow_html=True)
+
+                response = client_driven.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=2000,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+
+            raw = response.content[0].text.strip()
+            # Strip markdown code fences if Claude wraps the JSON in them
+            if raw.startswith("```"):
+                raw = re.sub(r'^```[a-z]*\n?', '', raw)
+                raw = re.sub(r'\n?```$', '', raw)
+
+            result = json.loads(raw)
+            st.session_state["ai_analysis_result"] = result
+
+        except Exception as e:
+            st.warning(f"AI analysis unavailable: {e}")
+            st.session_state["ai_analysis_result"] = None
+
+    # Display AI analysis results
+    ai_result = st.session_state.get("ai_analysis_result")
+    if ai_result:
+        # Summary card
+        summary = ai_result.get("summary", "")
+        top_anomaly = ai_result.get("top_anomaly", "")
+
+        if summary:
+            st.markdown(f"""
+            <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;padding:16px;margin-bottom:12px;">
+                <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;">📊 Dataset Summary</div>
+                <div style="color:#374151;">{summary}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        if top_anomaly:
+            st.markdown(f"""
+            <div style="background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;padding:16px;margin-bottom:20px;">
+                <div style="font-weight:700;color:#92400E;margin-bottom:6px;">⚠️ Top Finding</div>
+                <div style="color:#374151;">{top_anomaly}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Render AI-recommended charts
+        insights = ai_result.get("insights", [])
+        if insights:
+            ai_chart_cols = st.columns(min(len(insights), 3))
+            for i, insight in enumerate(insights[:3]):
+                with ai_chart_cols[i % 3]:
+                    title = insight.get("title", f"Chart {i+1}")
+                    chart_type = insight.get("chart_type", "bar")
+                    x_col = insight.get("x_axis", "")
+                    y_col = insight.get("y_axis", "")
+                    rationale = insight.get("rationale", "")
+                    anomaly = insight.get("anomaly")
+
+                    try:
+                        # Only render if both columns exist in the dataframe
+                        if x_col in df_all.columns and y_col in df_all.columns:
+                            plot_df = df_all[[x_col, y_col]].dropna()
+
+                            # Aggregate text/category x-axis columns by summing y
+                            if plot_df[x_col].dtype == object or pd.api.types.is_categorical_dtype(plot_df[x_col]):
+                                plot_df = plot_df.groupby(x_col)[y_col].sum().reset_index()
+
+                            if chart_type == "bar":
+                                fig = px.bar(plot_df, x=x_col, y=y_col, title=title,
+                                            color_discrete_sequence=["#7C3AED"])
+                            elif chart_type == "line":
+                                fig = px.line(plot_df, x=x_col, y=y_col, title=title,
+                                             color_discrete_sequence=["#7C3AED"])
+                            elif chart_type == "scatter":
+                                fig = px.scatter(plot_df, x=x_col, y=y_col, title=title,
+                                               color_discrete_sequence=["#7C3AED"])
+                            elif chart_type == "pie":
+                                fig = px.pie(plot_df, names=x_col, values=y_col, title=title)
+                            else:
+                                fig = px.bar(plot_df, x=x_col, y=y_col, title=title,
+                                            color_discrete_sequence=["#7C3AED"])
+
+                            fig.update_layout(
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
+                                font_family="Inter, sans-serif",
+                                height=300,
+                                margin=dict(l=20, r=20, t=40, b=20),
+                            )
+                            st.plotly_chart(fig, use_container_width=True, key=f"ai_chart_{i}")
+
+                            # Label showing this was AI-selected
+                            st.markdown(f"""
+                            <div style="font-size:11px;color:#6B7280;background:#F9FAFB;border-radius:4px;padding:6px 10px;margin-top:-8px;">
+                                🤖 <em>AI selected · {rationale}</em>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            if anomaly:
+                                st.markdown(f"""
+                                <div style="font-size:11px;color:#92400E;background:#FEF3C7;border-radius:4px;padding:4px 8px;margin-top:4px;">
+                                    ⚠️ {anomaly}
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.info(f"Column '{x_col}' or '{y_col}' not found in data")
+
+                    except Exception as chart_err:
+                        st.warning(f"Could not render chart: {chart_err}")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # NATURAL LANGUAGE QUERYING
+    # User can ask plain English questions about their data
+    # ─────────────────────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("## 💬 Ask a Question About Your Data")
+
+    nl_question = st.text_input(
+        "Ask a question about your data",
+        placeholder="e.g. Which campaign had the worst CTR last week?",
+        key="nl_question_input",
+        label_visibility="collapsed"
+    )
+
+    if nl_question and st.button("Ask →", key="nl_submit", type="primary"):
+        # Build a brief dataset summary for the prompt
+        summary_parts = []
+        if 'campaign' in df_all.columns:
+            summary_parts.append(f"Campaigns: {', '.join(df_all['campaign'].dropna().unique()[:10])}")
+        if 'impressions' in df_all.columns:
+            summary_parts.append(f"Total impressions: {df_all['impressions'].sum():,.0f}")
+        if 'clicks' in df_all.columns:
+            summary_parts.append(f"Total clicks: {df_all['clicks'].sum():,.0f}")
+        if 'spend_usd' in df_all.columns:
+            summary_parts.append(f"Total spend: ${df_all['spend_usd'].sum():,.2f}")
+
+        # Include a sample of the raw data for context
+        agg_sample = df_all.head(100).to_string(index=False, max_cols=15)
+
+        nl_prompt = f"""You are an expert programmatic advertising analyst. The user has uploaded a campaign performance dataset.
+
+Dataset summary:
+{chr(10).join(summary_parts)}
+
+Data sample:
+{agg_sample}
+
+User question: {nl_question}
+
+Provide a direct, specific answer in plain English. Include the specific numbers from the data. Keep your answer to 2-3 sentences maximum."""
+
+        try:
+            _nl_key = (
+                st.secrets.get("ANTHROPIC_API_KEY")
+                if "ANTHROPIC_API_KEY" in st.secrets
+                else os.environ.get("ANTHROPIC_API_KEY", "")
+            )
+            client_nl = anthropic.Anthropic(api_key=_nl_key)
+
+            with st.spinner(""):
+                response = client_nl.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": nl_prompt}]
+                )
+
+            answer = response.content[0].text.strip()
+
+            # Store in query history (keep last 5)
+            if "nl_query_history" not in st.session_state:
+                st.session_state["nl_query_history"] = []
+            st.session_state["nl_query_history"].insert(0, {
+                "question": nl_question,
+                "answer": answer
+            })
+            st.session_state["nl_query_history"] = st.session_state["nl_query_history"][:5]
+
+            st.session_state["nl_latest_answer"] = answer
+
+        except Exception as e:
+            st.error(f"Could not get answer: {e}")
+
+    # Show the most recent answer
+    if "nl_latest_answer" in st.session_state:
+        st.markdown(f"""
+        <div style="background:#F0FDF4;border-left:4px solid #10B981;border-radius:8px;padding:16px;margin:12px 0;">
+            <div style="font-weight:700;color:#065F46;margin-bottom:6px;">💡 Answer</div>
+            <div style="color:#374151;">{st.session_state["nl_latest_answer"]}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Query history accordion
+    if st.session_state.get("nl_query_history"):
+        with st.expander("📋 Query History (last 5)", expanded=False):
+            for i, item in enumerate(st.session_state["nl_query_history"]):
+                st.markdown(f"**Q{i+1}:** {item['question']}")
+                st.markdown(f"**A:** {item['answer']}")
+                if i < len(st.session_state["nl_query_history"]) - 1:
+                    st.markdown("---")
 
     # ── Data preview ──────────────────────────────────────────────────────────
     st.subheader("Data Preview")

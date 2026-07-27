@@ -16,7 +16,8 @@
       "Bash(grep -o stSidebar[A-Za-z]* C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.BuwrT-ty.css)",
       "Bash(grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.BuwrT-ty.css)",
       "Bash(sort -u grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.CwxM5zkf.css)",
-      "Bash(sort -u grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.DgR7E2CV.css)"
+      "Bash(sort -u grep -o \"\"stSidebar[^\"\"]*\"\" C:UsersrogerAppDataLocalProgramsPythonPython314Libsite-packagesstreamlitstaticstaticcssindex.DgR7E2CV.css)",
+      "Bash(grep -E \"\\\\.\\(py|txt|css|json|html\\)$\")"
     ]
   }
 }
