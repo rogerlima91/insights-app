@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime
 
+import pandas as pd
 import streamlit as st
 from openai import OpenAI
 
@@ -182,8 +183,8 @@ st.markdown(
 )
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_bm, tab_email, tab_transcript = st.tabs(
-    ["📋  Brand Memory", "📧  Email Context", "🎙  Meeting Transcription"]
+tab_bm, tab_email, tab_transcript, tab4, tab5 = st.tabs(
+    ["📋  Brand Memory", "📧  Email Context", "🎙  Meeting Transcription", "🎯 KPI Targets", "📬 Scheduled Reports"]
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -750,3 +751,184 @@ with tab_transcript:
                     st.success(
                         f"Transcript saved to Brand Memory under '{save_brand_name.strip()}'."
                     )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — KPI Targets
+# ══════════════════════════════════════════════════════════════════════════════
+# ── Tab 4: KPI Targets ────────────────────────────────────────────────────────
+with tab4:
+    st.markdown("## 🎯 KPI Targets")
+    st.markdown("Set performance targets per brand. These are used to show RAG status cards in Performance & Insights.")
+
+    bm_for_targets = load_brand_memory()
+    brand_names_for_targets = list(bm_for_targets.keys())
+
+    if not brand_names_for_targets:
+        st.info("No brands saved yet. Add brands in the Brand Memory tab first.")
+    else:
+        selected_brand_target = st.selectbox("Select brand", brand_names_for_targets, key="kpi_brand_select")
+
+        if selected_brand_target:
+            existing_targets = bm_for_targets.get(selected_brand_target, {}).get("kpi_targets", {})
+
+            st.markdown(f"### Targets for: {selected_brand_target}")
+
+            with st.form("kpi_targets_form"):
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    target_ctr = st.number_input(
+                        "Target CTR %",
+                        min_value=0.0, max_value=100.0, step=0.01,
+                        value=float(existing_targets.get("target_ctr", 0.0)),
+                        help="e.g. 0.15 for 0.15%"
+                    )
+                    target_cpa = st.number_input(
+                        "Target CPA (AUD)",
+                        min_value=0.0, step=0.50,
+                        value=float(existing_targets.get("target_cpa", 0.0)),
+                        help="Cost per acquisition in AUD"
+                    )
+                    target_cpm = st.number_input(
+                        "Target CPM (AUD)",
+                        min_value=0.0, step=0.50,
+                        value=float(existing_targets.get("target_cpm", 0.0)),
+                        help="Cost per thousand impressions in AUD"
+                    )
+                with col_b:
+                    target_roas = st.number_input(
+                        "Target ROAS",
+                        min_value=0.0, step=0.1,
+                        value=float(existing_targets.get("target_roas", 0.0)),
+                        help="Return on ad spend (e.g. 3.5 = 3.5x return)"
+                    )
+                    target_vtr = st.number_input(
+                        "Target VTR %",
+                        min_value=0.0, max_value=100.0, step=0.1,
+                        value=float(existing_targets.get("target_vtr", 0.0)),
+                        help="Video through rate percentage"
+                    )
+
+                submitted_targets = st.form_submit_button("💾 Save KPI Targets", type="primary")
+
+                if submitted_targets:
+                    bm_for_targets = load_brand_memory()
+                    if selected_brand_target not in bm_for_targets:
+                        bm_for_targets[selected_brand_target] = {"rationale": "", "entries": []}
+
+                    bm_for_targets[selected_brand_target]["kpi_targets"] = {
+                        "target_ctr": target_ctr if target_ctr > 0 else None,
+                        "target_cpa": target_cpa if target_cpa > 0 else None,
+                        "target_cpm": target_cpm if target_cpm > 0 else None,
+                        "target_roas": target_roas if target_roas > 0 else None,
+                        "target_vtr": target_vtr if target_vtr > 0 else None,
+                    }
+                    save_brand_memory(bm_for_targets)
+                    st.success(f"✅ KPI targets saved for {selected_brand_target}")
+
+            # Show current targets summary
+            if existing_targets:
+                st.markdown("**Current targets:**")
+                target_rows = []
+                labels = {
+                    "target_ctr": "CTR %", "target_cpa": "CPA (AUD)",
+                    "target_cpm": "CPM (AUD)", "target_roas": "ROAS", "target_vtr": "VTR %"
+                }
+                for key, label in labels.items():
+                    val = existing_targets.get(key)
+                    if val:
+                        target_rows.append({"Metric": label, "Target": val})
+                if target_rows:
+                    st.dataframe(pd.DataFrame(target_rows), use_container_width=True, hide_index=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — Scheduled Reports
+# ══════════════════════════════════════════════════════════════════════════════
+# ── Tab 5: Scheduled Reports ──────────────────────────────────────────────────
+with tab5:
+    st.markdown("## 📬 Scheduled Reports")
+    st.markdown("Configure automated report delivery. Settings are saved here — connect to APScheduler or a cron service for live delivery.")
+
+    st.warning("⚠️ Scheduled delivery requires server deployment. Configure settings here — your IT team or developer can connect to APScheduler or a cron service.")
+
+    SCHEDULE_FILE = "scheduled_reports.json"
+
+    def load_schedules():
+        if os.path.exists(SCHEDULE_FILE):
+            try:
+                with open(SCHEDULE_FILE, "r") as f:
+                    return json.load(f)
+            except Exception:
+                return []
+        return []
+
+    def save_schedules(schedules):
+        with open(SCHEDULE_FILE, "w") as f:
+            json.dump(schedules, f, indent=2)
+
+    bm_for_sched = load_brand_memory()
+    brand_names_for_sched = list(bm_for_sched.keys())
+
+    with st.form("schedule_form"):
+        st.markdown("### ➕ Add Report Schedule")
+
+        sched_brand = st.selectbox(
+            "Brand / Advertiser",
+            ["All Brands"] + brand_names_for_sched,
+            key="sched_brand"
+        )
+
+        sched_email = st.text_input(
+            "Recipient email address",
+            placeholder="client@agency.com",
+            key="sched_email"
+        )
+
+        sched_freq = st.selectbox(
+            "Report frequency",
+            ["Weekly — Monday 9am", "Bi-weekly", "Monthly"],
+            key="sched_freq"
+        )
+
+        sched_content = st.multiselect(
+            "Report content",
+            ["Summary metrics", "Charts", "AI insights", "KPI RAG status"],
+            default=["Summary metrics", "Charts", "AI insights"],
+            key="sched_content"
+        )
+
+        save_sched = st.form_submit_button("💾 Save Schedule", type="primary")
+
+        if save_sched:
+            if not sched_email:
+                st.error("Please enter a recipient email address.")
+            else:
+                schedules = load_schedules()
+                schedules.append({
+                    "brand": sched_brand,
+                    "email": sched_email,
+                    "frequency": sched_freq,
+                    "content": sched_content,
+                    "created": str(pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")),
+                    "active": True
+                })
+                save_schedules(schedules)
+                st.success(f"✅ Schedule saved for {sched_brand} → {sched_email}")
+
+    # Show existing schedules
+    schedules_list = load_schedules()
+    if schedules_list:
+        st.markdown("### 📋 Saved Schedules")
+        for i, sched in enumerate(schedules_list):
+            with st.expander(f"{sched.get('brand', 'All')} — {sched.get('frequency', '')} → {sched.get('email', '')}", expanded=False):
+                st.markdown(f"**Brand:** {sched.get('brand', 'All Brands')}")
+                st.markdown(f"**Email:** {sched.get('email', '')}")
+                st.markdown(f"**Frequency:** {sched.get('frequency', '')}")
+                st.markdown(f"**Content:** {', '.join(sched.get('content', []))}")
+                st.markdown(f"**Created:** {sched.get('created', '')}")
+
+                if st.button(f"🗑 Delete schedule", key=f"del_sched_{i}"):
+                    schedules_list.pop(i)
+                    save_schedules(schedules_list)
+                    st.rerun()
+    else:
+        st.info("No schedules configured yet.")
