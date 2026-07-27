@@ -136,6 +136,26 @@ else:
     st.markdown('<span style="background:#2563EB;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · File Upload</span>', unsafe_allow_html=True)
 st.session_state.pop('_pi_source_mode', None)  # reset after reading
 
+# Change 6: API Data mode banner — shown only in 'ongoing' mode
+if _pi_source_mode == 'ongoing':
+    # API Data mode — show live data banner, hide upload controls
+    _last_refreshed = st.session_state.get("api_last_refreshed", "—")
+    col_banner, col_refresh = st.columns([4, 1])
+    with col_banner:
+        st.markdown("""
+        <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+        padding:10px 16px;margin-bottom:12px;">
+            <strong>📡 Live API Data Mode</strong> — data is loaded from the live API connection.
+        </div>
+        """, unsafe_allow_html=True)
+    with col_refresh:
+        if st.button("🔄 Refresh", key="api_refresh_btn"):
+            from datetime import datetime
+            st.session_state["api_last_refreshed"] = datetime.now().strftime("%H:%M:%S")
+            st.rerun()
+    if _last_refreshed != "—":
+        st.caption(f"Last refreshed: {_last_refreshed}")
+
 # ── Column name normalisation maps ────────────────────────────────────────────
 # COLUMN_MAP: internal dimension name → list of possible source column names.
 # For each internal name, the first matching source column found in the data is
@@ -898,12 +918,16 @@ else:
     _exp_label    = "📁 Upload Data"
     _exp_expanded = True
 
-with st.expander(_exp_label, expanded=_exp_expanded):
-    uploaded_files = st.file_uploader(
-        "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
-        type=["csv", "tsv", "xlsx", "xls"],
-        accept_multiple_files=True,
-    )
+# Only show file upload in File Upload (one-off) mode
+if _pi_source_mode != 'ongoing':
+    with st.expander(_exp_label, expanded=_exp_expanded):
+        uploaded_files = st.file_uploader(
+            "Drag and drop files here, or click to browse. Accepts CSV, TSV, Excel (.xlsx / .xls). Multiple files accepted.",
+            type=["csv", "tsv", "xlsx", "xls"],
+            accept_multiple_files=True,
+        )
+else:
+    uploaded_files = None
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.markdown(
@@ -929,7 +953,27 @@ st.markdown(
 if not uploaded_files:
     # Clear stored file info so expander resets to expanded when files are removed
     st.session_state.pop("_uploader_loaded_info", None)
-    # Show a friendly prompt when nothing is uploaded yet
+
+    # Change 7: File Upload mode empty state — stop rendering when no file is uploaded
+    if _pi_source_mode == 'one-off':
+        st.markdown("""
+        <div style="text-align:center;padding:60px 20px;background:#FFFFFF;
+        border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);margin:20px 0;">
+            <div style="font-size:48px;margin-bottom:16px;">📂</div>
+            <div style="font-size:20px;font-weight:700;color:#111827;margin-bottom:8px;">
+                No data loaded yet
+            </div>
+            <div style="font-size:15px;color:#6B7280;margin-bottom:4px;">
+                Drag and drop a DSP export to get started
+            </div>
+            <div style="font-size:13px;color:#9CA3AF;">
+                Accepted formats: CSV, XLSX, XLS, TSV
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
+    # Show a friendly prompt when nothing is uploaded yet (for other modes)
     st.markdown("""
     <div style='text-align:center;padding:48px 0;color:#9ca3af;'>
         <div style='font-size:48px;margin-bottom:12px;'>📂</div>

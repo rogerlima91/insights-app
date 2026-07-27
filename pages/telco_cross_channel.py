@@ -385,6 +385,10 @@ def build_pptx(summary_dict, channel_df, ai_text=""):
 # PAGE LAYOUT
 # ═════════════════════════════════════════════════════════════════════════════
 
+# Read data mode — set by wrapper pages (api=default, upload=file-upload mode)
+_telco_data_mode = st.session_state.get('data_mode', 'api')
+# Don't pop it — the mode needs to persist for the full page render
+
 st.title("Cross-Channel Performance Dashboard")
 st.markdown(
     "<p style='color:#6B7280; margin-top:-12px;'>Unified biddable media performance across "
@@ -392,7 +396,59 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Upload expander ───────────────────────────────────────────────────────────
+# Change 8: Show API banner in API mode, or show file uploader in upload mode
+if _telco_data_mode == 'api':
+    # API Data mode — show live data banner, then render mock data below
+    st.markdown("""
+    <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+    padding:10px 16px;margin-bottom:12px;">
+        <strong>📡 Live API Data Mode</strong> — showing cross-channel data for Optus.
+    </div>
+    """, unsafe_allow_html=True)
+
+if _telco_data_mode == 'upload':
+    # File Upload mode — show uploader and stop before mock data renders
+    uploaded_telco = st.file_uploader(
+        "Upload cross-channel data",
+        type=["csv", "xlsx", "xls", "tsv"],
+        help="Upload a CSV/Excel file with channel performance data",
+        key="telco_upload"
+    )
+    if uploaded_telco is None:
+        st.markdown("""
+        <div style="text-align:center;padding:60px 20px;background:#FFFFFF;
+        border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.08);margin:20px 0;">
+            <div style="font-size:48px;margin-bottom:16px;">📂</div>
+            <div style="font-size:20px;font-weight:700;color:#111827;margin-bottom:8px;">
+                No data loaded yet
+            </div>
+            <div style="font-size:15px;color:#6B7280;margin-bottom:4px;">
+                Drag and drop cross-channel data to get started
+            </div>
+            <div style="font-size:13px;color:#9CA3AF;">
+                Accepted formats: CSV, XLSX, XLS, TSV
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+    else:
+        # Process uploaded file
+        try:
+            import pandas as pd
+            if uploaded_telco.name.endswith(".csv"):
+                _telco_df = pd.read_csv(uploaded_telco)
+            else:
+                _telco_df = pd.read_excel(uploaded_telco)
+            st.success(f"✅ Loaded {len(_telco_df):,} rows from {uploaded_telco.name}")
+            # Show a preview table
+            st.dataframe(_telco_df.head(20), use_container_width=True)
+            st.info("Full cross-channel analysis will be available in a future update.")
+        except Exception as _e:
+            st.error(f"Could not read file: {_e}")
+        st.stop()
+
+# ── Upload expander — shown only in API mode for optional data override ────────
+# (When in upload mode, we already handled everything above and called st.stop())
 with st.expander("📁 Upload Channel Reports"):
     uploaded_files = st.file_uploader(
         "Upload channel export files (CSV or XLSX)",

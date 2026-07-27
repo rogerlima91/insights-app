@@ -70,6 +70,26 @@ else:
     st.markdown('<span style="background:#10B981;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">🎯 ONGOING · Live Campaigns</span>', unsafe_allow_html=True)
 st.session_state.pop('_lc_source_mode', None)
 
+# Change 6: API Data mode banner — shown when NOT in one-off mode
+if _lc_source_mode != 'one-off':
+    # API Data mode
+    _lc_last = st.session_state.get("lc_last_refreshed", "—")
+    col_lc_banner, col_lc_refresh = st.columns([4, 1])
+    with col_lc_banner:
+        st.markdown("""
+        <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+        padding:10px 16px;margin-bottom:12px;">
+            <strong>📡 Live API Data Mode</strong> — showing live campaign data for Optus.
+        </div>
+        """, unsafe_allow_html=True)
+    with col_lc_refresh:
+        if st.button("🔄 Refresh", key="lc_refresh_btn"):
+            from datetime import datetime
+            st.session_state["lc_last_refreshed"] = datetime.now().strftime("%H:%M:%S")
+            st.rerun()
+    if _lc_last != "—":
+        st.caption(f"Last refreshed: {_lc_last}")
+
 # ── Fixed demo date — matches the mock campaign data below ────────────────────
 TODAY = date(2026, 6, 4)
 
@@ -889,63 +909,72 @@ def build_campaigns_from_df(df):
     return campaigns, breakdown
 
 
-# ── File uploader — collapsed by default ──────────────────────────────────────
-with st.expander("Upload Pacing Reports", expanded=False):
-    uploaded_files = st.file_uploader(
-        "Upload DSP pacing reports",
-        type=["csv"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-        help="Upload one or more CSV exports from TTD, DV360, or Amazon DSP. Columns are mapped automatically.",
-    )
-
-    if uploaded_files:
-        dfs = []
-        for f in uploaded_files:
-            df_raw = pd.read_csv(f)
-            # Tag each row with the filename-detected DSP before mapping.
-            df_raw["_dsp_hint"] = detect_dsp_from_filename(f.name)
-            # Map columns per-file so DSP-specific headers (e.g. Amazon uses
-            # "Order" instead of "Campaign") are resolved before merging.
-            # If we merged first, a DV360 "Campaign" column would shadow
-            # Amazon's "Order" column and Amazon rows would lose their campaign name.
-            df_mapped = map_columns(df_raw)
-            dfs.append(df_mapped)
-
-        # Concatenate already-mapped files — columns are now standardised.
-        merged_df = pd.concat(dfs, ignore_index=True)
-
-        # Use the filename-detected DSP wherever the data has no DSP value.
-        if "dsp" not in merged_df.columns:
-            merged_df["dsp"] = merged_df["_dsp_hint"]
-        else:
-            merged_df["dsp"] = merged_df["dsp"].fillna(merged_df["_dsp_hint"])
-        merged_df = merged_df.drop(columns=["_dsp_hint"])
-
-        # Upload summary line
-        num_rows = len(merged_df)
-        num_adv  = merged_df["advertiser"].nunique() if "advertiser" in merged_df.columns else "?"
-        dsp_vals = sorted(merged_df["dsp"].dropna().unique()) if "dsp" in merged_df.columns else []
-        dsp_str  = " & ".join(dsp_vals) if dsp_vals else "Unknown"
-        n_files  = len(uploaded_files)
-        st.caption(
-            f"Loaded **{n_files}** file{'s' if n_files > 1 else ''}  ·  "
-            f"**{num_rows:,}** rows  ·  "
-            f"**{num_adv}** advertisers across **{dsp_str}**"
+# ── File uploader — only shown in one-off (File Upload) mode ──────────────────
+# In API Data mode (ongoing), hide the uploader and use mock data directly.
+if _lc_source_mode == 'one-off':
+    with st.expander("Upload Pacing Reports", expanded=False):
+        uploaded_files = st.file_uploader(
+            "Upload DSP pacing reports",
+            type=["csv"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+            help="Upload one or more CSV exports from TTD, DV360, or Amazon DSP. Columns are mapped automatically.",
         )
 
-        CAMPAIGNS, CAMPAIGN_BREAKDOWN = build_campaigns_from_df(merged_df)
-        _using_upload = True
-        _upload_date  = date.today()
+        if uploaded_files:
+            dfs = []
+            for f in uploaded_files:
+                df_raw = pd.read_csv(f)
+                # Tag each row with the filename-detected DSP before mapping.
+                df_raw["_dsp_hint"] = detect_dsp_from_filename(f.name)
+                # Map columns per-file so DSP-specific headers (e.g. Amazon uses
+                # "Order" instead of "Campaign") are resolved before merging.
+                # If we merged first, a DV360 "Campaign" column would shadow
+                # Amazon's "Order" column and Amazon rows would lose their campaign name.
+                df_mapped = map_columns(df_raw)
+                dfs.append(df_mapped)
 
-    else:
-        # Fall back to hardcoded mock data when no files are uploaded
+            # Concatenate already-mapped files — columns are now standardised.
+            merged_df = pd.concat(dfs, ignore_index=True)
+
+            # Use the filename-detected DSP wherever the data has no DSP value.
+            if "dsp" not in merged_df.columns:
+                merged_df["dsp"] = merged_df["_dsp_hint"]
+            else:
+                merged_df["dsp"] = merged_df["dsp"].fillna(merged_df["_dsp_hint"])
+            merged_df = merged_df.drop(columns=["_dsp_hint"])
+
+            # Upload summary line
+            num_rows = len(merged_df)
+            num_adv  = merged_df["advertiser"].nunique() if "advertiser" in merged_df.columns else "?"
+            dsp_vals = sorted(merged_df["dsp"].dropna().unique()) if "dsp" in merged_df.columns else []
+            dsp_str  = " & ".join(dsp_vals) if dsp_vals else "Unknown"
+            n_files  = len(uploaded_files)
+            st.caption(
+                f"Loaded **{n_files}** file{'s' if n_files > 1 else ''}  ·  "
+                f"**{num_rows:,}** rows  ·  "
+                f"**{num_adv}** advertisers across **{dsp_str}**"
+            )
+
+            CAMPAIGNS, CAMPAIGN_BREAKDOWN = build_campaigns_from_df(merged_df)
+            _using_upload = True
+            _upload_date  = date.today()
+
+        else:
+            # Fall back to hardcoded mock data when no files are uploaded
+            CAMPAIGNS          = MOCK_CAMPAIGNS
+            CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
+            _using_upload      = False
+
+    # When no files were uploaded (expander closed), also fall back to mock data
+    if not uploaded_files:
         CAMPAIGNS          = MOCK_CAMPAIGNS
         CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
         _using_upload      = False
 
-# When no files were uploaded (expander closed), also fall back to mock data
-if not uploaded_files:
+else:
+    # API Data mode — no file upload, use mock data directly
+    uploaded_files     = None
     CAMPAIGNS          = MOCK_CAMPAIGNS
     CAMPAIGN_BREAKDOWN = MOCK_CAMPAIGN_BREAKDOWN
     _using_upload      = False
