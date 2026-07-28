@@ -74,6 +74,23 @@ st.markdown("""
         font-size: 15px;
     }
 
+    /* ── Sidebar: remove default top padding so logo sits flush at top ── */
+    section[data-testid="stSidebar"] > div:first-child {
+        padding-top: 0 !important;
+    }
+
+    /* ── Sidebar nav section headers (LIVE / REPORTS labels) ─────── */
+    section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
+    section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
+    section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        letter-spacing: 1.5px !important;
+        color: #7C3AED !important;
+        text-transform: uppercase !important;
+        padding-top: 12px !important;
+    }
+
     /* ── Onboarding highlight class ────────────────────────────── */
     .onboarding-highlight {
         border: 3px solid #7C3AED !important;
@@ -139,13 +156,20 @@ if st.session_state.get("dark_mode", False):
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # Pacebird logo — top of sidebar
+    # Pacebird logo — absolute first element in sidebar
     st.markdown("""
-    <div style="padding: 20px 0 10px 0;">
-        <div style="font-size:22px;font-weight:800;color:#7C3AED;letter-spacing:-0.5px;">🐦 Pacebird</div>
-        <div style="font-size:12px;color:#6B7280;margin-top:2px;">Programmatic Intelligence</div>
+    <div style="padding: 20px 16px 12px 16px;
+                border-bottom: 2px solid #7C3AED;
+                margin-bottom: 16px;">
+        <div style="font-size: 24px; font-weight: 800;
+                    color: #7C3AED; letter-spacing: -0.5px;">
+            🐦 Pacebird
+        </div>
+        <div style="font-size: 12px; color: #6B7280;
+                    margin-top: 2px;">
+            Programmatic Intelligence
+        </div>
     </div>
-    <hr style="border:none;border-top:2px solid #7C3AED;margin:0 0 12px 0;">
     """, unsafe_allow_html=True)
 
     # Dark/Light mode toggle
@@ -285,9 +309,9 @@ FILE_UPLOAD_PAGES = [
 
 nav_sections = {}
 if "API Data" in visible_sections:
-    nav_sections["📡 API Data"] = API_DATA_PAGES
+    nav_sections["📡 LIVE"] = API_DATA_PAGES
 if "File Upload" in visible_sections:
-    nav_sections["📁 File Upload"] = FILE_UPLOAD_PAGES
+    nav_sections["📁 REPORTS"] = FILE_UPLOAD_PAGES
 
 pg = st.navigation(nav_sections)
 pg.run()

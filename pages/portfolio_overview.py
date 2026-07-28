@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import json
 import os
+import random
+from datetime import date, timedelta
 
 # ── Global CSS ─────────────────────────────────────────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
@@ -89,65 +91,52 @@ def rag_status(actual, target, higher_is_better=True):
         elif pct <= 25: return "#F59E0B", "🟡"
         else: return "#EF4444", "🔴"
 
-# ── Check for uploaded data in session state ───────────────────────────────────
-# This page reads from session_state set by Performance & Insights page
-# Look for the standard dataframe key
+# ── Mock data for API/Live mode ─────────────────────────────────────────────────
+@st.cache_data
+def _generate_portfolio_mock_data():
+    """Generate 30 days of mock data for Woolworths, CBA, and Toyota Australia."""
+    rng = random.Random(42)
+    today = date(2026, 7, 28)
+    start = today - timedelta(days=29)
 
-# Try to get shared data from session state (set by performance_insights.py)
+    CAMPAIGNS = [
+        {"campaign": "Woolworths",         "imps_r": (110000, 200000), "cpm_r": (5.0, 7.5),  "ctr_r": (0.003, 0.006)},
+        {"campaign": "Commonwealth Bank",  "imps_r": (50000,  110000), "cpm_r": (13.0, 20.0), "ctr_r": (0.002, 0.005)},
+        {"campaign": "Toyota Australia",   "imps_r": (80000,  160000), "cpm_r": (9.0, 14.0),  "ctr_r": (0.003, 0.006)},
+    ]
+
+    rows = []
+    for day_offset in range(30):
+        current_date = start + timedelta(days=day_offset)
+        for camp in CAMPAIGNS:
+            imps = rng.randint(*camp["imps_r"])
+            ctr  = rng.uniform(*camp["ctr_r"])
+            cpm  = rng.uniform(*camp["cpm_r"])
+            clicks    = max(round(imps * ctr), 1)
+            spend_usd = round(imps / 1000 * cpm, 2)
+            conversions = max(round(clicks * rng.uniform(0.02, 0.07)), 0)
+            rows.append({
+                "campaign":    camp["campaign"],
+                "impressions": imps,
+                "clicks":      clicks,
+                "spend_usd":   spend_usd,
+                "conversions": conversions,
+            })
+
+    return pd.DataFrame(rows)
+
+# ── Check for shared data (set by Performance & Insights in API mode) ───────────
 shared_df = st.session_state.get("portfolio_df", None)
+
+# In API/Live mode, fall back to mock data if no shared data yet
+if shared_df is None:
+    shared_df = _generate_portfolio_mock_data()
+    st.session_state["portfolio_df"] = shared_df
 
 st.markdown("---")
 
-# ── Upload section (if no shared data) ────────────────────────────────────────
-if shared_df is None:
-    st.info("📁 Upload a campaign data file here, or navigate to **One-Off → Performance & Insights** to upload and then return here.")
-
-    uploaded = st.file_uploader(
-        "Upload DSP CSV export",
-        type=["csv"],
-        help="DV360, TTD, or generic programmatic CSV"
-    )
-
-    if uploaded:
-        try:
-            df_raw = pd.read_csv(uploaded)
-            # Normalise column names to lowercase
-            df_raw.columns = [c.strip().lower() for c in df_raw.columns]
-
-            # Detect advertiser / campaign column
-            CAMPAIGN_ALIASES = ["campaign", "campaign name", "campaign_name", "insertion order",
-                                 "advertiser", "brand name", "brand", "client"]
-            campaign_col = None
-            for alias in CAMPAIGN_ALIASES:
-                if alias in df_raw.columns:
-                    campaign_col = alias
-                    break
-
-            if campaign_col:
-                df_raw = df_raw.rename(columns={campaign_col: "campaign"})
-
-            # Normalise numeric columns
-            NUMERIC_ALIASES = {
-                "impressions": ["impressions", "impression", "served impressions", "total impressions"],
-                "clicks": ["clicks", "click", "total clicks", "link clicks"],
-                "spend_usd": ["spend", "spend (usd)", "total spend", "media cost", "cost", "revenue (usd)", "billed spend"],
-                "conversions": ["conversions", "total conversions", "post-click conversions"],
-            }
-            for std_col, aliases in NUMERIC_ALIASES.items():
-                for alias in aliases:
-                    if alias in df_raw.columns and std_col not in df_raw.columns:
-                        df_raw = df_raw.rename(columns={alias: std_col})
-                        break
-
-            shared_df = df_raw
-            st.session_state["portfolio_df"] = shared_df
-            st.success(f"✅ Loaded {len(shared_df):,} rows")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Could not read file: {e}")
-
-# ── Main portfolio analysis (when data is loaded) ─────────────────────────────
-if shared_df is not None:
+# ── Main portfolio analysis ────────────────────────────────────────────────────
+if True:
     df = shared_df.copy()
 
     if "campaign" not in df.columns:
