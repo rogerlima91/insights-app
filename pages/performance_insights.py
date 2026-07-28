@@ -403,6 +403,168 @@ def detect_grouping_column(df):
     return None, None
 
 
+@st.cache_data
+def generate_api_mock_data():
+    """
+    Generate 30 days of realistic mock data for Woolworths, Commonwealth Bank,
+    and Toyota Australia programmatic campaigns.
+    Uses a fixed random seed so numbers are consistent across reruns.
+    Returns a DataFrame with the same column structure as a normalised DSP export.
+    """
+    import random as _rnd
+    from datetime import date as _date, timedelta as _td
+    rng = _rnd.Random(42)
+    today = _date(2026, 7, 28)
+    start = today - _td(days=29)
+
+    # Campaign configuration: advertiser, campaign name, line items, environment type
+    CAMPAIGNS = [
+        {
+            "advertiser": "Woolworths",
+            "campaign": "Woolworths_Fresh_Food_Brand_Q3_2026",
+            "insertion_order": "WOW_FreshFood_Brand_IO_Q3",
+            "line_items": [
+                "Fresh Food Display - Desktop",
+                "Fresh Food Display - Mobile",
+                "Fresh Food Video - YouTube",
+                "Brand Awareness - CTV",
+            ],
+            "environments": ["Display", "Display", "Video", "Video"],
+            "devices": ["Desktop", "Mobile", "Connected TV", "Connected TV"],
+            "imp_range": (90000, 160000),
+            "ctr_range": (0.003, 0.005),
+            "cpm_range": (4.5, 7.0),
+            "vtr_range": (0.48, 0.62),
+        },
+        {
+            "advertiser": "Woolworths",
+            "campaign": "Woolworths_Everyday_Rewards_Retargeting_Q3_2026",
+            "insertion_order": "WOW_EverydayRewards_Retargeting_IO",
+            "line_items": [
+                "Rewards Retargeting - Desktop",
+                "Rewards Retargeting - Mobile",
+                "Rewards Email Match - Display",
+            ],
+            "environments": ["Display", "Display", "Display"],
+            "devices": ["Desktop", "Mobile", "Desktop"],
+            "imp_range": (20000, 45000),
+            "ctr_range": (0.008, 0.016),
+            "cpm_range": (5.5, 8.5),
+            "vtr_range": (0.0, 0.0),
+        },
+        {
+            "advertiser": "Commonwealth Bank",
+            "campaign": "CBA_HomeLoan_Prospecting_Q3_2026",
+            "insertion_order": "CBA_HomeLoan_Prospecting_IO",
+            "line_items": [
+                "Home Loan - Premium Finance Sites",
+                "Home Loan - Desktop Prospecting",
+                "Home Loan - Mobile Display",
+                "Home Loan - News Premium",
+            ],
+            "environments": ["Display", "Display", "Display", "Display"],
+            "devices": ["Desktop", "Desktop", "Mobile", "Desktop"],
+            "imp_range": (35000, 70000),
+            "ctr_range": (0.002, 0.004),
+            "cpm_range": (14.0, 22.0),
+            "vtr_range": (0.0, 0.0),
+        },
+        {
+            "advertiser": "Commonwealth Bank",
+            "campaign": "CBA_NetBank_Retargeting_Q3_2026",
+            "insertion_order": "CBA_NetBank_Retargeting_IO",
+            "line_items": [
+                "NetBank Retargeting - Display",
+                "NetBank Video - Pre-roll",
+                "NetBank Mobile App Retargeting",
+            ],
+            "environments": ["Display", "Video", "Display"],
+            "devices": ["Desktop", "Mobile", "Mobile"],
+            "imp_range": (18000, 40000),
+            "ctr_range": (0.005, 0.012),
+            "cpm_range": (12.0, 18.0),
+            "vtr_range": (0.52, 0.68),
+        },
+        {
+            "advertiser": "Toyota Australia",
+            "campaign": "Toyota_RAV4_Launch_Q3_2026",
+            "insertion_order": "Toyota_RAV4_Launch_IO",
+            "line_items": [
+                "RAV4 YouTube Pre-roll",
+                "RAV4 Video - Connected TV",
+                "RAV4 Display - Auto Enthusiast Sites",
+                "RAV4 Video - Mobile",
+            ],
+            "environments": ["Video", "Video", "Display", "Video"],
+            "devices": ["Desktop", "Connected TV", "Desktop", "Mobile"],
+            "imp_range": (60000, 120000),
+            "ctr_range": (0.002, 0.005),
+            "cpm_range": (8.0, 14.0),
+            "vtr_range": (0.58, 0.74),
+        },
+        {
+            "advertiser": "Toyota Australia",
+            "campaign": "Toyota_GR_Sport_Prospecting_Q3_2026",
+            "insertion_order": "Toyota_GR_Sport_Prospecting_IO",
+            "line_items": [
+                "GR Sport Display - Premium Sports Sites",
+                "GR Sport Video - Pre-roll",
+                "GR Sport - Auto Enthusiasts Display",
+            ],
+            "environments": ["Display", "Video", "Display"],
+            "devices": ["Desktop", "Desktop", "Mobile"],
+            "imp_range": (25000, 55000),
+            "ctr_range": (0.003, 0.006),
+            "cpm_range": (16.0, 24.0),
+            "vtr_range": (0.50, 0.65),
+        },
+    ]
+
+    rows = []
+    for day_offset in range(30):
+        current_date = start + _td(days=day_offset)
+
+        for camp in CAMPAIGNS:
+            for i, li in enumerate(camp["line_items"]):
+                env = camp["environments"][i]
+                device = camp["devices"][i]
+
+                impressions = rng.randint(*camp["imp_range"])
+                ctr = rng.uniform(*camp["ctr_range"])
+                clicks = max(round(impressions * ctr), 1)
+                cpm = rng.uniform(*camp["cpm_range"])
+                spend_usd = round(impressions / 1000 * cpm, 2)
+                conversions = max(round(clicks * rng.uniform(0.02, 0.08)), 0)
+
+                # VTR only applies to video environments
+                vtr = rng.uniform(*camp["vtr_range"]) if env == "Video" else 0.0
+                video_views = round(impressions * vtr) if env == "Video" else 0
+
+                rows.append({
+                    "date":            pd.Timestamp(current_date),
+                    "advertiser":      camp["advertiser"],
+                    "campaign":        camp["campaign"],
+                    "insertion_order": camp["insertion_order"],
+                    "line_item":       li,
+                    "creative":        f"{li} - Creative 1",
+                    "device_type":     device,
+                    "environment":     env,
+                    "impressions":     impressions,
+                    "clicks":          clicks,
+                    "spend_usd":       spend_usd,
+                    "conversions":     conversions,
+                    "video_views":     video_views,
+                    "dsp_source":      "DV360",
+                    "source_file":     "api_mock_data",
+                })
+
+    df = pd.DataFrame(rows)
+    # Recalculate CTR and CPM from raw numbers
+    df["ctr"] = df["clicks"] / df["impressions"]
+    df["cpm"] = df["spend_usd"] / df["impressions"] * 1000
+    return df
+
+
 # ── PowerPoint export — dark premium template ────────────────────────────────
 # Built entirely from a blank Presentation (no template file required).
 #
@@ -929,17 +1091,6 @@ if _pi_source_mode != 'ongoing':
 else:
     uploaded_files = None
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
-st.sidebar.markdown(
-    "<div style='padding:8px 0 14px 0;'>"
-    "<span style='font-size:22px;font-weight:700;color:#FFFFFF;"
-    "font-family:Inter,system-ui,sans-serif;letter-spacing:-0.01em;'>"
-    "Insights App</span></div>"
-    "<hr style='border:none;border-top:1px solid rgba(255,255,255,0.25);margin:0 0 14px 0;'>",
-    unsafe_allow_html=True,
-)
-st.sidebar.subheader("Loaded Files")
-
 # ── Main header ───────────────────────────────────────────────────────────────
 st.title("Performance & Insights")
 st.markdown(
@@ -950,11 +1101,11 @@ st.markdown(
 )
 
 # ── Process files ─────────────────────────────────────────────────────────────
-if not uploaded_files:
+if not uploaded_files and _pi_source_mode != 'ongoing':
     # Clear stored file info so expander resets to expanded when files are removed
     st.session_state.pop("_uploader_loaded_info", None)
 
-    # Change 7: File Upload mode empty state — stop rendering when no file is uploaded
+    # File Upload mode empty state — stop rendering when no file is uploaded
     if _pi_source_mode == 'one-off':
         st.markdown("""
         <div style="text-align:center;padding:60px 20px;background:#FFFFFF;
@@ -973,56 +1124,40 @@ if not uploaded_files:
         """, unsafe_allow_html=True)
         st.stop()
 
-    # Show a friendly prompt when nothing is uploaded yet (for other modes)
-    st.markdown("""
-    <div style='text-align:center;padding:48px 0;color:#9ca3af;'>
-        <div style='font-size:48px;margin-bottom:12px;'>📂</div>
-        <div style='font-size:16px;font-weight:600;'>No files uploaded yet</div>
-        <div style='font-size:13px;margin-top:6px;'>Supports CSV, TSV, and Excel exports from DV360, TTD, and other DSPs</div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.sidebar.markdown("_No files loaded yet._")
+    st.stop()
 
 else:
-    # Load and stack all uploaded files into one DataFrame
-    frames = []
-    file_info = []   # used to populate the sidebar
+    # ── API (ongoing) mode: load mock data ────────────────────────────────────
+    if _pi_source_mode == 'ongoing':
+        df_all = generate_api_mock_data()
+        # Share with portfolio overview page
+        st.session_state["portfolio_df"] = df_all
 
-    with st.spinner("Reading and normalising files…"):
-        for f in uploaded_files:
-            df_file, dsp = load_and_normalise(f)
-            frames.append(df_file)
-            file_info.append({"name": f.name, "rows": len(df_file), "dsp": dsp})
+    else:
+        # ── File Upload mode: load and stack all uploaded files ───────────────
+        frames = []
+        file_info = []
 
-    # Combine all files into a single DataFrame
-    df_all = pd.concat(frames, ignore_index=True)
+        with st.spinner("Reading and normalising files…"):
+            for f in uploaded_files:
+                df_file, dsp = load_and_normalise(f)
+                frames.append(df_file)
+                file_info.append({"name": f.name, "rows": len(df_file), "dsp": dsp})
 
-    # Store file info in session state so the expander label updates on next rerun
-    _file_label = (uploaded_files[0].name if len(uploaded_files) == 1
-                   else f"{len(uploaded_files)} files")
-    st.session_state["_uploader_loaded_info"] = {
-        "label": _file_label,
-        "rows":  len(df_all),
-    }
+        # Combine all files into a single DataFrame
+        df_all = pd.concat(frames, ignore_index=True)
+
+        # Store file info in session state so the expander label updates on next rerun
+        _file_label = (uploaded_files[0].name if len(uploaded_files) == 1
+                       else f"{len(uploaded_files)} files")
+        st.session_state["_uploader_loaded_info"] = {
+            "label": _file_label,
+            "rows":  len(df_all),
+        }
 
     # Parse date column to datetime so the date range filter works correctly
     if "date" in df_all.columns:
         df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
-
-    # ── Sidebar file list ─────────────────────────────────────────────────────
-    badge_class = {"DV360": "badge-dv360", "DV360 YouTube": "badge-dv360",
-                   "TTD": "badge-ttd", "Amazon": "badge-amazon", "Generic": "badge-generic"}
-    sidebar_html = ""
-    for fi in file_info:
-        bc = badge_class.get(fi["dsp"], "badge-generic")
-        sidebar_html += (
-            f"<div style='margin-bottom:10px;font-size:13px;'>"
-            f"<b>{fi['name']}</b>"
-            f"<span class='source-badge {bc}'>{fi['dsp']}</span>"
-            f"<br><span style='color:#6b7280;'>{fi['rows']:,} rows</span>"
-            f"</div>"
-        )
-    st.sidebar.markdown(sidebar_html, unsafe_allow_html=True)
 
     # ── Filter colour styling + small widget sizing ────────────────────────────
     # Soft lavender card around every selectbox, date input, and multiselect.
