@@ -45,9 +45,9 @@ cfg   = load_config()
 prefs = load_prefs()
 
 TIER_MAP = {
-    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "File Upload"]},
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report"]},
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
-    "upload_only":  {"label": "📁 Upload Mode",  "visible": ["File Upload"]},
+    "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
 }
 current_tier    = cfg.get("current_tier", "full_access")
 visible_sections = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["visible"]
@@ -58,9 +58,11 @@ st.session_state["current_tier"] = current_tier
 # ── Onboarding step (used for CSS highlights) ────────────────────────────────
 ob_step = st.session_state.get("onboarding_step", 1)
 
-# ── Global CSS ───────────────────────────────────────────────────────────────
+# ── Global CSS (Change 1: modern SaaS redesign) ───────────────────────────────
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
     /* Hide Streamlit default UI chrome */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -68,30 +70,102 @@ st.markdown("""
     .stDeployButton {display: none;}
     .block-container {padding-top: 1rem;}
 
-    /* Base font */
+    /* Hide auto-generated sidebar nav (replaced by custom collapsible nav) */
+    [data-testid="stSidebarNav"] { display: none !important; }
+
+    /* Base font — Inter from Google Fonts */
     html, body, [class*="css"] {
         font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
     }
 
-    /* ── Sidebar: remove default top padding so logo sits flush at top ── */
+    /* ── Metric cards: 16px radius, 24px padding, lighter background ── */
+    [data-testid="metric-container"] {
+        border-radius: 16px !important;
+        padding: 24px !important;
+        background: #FAFAFA !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+        border: none !important;
+    }
+
+    /* ── Chart containers: 20px padding, 16px radius ─────────────── */
+    .element-container:has([data-testid="stPlotlyChart"]) {
+        border-radius: 16px !important;
+        padding: 20px !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+    }
+
+    /* ── Inputs and selectboxes: 10px radius ─────────────────────── */
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] {
+        border-radius: 10px !important;
+    }
+
+    /* ── Buttons: 10px radius, smooth hover ──────────────────────── */
+    .stButton > button {
+        border-radius: 10px !important;
+        transition: all 0.15s ease !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+    }
+
+    /* ── Tables: rounded, no hard border ─────────────────────────── */
+    [data-testid="stDataFrame"] {
+        border-radius: 16px !important;
+        overflow: hidden !important;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+        border: none !important;
+    }
+    /* Table row hover highlight */
+    [data-testid="stDataFrame"] tr:hover > td {
+        background-color: rgba(124,58,237,0.04) !important;
+    }
+
+    /* ── Sidebar: shadow instead of hard border ───────────────────── */
+    section[data-testid="stSidebar"] {
+        box-shadow: 2px 0 16px rgba(0,0,0,0.08) !important;
+    }
     section[data-testid="stSidebar"] > div:first-child {
         padding-top: 0 !important;
     }
 
-    /* ── Sidebar nav section headers (LIVE / REPORTS labels) ─────── */
-    section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
-    section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
-    section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {
+    /* ── Sidebar nav section toggle buttons ──────────────────────── */
+    section[data-testid="stSidebar"] .stButton > button {
+        background: transparent !important;
+        border: none !important;
+        color: #7C3AED !important;
         font-size: 11px !important;
         font-weight: 700 !important;
         letter-spacing: 1.5px !important;
-        color: #7C3AED !important;
-        text-transform: uppercase !important;
-        padding-top: 12px !important;
+        padding: 6px 0 4px 0 !important;
+        box-shadow: none !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(124,58,237,0.06) !important;
+        transform: none !important;
+        box-shadow: none !important;
     }
 
-    /* ── Onboarding highlight class ────────────────────────────── */
+    /* ── Page links in sidebar ──────────────────────────────────── */
+    section[data-testid="stSidebar"] [data-testid="stPageLink"] a,
+    section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] {
+        font-size: 13px !important;
+        color: #374151 !important;
+        padding: 5px 8px !important;
+        border-radius: 8px !important;
+        transition: background 0.15s ease !important;
+        display: block !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stPageLink"] a:hover {
+        background: rgba(124,58,237,0.08) !important;
+        color: #7C3AED !important;
+    }
+
+    /* ── Onboarding highlight class ─────────────────────────────── */
     .onboarding-highlight {
         border: 3px solid #7C3AED !important;
         border-radius: 8px !important;
@@ -154,13 +228,13 @@ if st.session_state.get("dark_mode", False):
     </style>
     """, unsafe_allow_html=True)
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Sidebar (Change 5: collapsible section navigation) ────────────────────────
 with st.sidebar:
     # Pacebird logo — absolute first element in sidebar
     st.markdown("""
     <div style="padding: 20px 16px 12px 16px;
-                border-bottom: 2px solid #7C3AED;
-                margin-bottom: 16px;">
+                border-bottom: 1px solid #E5E7EB;
+                margin-bottom: 12px;">
         <div style="font-size: 24px; font-weight: 800;
                     color: #7C3AED; letter-spacing: -0.5px;">
             🐦 Pacebird
@@ -176,9 +250,47 @@ with st.sidebar:
     dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
     st.session_state["dark_mode"] = dark_mode
 
+    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+
+    # ── API Data section ──────────────────────────────────────────────────────
+    if "API Data" in visible_sections:
+        api_open = st.session_state.get("nav_api_open", True)
+        arrow = "▼" if api_open else "▶"
+        st.markdown(
+            "<hr style='border:none;border-top:1px solid #E5E7EB;margin:8px 0 2px 0;'>",
+            unsafe_allow_html=True,
+        )
+        if st.button(f"{arrow} API DATA", key="nav_api_toggle", use_container_width=True):
+            st.session_state["nav_api_open"] = not api_open
+            st.rerun()
+        if api_open:
+            st.page_link("pages/ongoing_performance.py",    label="Performance & Insights", icon="📊")
+            st.page_link("pages/portfolio_overview.py",     label="Portfolio Overview",     icon="📋")
+            st.page_link("pages/live_campaigns.py",         label="Live Campaigns",         icon="🎯")
+            st.page_link("pages/telco_cross_channel.py",    label="Cross-Channel Dashboard",icon="📡")
+            st.page_link("pages/settings.py",               label="Settings",               icon="⚙️")
+
+    # ── Upload Report section ─────────────────────────────────────────────────
+    if "Upload Report" in visible_sections:
+        ur_open = st.session_state.get("nav_ur_open", True)
+        arrow = "▼" if ur_open else "▶"
+        st.markdown(
+            "<hr style='border:none;border-top:1px solid #E5E7EB;margin:8px 0 2px 0;'>",
+            unsafe_allow_html=True,
+        )
+        if st.button(f"{arrow} UPLOAD REPORT", key="nav_ur_toggle", use_container_width=True):
+            st.session_state["nav_ur_open"] = not ur_open
+            st.rerun()
+        if ur_open:
+            st.page_link("pages/performance_insights.py",        label="Performance & Insights", icon="📊")
+            st.page_link("pages/portfolio_overview_upload.py",   label="Portfolio Overview",     icon="📋")
+            st.page_link("pages/pacing_checker.py",              label="Live Campaigns",         icon="📋")
+            st.page_link("pages/telco_cross_channel_upload.py",  label="Cross-Channel Dashboard",icon="📡")
+            st.page_link("pages/settings_link.py",               label="Settings",               icon="⚙️")
+
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-    # Tier badge — bottom of sidebar area
+    # Tier badge
     st.markdown(
         f"<div style='font-size:11px;color:#6B7280;padding:4px 0 2px 0;'>{tier_label}</div>",
         unsafe_allow_html=True
@@ -227,7 +339,7 @@ if not prefs.get("onboarding_complete", False):
             - The Trade Desk (TTD) CSV reports
             - Generic programmatic CSV files
 
-            Find the upload panel in **File Upload → Performance & Insights**.
+            Find the upload panel in **Upload Report → Performance & Insights**.
 
             *(The file upload area is now highlighted in purple on that page.)*
             """)
@@ -269,8 +381,8 @@ if not prefs.get("onboarding_complete", False):
             **📡 API Data** — Live API-connected workflows
             &nbsp;&nbsp;📊 Performance & Insights · 📋 Portfolio Overview · 🎯 Live Campaigns · 📡 Cross-Channel
 
-            **📁 File Upload** — Drag-and-drop file analysis
-            &nbsp;&nbsp;📊 Performance & Insights · ⏱ Pacing Checker · 📡 Cross-Channel
+            **📁 Upload Report** — Drag-and-drop file analysis
+            &nbsp;&nbsp;📊 Performance & Insights · 📋 Portfolio Overview · 📋 Live Campaigns · 📡 Cross-Channel
 
             **⚙️ Settings** — Brand memory, KPI targets, alert settings, scheduled reports
 
@@ -292,6 +404,8 @@ if not prefs.get("onboarding_complete", False):
     show_onboarding()
 
 # ── Navigation — feature-gated by tier ───────────────────────────────────────
+# Custom sidebar nav is rendered above (Change 5). position="hidden" suppresses
+# Streamlit's auto-generated nav so our collapsible nav is the only one shown.
 API_DATA_PAGES = [
     st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
     st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
@@ -300,18 +414,19 @@ API_DATA_PAGES = [
     st.Page("pages/settings.py",                  title="Settings"),
 ]
 
-FILE_UPLOAD_PAGES = [
+UPLOAD_REPORT_PAGES = [
     st.Page("pages/performance_insights.py",         title="Performance & Insights"),
-    st.Page("pages/pacing_checker.py",               title="Pacing Checker"),
+    st.Page("pages/portfolio_overview_upload.py",    title="Portfolio Overview"),
+    st.Page("pages/pacing_checker.py",               title="Live Campaigns"),
     st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
     st.Page("pages/settings_link.py",                title="Settings"),
 ]
 
 nav_sections = {}
 if "API Data" in visible_sections:
-    nav_sections["📡 LIVE"] = API_DATA_PAGES
-if "File Upload" in visible_sections:
-    nav_sections["📁 REPORTS"] = FILE_UPLOAD_PAGES
+    nav_sections["📡 API DATA"] = API_DATA_PAGES
+if "Upload Report" in visible_sections:
+    nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
 
-pg = st.navigation(nav_sections)
+pg = st.navigation(nav_sections, position="hidden")
 pg.run()
