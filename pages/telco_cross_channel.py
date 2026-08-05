@@ -84,52 +84,52 @@ st.markdown("""
 # Each entry defines a channel/sub-channel with realistic daily spend and
 # performance ranges for mock data generation.
 CHANNELS = [
-    {"channel": "Google Search",  "display": "Google Search Brand",
-     "campaign": "Optus_SEM_Brand_May2026",       "ad_group": "Brand Core Terms",
-     "daily_spend_range": (800, 1400),   "ctr_range": (4.5, 7.2),
-     "cpa_range": (18, 28),  "cpo_range": (22, 35),
-     "conv_rate_range": (3.2, 5.8),  "impressions_range": (12000, 22000)},
-    {"channel": "Google Search",  "display": "Google Search NonBrand",
-     "campaign": "Optus_SEM_NonBrand_May2026",    "ad_group": "Mobile Plans",
-     "daily_spend_range": (1200, 2200),  "ctr_range": (2.1, 3.8),
-     "cpa_range": (35, 55),  "cpo_range": (40, 65),
-     "conv_rate_range": (1.8, 3.2),  "impressions_range": (35000, 65000)},
-    {"channel": "Programmatic",   "display": "Programmatic Display",
-     "campaign": "Optus_DV360_Prospecting_May2026","ad_group": "Display Broad",
-     "daily_spend_range": (600, 1100),   "ctr_range": (0.15, 0.45),
-     "cpa_range": (45, 75),  "cpo_range": (55, 85),
-     "conv_rate_range": (0.8, 1.8),  "impressions_range": (80000, 150000)},
-    {"channel": "Programmatic",   "display": "Programmatic Retargeting",
-     "campaign": "Optus_DV360_Retargeting_May2026","ad_group": "Site Visitors",
-     "daily_spend_range": (400, 800),    "ctr_range": (0.45, 0.95),
-     "cpa_range": (28, 45),  "cpo_range": (32, 52),
-     "conv_rate_range": (1.8, 3.5),  "impressions_range": (40000, 80000)},
-    {"channel": "Meta",           "display": "Meta Prospecting",
-     "campaign": "Optus_Meta_Prospecting_May2026", "ad_group": "Lookalike Audience",
-     "daily_spend_range": (700, 1300),   "ctr_range": (1.2, 2.8),
-     "cpa_range": (38, 62),  "cpo_range": (45, 72),
-     "conv_rate_range": (1.2, 2.4),  "impressions_range": (45000, 90000)},
-    {"channel": "Meta",           "display": "Meta Retargeting",
-     "campaign": "Optus_Meta_Retargeting_May2026", "ad_group": "Website Custom Audience",
-     "daily_spend_range": (350, 650),    "ctr_range": (1.8, 3.5),
-     "cpa_range": (25, 42),  "cpo_range": (30, 48),
-     "conv_rate_range": (2.2, 4.0),  "impressions_range": (18000, 35000)},
-    {"channel": "Affiliates",     "display": "Affiliates",
-     "campaign": "Optus_Affiliates_May2026",       "ad_group": "Comparison Sites",
-     "daily_spend_range": (500, 900),    "ctr_range": (8.5, 14.2),
-     "cpa_range": (15, 25),  "cpo_range": (18, 28),
-     "conv_rate_range": (6.5, 11.0),  "impressions_range": (3000, 7000)},
+    {"channel": "Google Search",    "display": "Google Search Brand",
+     "campaign": "Woolworths_SEM_Brand_May2026",        "ad_group": "Brand Core Terms",
+     "daily_spend_range": (900, 1600),   "ctr_range": (5.0, 8.5),
+     "cpa_range": (12, 20),  "cpo_range": (15, 24),
+     "conv_rate_range": (4.0, 6.5),  "impressions_range": (14000, 24000)},
+    {"channel": "Google Search",    "display": "Google Search NonBrand",
+     "campaign": "Woolworths_SEM_NonBrand_May2026",     "ad_group": "Grocery & Fresh Food",
+     "daily_spend_range": (1400, 2600),  "ctr_range": (2.5, 4.2),
+     "cpa_range": (28, 48),  "cpo_range": (32, 56),
+     "conv_rate_range": (2.0, 3.8),  "impressions_range": (40000, 75000)},
+    {"channel": "Programmatic DV360", "display": "Programmatic Display",
+     "campaign": "Woolworths_DV360_Prospecting_May2026","ad_group": "Display Broad",
+     "daily_spend_range": (700, 1300),   "ctr_range": (0.18, 0.50),
+     "cpa_range": (40, 70),  "cpo_range": (48, 80),
+     "conv_rate_range": (0.9, 2.0),  "impressions_range": (90000, 180000)},
+    {"channel": "Programmatic DV360", "display": "Programmatic Video",
+     "campaign": "Woolworths_DV360_Video_May2026",      "ad_group": "Pre-roll Awareness",
+     "daily_spend_range": (500, 950),    "ctr_range": (0.08, 0.25),
+     "cpa_range": (55, 90),  "cpo_range": (65, 100),
+     "conv_rate_range": (0.5, 1.2),  "impressions_range": (60000, 120000)},
+    {"channel": "Meta",             "display": "Meta Prospecting",
+     "campaign": "Woolworths_Meta_Prospecting_May2026", "ad_group": "Lookalike Shoppers",
+     "daily_spend_range": (800, 1500),   "ctr_range": (1.4, 3.2),
+     "cpa_range": (32, 55),  "cpo_range": (38, 64),
+     "conv_rate_range": (1.5, 2.8),  "impressions_range": (50000, 100000)},
+    {"channel": "Meta",             "display": "Meta Retargeting",
+     "campaign": "Woolworths_Meta_Retargeting_May2026", "ad_group": "Cart Abandoners",
+     "daily_spend_range": (400, 750),    "ctr_range": (2.0, 4.0),
+     "cpa_range": (18, 35),  "cpo_range": (22, 40),
+     "conv_rate_range": (2.8, 5.0),  "impressions_range": (20000, 40000)},
+    {"channel": "Affiliates",       "display": "Affiliates",
+     "campaign": "Woolworths_Affiliates_May2026",       "ad_group": "Cashback & Comparison",
+     "daily_spend_range": (600, 1100),   "ctr_range": (9.0, 15.0),
+     "cpa_range": (10, 18),  "cpo_range": (12, 22),
+     "conv_rate_range": (7.0, 12.0),  "impressions_range": (4000, 8000)},
 ]
 
 # Default CPA targets per display name (used for alert thresholds)
 DEFAULT_CPA_TARGETS = {
-    "Google Search Brand":      25,
-    "Google Search NonBrand":   45,
-    "Programmatic Display":     60,
-    "Programmatic Retargeting": 38,
-    "Meta Prospecting":         50,
-    "Meta Retargeting":         35,
-    "Affiliates":               20,
+    "Google Search Brand":     18,
+    "Google Search NonBrand":  38,
+    "Programmatic Display":    55,
+    "Programmatic Video":      75,
+    "Meta Prospecting":        45,
+    "Meta Retargeting":        28,
+    "Affiliates":              15,
 }
 
 # Blue palette for charts (7 entries, one per channel)
@@ -314,7 +314,7 @@ def build_pptx(summary_dict, channel_df, ai_text=""):
 
     add_textbox(slide1, "Cross-Channel Performance Dashboard",
                 0.5, 0.4, 12, 0.7, font_size=28, bold=True, colour=WHITE)
-    add_textbox(slide1, "Optus — May 2026",
+    add_textbox(slide1, "Woolworths — May 2026",
                 0.5, 1.1, 6, 0.4, font_size=16, colour=BLUE)
 
     # KPI values: 2 rows of metrics
@@ -392,19 +392,29 @@ _telco_data_mode = st.session_state.get('data_mode', 'api')
 st.title("Cross-Channel Performance Dashboard")
 st.markdown(
     "<p style='color:#6B7280; margin-top:-12px;'>Unified biddable media performance across "
-    "SEM, programmatic, social and affiliate channels for Optus.</p>",
+    "Search, programmatic, social and affiliate channels for Woolworths.</p>",
     unsafe_allow_html=True,
 )
 
-# Change 8: Show API banner in API mode, or show file uploader in upload mode
+# Show API banner in API mode, or show file uploader in upload mode
 if _telco_data_mode == 'api':
-    # API Data mode — show live data banner, then render mock data below
-    st.markdown("""
-    <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
-    padding:10px 16px;margin-bottom:12px;">
-        <strong>📡 Live API Data Mode</strong> — showing cross-channel data for Optus.
-    </div>
-    """, unsafe_allow_html=True)
+    # API Data mode — show live data banner with refresh indicator
+    _cc_last = st.session_state.get("cc_last_refreshed", "—")
+    col_cc_banner, col_cc_refresh = st.columns([4, 1])
+    with col_cc_banner:
+        st.markdown("""
+        <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+        padding:10px 16px;margin-bottom:12px;">
+            <strong>📡 Live API Data Mode</strong> — showing cross-channel data for Woolworths.
+        </div>
+        """, unsafe_allow_html=True)
+    with col_cc_refresh:
+        if st.button("🔄 Refresh", key="cc_refresh_btn"):
+            from datetime import datetime
+            st.session_state["cc_last_refreshed"] = datetime.now().strftime("%H:%M:%S")
+            st.rerun()
+    if _cc_last != "—":
+        st.caption(f"Last refreshed: {_cc_last}")
 
 if _telco_data_mode == 'upload':
     # File Upload mode — show uploader and stop before mock data renders
@@ -447,36 +457,11 @@ if _telco_data_mode == 'upload':
             st.error(f"Could not read file: {_e}")
         st.stop()
 
-# ── Upload expander — shown only in API mode for optional data override ────────
-# (When in upload mode, we already handled everything above and called st.stop())
-with st.expander("📁 Upload Channel Reports"):
-    uploaded_files = st.file_uploader(
-        "Upload channel export files (CSV or XLSX)",
-        type=["csv", "xlsx"],
-        accept_multiple_files=True,
-        key="cc_upload",
-    )
-    if uploaded_files:
-        parsed = parse_upload_files(uploaded_files)
-        if parsed is not None:
-            st.session_state["telco_channel_data"] = parsed
-            n_ch   = parsed["Channel"].nunique()
-            n_days = parsed["Date"].nunique() if "Date" in parsed.columns else 0
-            st.success(
-                f"✅ {len(uploaded_files)} file(s) loaded — {n_ch} channels, {n_days} days"
-            )
-        else:
-            st.error("Could not parse the uploaded file(s). Check column names and format.")
-
-# ── Data source: uploaded or mock ─────────────────────────────────────────────
+# ── Data source: mock data (API mode) or session data (upload mode) ───────────
 if st.session_state.get("telco_channel_data") is not None:
     active_df = st.session_state["telco_channel_data"]
-    n_ch   = active_df["Channel"].nunique()
-    n_days = active_df["Date"].nunique() if "Date" in active_df.columns else 0
-    st.success(f"✅ Using uploaded data — {n_ch} channels, {n_days} days")
 else:
     active_df = generate_mock_data()
-    st.warning("⚠️ Using mock data — upload reports to use live data")
 
 # Determine which column to use for granular display names
 dn_col = "Display Name" if "Display Name" in active_df.columns else "Channel"
@@ -902,7 +887,7 @@ else:
                     break
         flagged_str = ", ".join(flagged) if flagged else "None"
 
-        prompt = f"""You are a senior programmatic media analyst reviewing cross-channel paid media performance for Optus Australia.
+        prompt = f"""You are a senior programmatic media analyst reviewing cross-channel paid media performance for Woolworths Australia.
 
 CHANNEL PERFORMANCE SUMMARY:
 {channel_summary_str}
@@ -973,7 +958,7 @@ if st.session_state.get("cc_pptx"):
     st.download_button(
         label="Save .pptx",
         data=st.session_state["cc_pptx"],
-        file_name=f"{date.today()}_optus_cross_channel.pptx",
+        file_name=f"{date.today()}_woolworths_cross_channel.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
 
