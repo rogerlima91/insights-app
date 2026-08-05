@@ -1,15 +1,26 @@
 {
   "access_tiers": {
     "api_only": {
-      "visible": ["API Data"],
-      "hidden": ["File Upload"]
+      "visible": [
+        "API Data"
+      ],
+      "hidden": [
+        "File Upload"
+      ]
     },
     "upload_only": {
-      "visible": ["File Upload"],
-      "hidden": ["API Data"]
+      "visible": [
+        "File Upload"
+      ],
+      "hidden": [
+        "API Data"
+      ]
     },
     "full_access": {
-      "visible": ["API Data", "File Upload"],
+      "visible": [
+        "API Data",
+        "File Upload"
+      ],
       "hidden": []
     }
   },
