@@ -1139,7 +1139,7 @@ else:
         file_info = []
 
         with st.spinner("Reading and normalising files…"):
-            for f in uploaded_files:
+            for f in (uploaded_files or []):
                 df_file, dsp = load_and_normalise(f)
                 frames.append(df_file)
                 file_info.append({"name": f.name, "rows": len(df_file), "dsp": dsp})
@@ -1148,8 +1148,8 @@ else:
         df_all = pd.concat(frames, ignore_index=True)
 
         # Store file info in session state so the expander label updates on next rerun
-        _file_label = (uploaded_files[0].name if len(uploaded_files) == 1
-                       else f"{len(uploaded_files)} files")
+        _file_label = (uploaded_files[0].name if len(uploaded_files or []) == 1
+                       else f"{len(uploaded_files or [])} files")
         st.session_state["_uploader_loaded_info"] = {
             "label": _file_label,
             "rows":  len(df_all),
@@ -2408,7 +2408,7 @@ Provide a direct, specific answer in plain English. Include the specific numbers
 
     # Show total rows and which files contributed
     total_rows  = len(df_all)
-    file_count  = len(uploaded_files)
+    file_count  = len(uploaded_files or [])
     st.markdown(
         f"<p style='color:#6b7280;font-size:13px;margin-top:-8px;'>"
         f"{total_rows:,} rows loaded from {file_count} file{'s' if file_count > 1 else ''}.</p>",
