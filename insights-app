@@ -1,0 +1,36 @@
+[1mdiff --git a/app.py b/app.py[m
+[1mindex 78f5ee5..b12e59a 100644[m
+[1m--- a/app.py[m
+[1m+++ b/app.py[m
+[36m@@ -187,9 +187,10 @@[m [mif not prefs.get("onboarding_complete", False):[m
+         }[m
+         </style>""", unsafe_allow_html=True)[m
+ [m
+[31m-# ── Navigation setup (must come before st.page_link() calls in sidebar) ──────[m
+[31m-# position="hidden" suppresses Streamlit's auto-generated nav so our custom[m
+[31m-# collapsible sidebar nav is the only one shown.[m
+[32m+[m[32m# ── Navigation ────────────────────────────────────────────────────────────────[m
+[32m+[m[32m# st.navigation() with a dict of sections renders the nav automatically in the[m
+[32m+[m[32m# sidebar. Each key becomes a section header; each value is a list of st.Page[m
+[32m+[m[32m# objects. No st.page_link() calls needed — Streamlit handles all routing.[m
+ API_DATA_PAGES = [[m
+     st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),[m
+     st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),[m
+[36m@@ -206,13 +207,13 @@[m [mUPLOAD_REPORT_PAGES = [[m
+     st.Page("pages/settings_link.py",                title="Settings"),[m
+ ][m
+ [m
+[31m-_nav_sections = {}[m
+[32m+[m[32mnav_sections = {}[m
+ if "API Data" in visible_sections:[m
+[31m-    _nav_sections["📡 API DATA"] = API_DATA_PAGES[m
+[32m+[m[32m    nav_sections["📡 API DATA"] = API_DATA_PAGES[m
+ if "Upload Report" in visible_sections:[m
+[31m-    _nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES[m
+[32m+[m[32m    nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES[m
+ [m
+[31m-pg = st.navigation(_nav_sections)[m
+[32m+[m[32mpg = st.navigation(nav_sections)[m
+ [m
+ # ── Dark mode CSS ────────────────────────────────────────────────────────────[m
+ if st.session_state.get("dark_mode", False):[m
