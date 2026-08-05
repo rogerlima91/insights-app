@@ -49,13 +49,39 @@ TIER_MAP = {
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
     "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
 }
-current_tier    = cfg.get("current_tier", "full_access")
+current_tier     = cfg.get("current_tier", "full_access")
 visible_sections = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["visible"]
 tier_label       = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["label"]
 
-st.session_state["current_tier"] = current_tier
+# ── Navigation — must be the FIRST Streamlit command after set_page_config ────
+# Streamlit requires st.navigation() before any other st.* calls.
+# All CSS, sidebar content, and page rendering come after this block.
+API_DATA_PAGES = [
+    st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
+    st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
+    st.Page("pages/live_campaigns.py",            title="Live Campaigns"),
+    st.Page("pages/telco_cross_channel.py",       title="Cross-Channel Dashboard"),
+    st.Page("pages/settings.py",                  title="Settings"),
+]
 
-# ── Onboarding step (used for CSS highlights) ────────────────────────────────
+UPLOAD_REPORT_PAGES = [
+    st.Page("pages/performance_insights.py",         title="Performance & Insights"),
+    st.Page("pages/portfolio_overview_upload.py",    title="Portfolio Overview"),
+    st.Page("pages/pacing_checker.py",               title="Live Campaigns"),
+    st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
+    st.Page("pages/settings_link.py",                title="Settings"),
+]
+
+nav_sections = {}
+if "API Data" in visible_sections:
+    nav_sections["📡 API DATA"] = API_DATA_PAGES
+if "Upload Report" in visible_sections:
+    nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
+
+pg = st.navigation(nav_sections)
+
+# ── Session state and onboarding step ────────────────────────────────────────
+st.session_state["current_tier"] = current_tier
 ob_step = st.session_state.get("onboarding_step", 1)
 
 # ── Global CSS (Change 1: modern SaaS redesign) ───────────────────────────────
@@ -186,34 +212,6 @@ if not prefs.get("onboarding_complete", False):
             animation: pulse-border 2s infinite !important;
         }
         </style>""", unsafe_allow_html=True)
-
-# ── Navigation ────────────────────────────────────────────────────────────────
-# st.navigation() with a dict of sections renders the nav automatically in the
-# sidebar. Each key becomes a section header; each value is a list of st.Page
-# objects. No st.page_link() calls needed — Streamlit handles all routing.
-API_DATA_PAGES = [
-    st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
-    st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
-    st.Page("pages/live_campaigns.py",            title="Live Campaigns"),
-    st.Page("pages/telco_cross_channel.py",       title="Cross-Channel Dashboard"),
-    st.Page("pages/settings.py",                  title="Settings"),
-]
-
-UPLOAD_REPORT_PAGES = [
-    st.Page("pages/performance_insights.py",         title="Performance & Insights"),
-    st.Page("pages/portfolio_overview_upload.py",    title="Portfolio Overview"),
-    st.Page("pages/pacing_checker.py",               title="Live Campaigns"),
-    st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
-    st.Page("pages/settings_link.py",                title="Settings"),
-]
-
-nav_sections = {}
-if "API Data" in visible_sections:
-    nav_sections["📡 API DATA"] = API_DATA_PAGES
-if "Upload Report" in visible_sections:
-    nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
-
-pg = st.navigation(nav_sections)
 
 # ── Dark mode CSS ────────────────────────────────────────────────────────────
 if st.session_state.get("dark_mode", False):
