@@ -212,6 +212,33 @@ if not prefs.get("onboarding_complete", False):
         }
         </style>""", unsafe_allow_html=True)
 
+# ── Navigation setup (must come before st.page_link() calls in sidebar) ──────
+# position="hidden" suppresses Streamlit's auto-generated nav so our custom
+# collapsible sidebar nav is the only one shown.
+API_DATA_PAGES = [
+    st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
+    st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
+    st.Page("pages/live_campaigns.py",            title="Live Campaigns"),
+    st.Page("pages/telco_cross_channel.py",       title="Cross-Channel Dashboard"),
+    st.Page("pages/settings.py",                  title="Settings"),
+]
+
+UPLOAD_REPORT_PAGES = [
+    st.Page("pages/performance_insights.py",         title="Performance & Insights"),
+    st.Page("pages/portfolio_overview_upload.py",    title="Portfolio Overview"),
+    st.Page("pages/pacing_checker.py",               title="Live Campaigns"),
+    st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
+    st.Page("pages/settings_link.py",                title="Settings"),
+]
+
+_nav_sections = {}
+if "API Data" in visible_sections:
+    _nav_sections["📡 API DATA"] = API_DATA_PAGES
+if "Upload Report" in visible_sections:
+    _nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
+
+pg = st.navigation(_nav_sections, position="hidden")
+
 # ── Dark mode CSS ────────────────────────────────────────────────────────────
 if st.session_state.get("dark_mode", False):
     st.markdown("""
@@ -403,30 +430,5 @@ if not prefs.get("onboarding_complete", False):
 
     show_onboarding()
 
-# ── Navigation — feature-gated by tier ───────────────────────────────────────
-# Custom sidebar nav is rendered above (Change 5). position="hidden" suppresses
-# Streamlit's auto-generated nav so our collapsible nav is the only one shown.
-API_DATA_PAGES = [
-    st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
-    st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
-    st.Page("pages/live_campaigns.py",            title="Live Campaigns"),
-    st.Page("pages/telco_cross_channel.py",       title="Cross-Channel Dashboard"),
-    st.Page("pages/settings.py",                  title="Settings"),
-]
-
-UPLOAD_REPORT_PAGES = [
-    st.Page("pages/performance_insights.py",         title="Performance & Insights"),
-    st.Page("pages/portfolio_overview_upload.py",    title="Portfolio Overview"),
-    st.Page("pages/pacing_checker.py",               title="Live Campaigns"),
-    st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
-    st.Page("pages/settings_link.py",                title="Settings"),
-]
-
-nav_sections = {}
-if "API Data" in visible_sections:
-    nav_sections["📡 API DATA"] = API_DATA_PAGES
-if "Upload Report" in visible_sections:
-    nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
-
-pg = st.navigation(nav_sections, position="hidden")
+# ── Run the selected page ─────────────────────────────────────────────────────
 pg.run()
