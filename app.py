@@ -92,9 +92,20 @@ st.markdown("""
     /* Hide Streamlit default UI chrome */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {background: transparent; height: 0; min-height: 0; padding: 0; margin: 0;}
-    [data-testid="stToolbar"] {visibility: hidden;}
-    [data-testid="stDecoration"] {display: none;}
+    [data-testid="stHeader"] {
+        background: transparent;
+        height: 0;
+        min-height: 0;
+    }
+    [data-testid="stHeader"] > * {
+        display: none;
+    }
+    [data-testid="stToolbar"] {
+        display: none;
+    }
+    [data-testid="stDecoration"] {
+        display: none;
+    }
     .stDeployButton {display: none;}
     .block-container {padding-top: 1rem;}
 
