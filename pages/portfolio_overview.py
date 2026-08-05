@@ -3,8 +3,6 @@ import pandas as pd
 import plotly.express as px
 import json
 import os
-import random
-from datetime import date, timedelta
 
 # ── Global CSS ─────────────────────────────────────────────────────────────────
 # STYLE LOCK: Do not remove or modify this CSS block.
@@ -91,47 +89,28 @@ def rag_status(actual, target, higher_is_better=True):
         elif pct <= 25: return "#F59E0B", "🟡"
         else: return "#EF4444", "🔴"
 
-# ── Mock data for API/Live mode ─────────────────────────────────────────────────
-@st.cache_data
-def _generate_portfolio_mock_data():
-    """Generate 30 days of mock data for Woolworths, CBA, and Toyota Australia."""
-    rng = random.Random(42)
-    today = date(2026, 7, 28)
-    start = today - timedelta(days=29)
-
-    CAMPAIGNS = [
-        {"campaign": "Woolworths",         "imps_r": (110000, 200000), "cpm_r": (5.0, 7.5),  "ctr_r": (0.003, 0.006)},
-        {"campaign": "Commonwealth Bank",  "imps_r": (50000,  110000), "cpm_r": (13.0, 20.0), "ctr_r": (0.002, 0.005)},
-        {"campaign": "Toyota Australia",   "imps_r": (80000,  160000), "cpm_r": (9.0, 14.0),  "ctr_r": (0.003, 0.006)},
-    ]
-
-    rows = []
-    for day_offset in range(30):
-        current_date = start + timedelta(days=day_offset)
-        for camp in CAMPAIGNS:
-            imps = rng.randint(*camp["imps_r"])
-            ctr  = rng.uniform(*camp["ctr_r"])
-            cpm  = rng.uniform(*camp["cpm_r"])
-            clicks    = max(round(imps * ctr), 1)
-            spend_usd = round(imps / 1000 * cpm, 2)
-            conversions = max(round(clicks * rng.uniform(0.02, 0.07)), 0)
-            rows.append({
-                "campaign":    camp["campaign"],
-                "impressions": imps,
-                "clicks":      clicks,
-                "spend_usd":   spend_usd,
-                "conversions": conversions,
-            })
-
-    return pd.DataFrame(rows)
-
-# ── Check for shared data (set by Performance & Insights in API mode) ───────────
+# ── Check for shared data (set by Performance & Insights when files are uploaded) ──
 shared_df = st.session_state.get("portfolio_df", None)
 
-# In API/Live mode, fall back to mock data if no shared data yet
+# ── Empty state — shown when no data has been uploaded yet ─────────────────────
 if shared_df is None:
-    shared_df = _generate_portfolio_mock_data()
-    st.session_state["portfolio_df"] = shared_df
+    st.markdown("""
+    <div style="text-align:center;padding:60px 20px;background:#FFFFFF;
+    border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin:20px 0;">
+        <div style="font-size:48px;margin-bottom:16px;">📂</div>
+        <div style="font-size:20px;font-weight:700;color:#111827;margin-bottom:8px;">
+            No data loaded yet
+        </div>
+        <div style="font-size:15px;color:#6B7280;margin-bottom:4px;">
+            Upload DSP exports to see your portfolio overview
+        </div>
+        <div style="font-size:13px;color:#9CA3AF;">
+            Accepted formats: CSV, XLSX, XLS
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.info("💡 Upload your data in **Performance & Insights** — this page will update automatically.")
+    st.stop()
 
 st.markdown("---")
 
