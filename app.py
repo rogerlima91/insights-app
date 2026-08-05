@@ -187,9 +187,10 @@ if not prefs.get("onboarding_complete", False):
         }
         </style>""", unsafe_allow_html=True)
 
-# ── Navigation setup (must come before st.page_link() calls in sidebar) ──────
-# position="hidden" suppresses Streamlit's auto-generated nav so our custom
-# collapsible sidebar nav is the only one shown.
+# ── Navigation ────────────────────────────────────────────────────────────────
+# st.navigation() with a dict of sections renders the nav automatically in the
+# sidebar. Each key becomes a section header; each value is a list of st.Page
+# objects. No st.page_link() calls needed — Streamlit handles all routing.
 API_DATA_PAGES = [
     st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
     st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
@@ -206,13 +207,13 @@ UPLOAD_REPORT_PAGES = [
     st.Page("pages/settings_link.py",                title="Settings"),
 ]
 
-_nav_sections = {}
+nav_sections = {}
 if "API Data" in visible_sections:
-    _nav_sections["📡 API DATA"] = API_DATA_PAGES
+    nav_sections["📡 API DATA"] = API_DATA_PAGES
 if "Upload Report" in visible_sections:
-    _nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
+    nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
 
-pg = st.navigation(_nav_sections)
+pg = st.navigation(nav_sections)
 
 # ── Dark mode CSS ────────────────────────────────────────────────────────────
 if st.session_state.get("dark_mode", False):
