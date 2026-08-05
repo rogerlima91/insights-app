@@ -3,7 +3,7 @@ import json
 import os
 
 # ── Page config ─────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Pacebird", layout="wide")
+st.set_page_config(page_title="Pacebird", layout="wide", initial_sidebar_state="expanded")
 
 # ── DESIGN SYSTEM LOCK — do not modify these values ─────────────────────────
 # Primary: #7C3AED  Secondary: #2563EB  Success: #10B981
@@ -92,7 +92,8 @@ st.markdown("""
     /* Hide Streamlit default UI chrome */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header {background: transparent;}
+    [data-testid="stToolbar"] {visibility: hidden;}
     .stDeployButton {display: none;}
     .block-container {padding-top: 1rem;}
 
