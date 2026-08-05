@@ -70,9 +70,6 @@ st.markdown("""
     .stDeployButton {display: none;}
     .block-container {padding-top: 1rem;}
 
-    /* Hide auto-generated sidebar nav (replaced by custom collapsible nav) */
-    [data-testid="stSidebarNav"] { display: none !important; }
-
     /* Base font — Inter from Google Fonts */
     html, body, [class*="css"] {
         font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -131,38 +128,16 @@ st.markdown("""
         padding-top: 0 !important;
     }
 
-    /* ── Sidebar nav section toggle buttons ──────────────────────── */
-    section[data-testid="stSidebar"] .stButton > button {
-        background: transparent !important;
-        border: none !important;
-        color: #7C3AED !important;
+    /* ── Sidebar nav section headers (API DATA / UPLOAD REPORT labels) ── */
+    section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
+    section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
+    section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {
         font-size: 11px !important;
         font-weight: 700 !important;
         letter-spacing: 1.5px !important;
-        padding: 6px 0 4px 0 !important;
-        box-shadow: none !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(124,58,237,0.06) !important;
-        transform: none !important;
-        box-shadow: none !important;
-    }
-
-    /* ── Page links in sidebar ──────────────────────────────────── */
-    section[data-testid="stSidebar"] [data-testid="stPageLink"] a,
-    section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] {
-        font-size: 13px !important;
-        color: #374151 !important;
-        padding: 5px 8px !important;
-        border-radius: 8px !important;
-        transition: background 0.15s ease !important;
-        display: block !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stPageLink"] a:hover {
-        background: rgba(124,58,237,0.08) !important;
         color: #7C3AED !important;
+        text-transform: uppercase !important;
+        padding-top: 12px !important;
     }
 
     /* ── Onboarding highlight class ─────────────────────────────── */
@@ -237,7 +212,7 @@ if "API Data" in visible_sections:
 if "Upload Report" in visible_sections:
     _nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
 
-pg = st.navigation(_nav_sections, position="hidden")
+pg = st.navigation(_nav_sections)
 
 # ── Dark mode CSS ────────────────────────────────────────────────────────────
 if st.session_state.get("dark_mode", False):
@@ -255,7 +230,7 @@ if st.session_state.get("dark_mode", False):
     </style>
     """, unsafe_allow_html=True)
 
-# ── Sidebar (Change 5: collapsible section navigation) ────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     # Pacebird logo — absolute first element in sidebar
     st.markdown("""
@@ -276,44 +251,6 @@ with st.sidebar:
     # Dark/Light mode toggle
     dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
     st.session_state["dark_mode"] = dark_mode
-
-    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-
-    # ── API Data section ──────────────────────────────────────────────────────
-    if "API Data" in visible_sections:
-        api_open = st.session_state.get("nav_api_open", True)
-        arrow = "▼" if api_open else "▶"
-        st.markdown(
-            "<hr style='border:none;border-top:1px solid #E5E7EB;margin:8px 0 2px 0;'>",
-            unsafe_allow_html=True,
-        )
-        if st.button(f"{arrow} API DATA", key="nav_api_toggle", use_container_width=True):
-            st.session_state["nav_api_open"] = not api_open
-            st.rerun()
-        if api_open:
-            st.page_link("pages/ongoing_performance.py",    label="Performance & Insights", icon="📊")
-            st.page_link("pages/portfolio_overview.py",     label="Portfolio Overview",     icon="📋")
-            st.page_link("pages/live_campaigns.py",         label="Live Campaigns",         icon="🎯")
-            st.page_link("pages/telco_cross_channel.py",    label="Cross-Channel Dashboard",icon="📡")
-            st.page_link("pages/settings.py",               label="Settings",               icon="⚙️")
-
-    # ── Upload Report section ─────────────────────────────────────────────────
-    if "Upload Report" in visible_sections:
-        ur_open = st.session_state.get("nav_ur_open", True)
-        arrow = "▼" if ur_open else "▶"
-        st.markdown(
-            "<hr style='border:none;border-top:1px solid #E5E7EB;margin:8px 0 2px 0;'>",
-            unsafe_allow_html=True,
-        )
-        if st.button(f"{arrow} UPLOAD REPORT", key="nav_ur_toggle", use_container_width=True):
-            st.session_state["nav_ur_open"] = not ur_open
-            st.rerun()
-        if ur_open:
-            st.page_link("pages/performance_insights.py",        label="Performance & Insights", icon="📊")
-            st.page_link("pages/portfolio_overview_upload.py",   label="Portfolio Overview",     icon="📋")
-            st.page_link("pages/pacing_checker.py",              label="Live Campaigns",         icon="📋")
-            st.page_link("pages/telco_cross_channel_upload.py",  label="Cross-Channel Dashboard",icon="📡")
-            st.page_link("pages/settings_link.py",               label="Settings",               icon="⚙️")
 
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
