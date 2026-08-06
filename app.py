@@ -87,24 +87,26 @@ if "Upload Report" in visible_sections:
 # ── appears above the nav section headers in the sidebar
 with st.sidebar:
     st.markdown(f"""
-    <div style="display:flex;justify-content:center;padding:20px 16px 8px 16px;">
-        <div style="width:52px;height:52px;border-radius:50%;
-                    background:{PRIMARY};
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:22px;font-weight:700;color:{WHITE};
-                    box-shadow:0 2px 8px rgba(0,0,0,0.25);">
-            P
+    <div class="pacebird-logo">
+        <div style="display:flex;justify-content:center;padding:20px 16px 8px 16px;">
+            <div style="width:52px;height:52px;border-radius:50%;
+                        background:{PRIMARY};
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:22px;font-weight:700;color:{WHITE};
+                        box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+                P
+            </div>
         </div>
-    </div>
-    <div style="padding:4px 16px 12px 16px;
-                border-bottom:1px solid rgba(255,255,255,0.15);
-                margin-bottom:12px;text-align:center;">
-        <div style="font-size:22px;font-weight:800;
-                    color:{WHITE};letter-spacing:-0.5px;">
-            🐦 Pacebird
-        </div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px;">
-            Programmatic Intelligence
+        <div style="padding:4px 16px 12px 16px;
+                    border-bottom:1px solid rgba(255,255,255,0.15);
+                    margin-bottom:12px;text-align:center;">
+            <div style="font-size:22px;font-weight:800;
+                        color:{WHITE};letter-spacing:-0.5px;">
+                🐦 Pacebird
+            </div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px;">
+                Programmatic Intelligence
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -126,6 +128,22 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] > div:first-child {{
         padding-top: 0 !important;
+        position: relative;
+    }}
+    /* Logo: pinned to top of sidebar via absolute positioning */
+    .pacebird-logo {{
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        padding: 16px 0 12px 0;
+        text-align: center;
+        background-color: {SECONDARY};
+    }}
+    /* Push nav links down so they start below the logo block */
+    [data-testid="stSidebarNav"] {{
+        margin-top: 150px !important;
     }}
     section[data-testid="stSidebar"] * {{
         color: {WHITE} !important;
@@ -202,6 +220,34 @@ st.markdown(f"""
         min-height: 28px !important;
         font-size: 12px !important;
         font-family: "Poppins", system-ui, sans-serif !important;
+    }}
+
+    /* ── Selectbox / multiselect inner BaseWeb node height ──────── */
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+        min-height: 30px !important;
+        height: 30px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }}
+    div[data-baseweb="select"] div[data-baseweb="input"],
+    div[data-baseweb="select"] [class*="ValueContainer"],
+    div[data-baseweb="select"] input {{
+        min-height: 28px !important;
+        height: 28px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        line-height: 28px !important;
+    }}
+    [data-testid="stSelectbox"] [data-testid="stWidgetLabel"],
+    [data-testid="stDateInput"] [data-testid="stWidgetLabel"],
+    [data-testid="stMultiSelect"] [data-testid="stWidgetLabel"] {{
+        min-height: 0 !important;
+        margin-bottom: 2px !important;
+    }}
+    [data-testid="stDateInput"] div[data-baseweb="input"] {{
+        min-height: 30px !important;
+        height: 30px !important;
     }}
 
     /* ── Inputs and selectboxes: rounded corners ─────────────────── */
