@@ -307,7 +307,7 @@ with tab_bm:
                             display_date = entry.get("timestamp", "")
 
                         if entry_type == "manual":
-                            badge_color, badge_label = "#2563EB", "Manual"
+                            badge_color, badge_label = "#1B2A4A", "Manual"
                         elif entry_type == "transcript":
                             badge_color, badge_label = "#F59E0B", "Transcript"
                         else:

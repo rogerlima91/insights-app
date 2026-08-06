@@ -1093,12 +1093,6 @@ else:
 
 # ── Main header ───────────────────────────────────────────────────────────────
 st.title("Performance & Insights")
-st.markdown(
-    "<p style='color:#6b7280;font-size:14px;margin-top:-12px;'>"
-    "Upload CSV exports from DV360, TTD or any DSP to generate insights and reports."
-    "</p>",
-    unsafe_allow_html=True,
-)
 
 # ── Process files ─────────────────────────────────────────────────────────────
 if not uploaded_files and _pi_source_mode != 'ongoing':
@@ -1158,31 +1152,6 @@ else:
     # Parse date column to datetime so the date range filter works correctly
     if "date" in df_all.columns:
         df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
-
-    # ── Filter colour styling + small widget sizing ────────────────────────────
-    # Soft lavender card around every selectbox, date input, and multiselect.
-    # Font size reduced to 13px and padding tightened so filter controls stay compact.
-    st.markdown("""
-    <style>
-    [data-testid="stSelectbox"],
-    [data-testid="stDateInput"],
-    [data-testid="stMultiSelect"] {
-        background-color : #F5F3FF;
-        border           : 1px solid #DDD6FE;
-        border-radius    : 8px;
-        padding          : 4px 6px 2px 6px;
-    }
-    [data-testid="stSelectbox"] label,
-    [data-testid="stMultiSelect"] label,
-    [data-testid="stDateInput"] label {
-        font-size: 13px !important;
-    }
-    [data-testid="stSelectbox"] div[data-baseweb="select"] *,
-    [data-testid="stMultiSelect"] div[data-baseweb="select"] * {
-        font-size: 13px !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     # ── Global filters — side by side ─────────────────────────────────────────
     # Advertiser filter + DSP filter always shown; date range filter appears only
@@ -1730,21 +1699,33 @@ else:
 
                 period_toggle = st.radio(
                     "Comparison period:",
-                    ["Week-on-Week", "Month-on-Month"],
+                    ["WoW", "MoM", "QoQ", "YoY"],
                     horizontal=True,
                     key="period_toggle"
                 )
 
                 today = df_all['_date_parsed'].max()
 
-                if period_toggle == "Week-on-Week":
-                    current_start = today - pd.Timedelta(days=6)
+                if period_toggle == "WoW":
+                    # Week on Week: last 7 days vs prior 7 days
+                    current_start  = today - pd.Timedelta(days=6)
                     previous_start = today - pd.Timedelta(days=13)
-                    previous_end = today - pd.Timedelta(days=7)
-                else:  # Month-on-Month
-                    current_start = today - pd.Timedelta(days=29)
+                    previous_end   = today - pd.Timedelta(days=7)
+                elif period_toggle == "MoM":
+                    # Month on Month: last 30 days vs prior 30 days
+                    current_start  = today - pd.Timedelta(days=29)
                     previous_start = today - pd.Timedelta(days=59)
-                    previous_end = today - pd.Timedelta(days=30)
+                    previous_end   = today - pd.Timedelta(days=30)
+                elif period_toggle == "QoQ":
+                    # Quarter on Quarter: last 90 days vs prior 90 days
+                    current_start  = today - pd.Timedelta(days=89)
+                    previous_start = today - pd.Timedelta(days=179)
+                    previous_end   = today - pd.Timedelta(days=90)
+                else:  # YoY
+                    # Year on Year: last 365 days vs prior 365 days
+                    current_start  = today - pd.Timedelta(days=364)
+                    previous_start = today - pd.Timedelta(days=729)
+                    previous_end   = today - pd.Timedelta(days=365)
 
                 current_df = df_all[df_all['_date_parsed'] >= current_start]
                 previous_df = df_all[(df_all['_date_parsed'] >= previous_start) & (df_all['_date_parsed'] <= previous_end)]
@@ -2151,20 +2132,30 @@ else:
         except Exception:
             return ""
 
-    if st.button("🔄 Refresh AI Analysis", key="refresh_ai_analysis"):
+    # Button row: Run triggers the API call; Refresh clears the cached result
+    _ai_btn_cols = st.columns([2, 1])
+    with _ai_btn_cols[0]:
+        _run_ai_btn = st.button("🤖 Run AI Analysis", type="primary", key="run_ai_analysis")
+    with _ai_btn_cols[1]:
+        if st.session_state.get("ai_analysis_result") and st.button("🔄 Refresh", key="refresh_ai_analysis"):
+            st.session_state.pop("ai_analysis_result", None)
+            st.rerun()
+
+    # Only call the Claude API when the Run button is clicked
+    if _run_ai_btn:
         st.session_state.pop("ai_analysis_result", None)
 
-    if "ai_analysis_result" not in st.session_state:
-        # Build the prompt using column names and a data sample
         columns_list = list(df_all.columns)
-        sample_rows = df_all.head(50).to_string(index=False, max_cols=20)
-        brand_ctx = get_brand_context_for_ai(df_all)
+        sample_rows  = df_all.head(50).to_string(index=False, max_cols=20)
+        brand_ctx    = get_brand_context_for_ai(df_all)
 
         brand_ctx_injection = ""
         if brand_ctx:
-            brand_ctx_injection = f"\n\nBrand context to consider: {brand_ctx}\nWeight your chart recommendations toward metrics relevant to this brand's objectives."
+            brand_ctx_injection = (
+                f"\n\nBrand context to consider: {brand_ctx}\n"
+                "Weight your chart recommendations toward metrics relevant to this brand's objectives."
+            )
 
-        # Random seed varies results when the user clicks Refresh
         seed_val = random.randint(1, 9999)
 
         prompt = f"""You are an expert data analyst reviewing a programmatic advertising dataset. Here are the columns available: {columns_list}. Here is a sample of the data:
@@ -2197,15 +2188,7 @@ Return exactly 3 chart recommendations. Seed: {seed_val}"""
             )
             client_driven = anthropic.Anthropic(api_key=_ai_key)
 
-            with st.spinner(""):
-                st.markdown("""
-                <div style="margin:8px 0;">
-                  <div style="height:16px;width:70%;border-radius:4px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;margin-bottom:8px;"></div>
-                  <div style="height:16px;width:50%;border-radius:4px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;"></div>
-                </div>
-                <style>@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>
-                """, unsafe_allow_html=True)
-
+            with st.spinner("Running AI analysis…"):
                 response = client_driven.messages.create(
                     model="claude-sonnet-4-6",
                     max_tokens=2000,
@@ -2225,7 +2208,23 @@ Return exactly 3 chart recommendations. Seed: {seed_val}"""
             st.warning(f"AI analysis unavailable: {e}")
             st.session_state["ai_analysis_result"] = None
 
-    # Display AI analysis results
+    # Show placeholder when no analysis has been run yet
+    if "ai_analysis_result" not in st.session_state:
+        st.markdown("""
+        <div style="text-align:center;padding:32px 20px;background:#FFFFFF;
+        border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin:12px 0;">
+            <div style="font-size:32px;margin-bottom:10px;">🤖</div>
+            <div style="font-size:15px;font-weight:600;color:#111827;margin-bottom:6px;">
+                AI-Driven Chart Analysis
+            </div>
+            <div style="font-size:13px;color:#6B7280;">
+                Click <strong>🤖 Run AI Analysis</strong> above to generate
+                AI-recommended chart insights for this dataset.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Display AI analysis results (only when a result is cached in session state)
     ai_result = st.session_state.get("ai_analysis_result")
     if ai_result:
         # Summary card
@@ -2402,43 +2401,6 @@ Provide a direct, specific answer in plain English. Include the specific numbers
                 st.markdown(f"**A:** {item['answer']}")
                 if i < len(st.session_state["nl_query_history"]) - 1:
                     st.markdown("---")
-
-    # ── Data preview ──────────────────────────────────────────────────────────
-    st.subheader("Data Preview")
-
-    # Show total rows and which files contributed
-    total_rows  = len(df_all)
-    file_count  = len(uploaded_files or [])
-    st.markdown(
-        f"<p style='color:#6b7280;font-size:13px;margin-top:-8px;'>"
-        f"{total_rows:,} rows loaded from {file_count} file{'s' if file_count > 1 else ''}.</p>",
-        unsafe_allow_html=True,
-    )
-
-    # Format the preview table — keep raw numbers readable
-    preview_df = df_all.copy()
-    if "impressions" in preview_df.columns:
-        preview_df["impressions"] = preview_df["impressions"].apply(
-            lambda x: f"{x:,.0f}" if pd.notna(x) else ""
-        )
-    if "clicks" in preview_df.columns:
-        preview_df["clicks"] = preview_df["clicks"].apply(
-            lambda x: f"{x:,.0f}" if pd.notna(x) else ""
-        )
-    if "spend_usd" in preview_df.columns:
-        preview_df["spend_usd"] = preview_df["spend_usd"].apply(
-            lambda x: f"${x:,.2f}" if pd.notna(x) else ""
-        )
-    if "ctr" in preview_df.columns:
-        preview_df["ctr"] = preview_df["ctr"].apply(
-            lambda x: f"{x:.2%}" if pd.notna(x) else ""
-        )
-    if "cpm" in preview_df.columns:
-        preview_df["cpm"] = preview_df["cpm"].apply(
-            lambda x: f"${x:,.2f}" if pd.notna(x) else ""
-        )
-
-    st.dataframe(preview_df, use_container_width=True)
 
     # ── Sidebar: Export ───────────────────────────────────────────────────────
     st.sidebar.markdown("---")

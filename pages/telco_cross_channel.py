@@ -403,7 +403,7 @@ if _telco_data_mode == 'api':
     col_cc_banner, col_cc_refresh = st.columns([4, 1])
     with col_cc_banner:
         st.markdown("""
-        <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+        <div style="background:#EEF1F4;border-left:4px solid #1B2A4A;border-radius:8px;
         padding:10px 16px;margin-bottom:12px;">
             <strong>📡 Live API Data Mode</strong> — showing cross-channel data for Woolworths.
         </div>

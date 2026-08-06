@@ -100,6 +100,15 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] > div:first-child {{
         padding-top: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }}
+    /* Avatar/logo (user content) floats above nav items */
+    [data-testid="stSidebarNav"] {{
+        order: 1 !important;
+    }}
+    [data-testid="stSidebarUserContent"] {{
+        order: 0 !important;
     }}
     section[data-testid="stSidebar"] * {{
         color: {WHITE} !important;
@@ -132,10 +141,36 @@ st.markdown(f"""
         background-color: rgba(245,166,35,0.06) !important;
     }}
 
-    /* ── Inputs and selectboxes ──────────────────────────────────── */
+    /* ── Filter / selectbox widgets — compact, design-system styled ── */
+    [data-testid="stSelectbox"],
+    [data-testid="stDateInput"],
+    [data-testid="stMultiSelect"] {{
+        background-color: #EEF1F4;
+        border: 1px solid rgba(27,42,74,0.15);
+        border-radius: 8px;
+        padding: 2px 6px;
+    }}
+    [data-testid="stSelectbox"] label,
+    [data-testid="stMultiSelect"] label,
+    [data-testid="stDateInput"] label {{
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: {SECONDARY} !important;
+        font-family: "Poppins", system-ui, sans-serif !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.04em !important;
+    }}
+    [data-testid="stSelectbox"] div[data-baseweb="select"] *,
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] * {{
+        font-size: 13px !important;
+        font-family: "Poppins", system-ui, sans-serif !important;
+        color: {SECONDARY} !important;
+    }}
+
+    /* ── Inputs and selectboxes: rounded corners ─────────────────── */
     div[data-baseweb="select"] > div,
     div[data-baseweb="input"] {{
-        border-radius: 10px !important;
+        border-radius: 8px !important;
     }}
 
     /* ── Buttons: smooth hover ───────────────────────────────────── */
@@ -239,12 +274,6 @@ with st.sidebar:
     st.session_state["dark_mode"] = dark_mode
 
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-
-    # Tier badge
-    st.markdown(
-        f"<div style='font-size:11px;color:rgba(255,255,255,0.5);padding:4px 0 2px 0;'>{tier_label}</div>",
-        unsafe_allow_html=True
-    )
 
 # ── Onboarding flow ───────────────────────────────────────────────────────────
 if not prefs.get("onboarding_complete", False):

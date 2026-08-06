@@ -136,7 +136,7 @@ SCENARIO_FACTORS = {
 # Column header colours: (header_bg, header_text, border_css)
 SCENARIO_COLOURS = {
     "Conservative": ("#6B7280", "#FFFFFF", "1px solid #E5E7EB"),
-    "Base Case":    ("#2563EB", "#FFFFFF", "2px solid #2563EB"),
+    "Base Case":    ("#1B2A4A", "#FFFFFF", "2px solid #1B2A4A"),
     "Optimistic":   ("#059669", "#FFFFFF", "1px solid #E5E7EB"),
 }
 
@@ -1464,7 +1464,7 @@ with tab_outcome:
             grade, score_bg, score_txt = "A", "#ECFDF5", "#059669"
             grade_label = "Excellent"
         elif oc_h >= 60:
-            grade, score_bg, score_txt = "B", "#EFF6FF", "#2563EB"
+            grade, score_bg, score_txt = "B", "#EEF1F4", "#1B2A4A"
             grade_label = "Good"
         elif oc_h >= 40:
             grade, score_bg, score_txt = "C", "#FFFBEB", "#D97706"
