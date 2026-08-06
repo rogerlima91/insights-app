@@ -875,15 +875,73 @@ def _add_budget_table(slide, budget_text, x, y, w, h):
             cx += col_ws[c_i] + gap
 
 
-def build_pptx_report(api_key, camp_summary, df_all):
+def _make_daily_chart_pptx(df_all):
+    """
+    Build a daily spend or impressions line chart for the PPTX daily performance slide.
+    Returns a BytesIO PNG buffer, or None if required data is unavailable.
+    """
+    if "date" not in df_all.columns:
+        return None
+    _metric = ("spend_usd"   if "spend_usd"   in df_all.columns else
+               "impressions" if "impressions" in df_all.columns else None)
+    if _metric is None:
+        return None
+
+    daily = (df_all.groupby("date")[_metric].sum().reset_index().sort_values("date"))
+
+    fig, ax = plt.subplots(figsize=(11, 3.6))
+    fig.patch.set_facecolor("#0D1B2A")
+    ax.set_facecolor("#0D1B2A")
+    ax.plot(daily["date"], daily[_metric],
+            color="#00A8E8", linewidth=2, marker="o", markersize=4)
+    ax.fill_between(daily["date"], daily[_metric], alpha=0.15, color="#00A8E8")
+    label = "Spend (USD)" if _metric == "spend_usd" else "Impressions"
+    if _metric == "spend_usd":
+        ax.yaxis.set_major_formatter(
+            mticker.FuncFormatter(
+                lambda v, _: f"${v/1e6:.1f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
+            )
+        )
+    ax.set_ylabel(label, fontsize=9, color="#A8B2BC")
+    ax.tick_params(colors="white", labelsize=9)
+    for sp in ax.spines.values():
+        sp.set_color("#2A3D4E")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", linewidth=0.4, alpha=0.4, color="#2A3D4E")
+    ax.set_axisbelow(True)
+    plt.xticks(rotation=20, ha="right", fontsize=9, color="white")
+    plt.tight_layout(pad=0.4)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="#0D1B2A")
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+
+def build_pptx_report(api_key, camp_summary, df_all, sections=None,
+                      ai_analysis_cache=None):
     """
     Build and return the full PowerPoint report as a BytesIO buffer.
 
-    Slides:
-      1.    Executive Summary — 3 KPI cards, Revenue chart, AI best/worst insight
-      2+3.  Per brand (repeated): Performance Breakdown + Recommendations
-      Last. Budget Shift Recommendations
+    sections dict controls which slides are included:
+        summary_metrics        — Slide 1 KPI cards
+        performance_charts     — Slide 1 revenue chart
+        daily_performance      — Daily trend chart slide
+        period_comparison      — Period-over-period comparison slide
+        ai_advertiser_insights — Per-brand breakdown + recommendations + budget shift slides
+        ai_driven_analysis     — AI-driven analysis summary slide
+
+    Passing sections=None (default) includes all slide types.
+    ai_analysis_cache: the ai_analysis_result dict from session state (reused if present).
     """
+    if sections is None:
+        sections = {k: True for k in (
+            "summary_metrics", "performance_charts", "daily_performance",
+            "period_comparison", "ai_advertiser_insights", "ai_driven_analysis",
+        )}
+
     prs              = Presentation()
     prs.slide_width  = Inches(_PW)
     prs.slide_height = Inches(_PH)
@@ -895,37 +953,38 @@ def build_pptx_report(api_key, camp_summary, df_all):
                       if c in camp_summary.columns), None)
     campaigns = camp_summary[_camp_col].tolist() if _camp_col else []
 
-    # ── Slide 1: Executive Summary ────────────────────────────────────────────
-    s1 = _new_blank_slide(prs)
+    # ── Slide 1: Executive Summary — KPIs + Revenue chart ────────────────────
+    if sections.get("summary_metrics") or sections.get("performance_charts"):
+        s1 = _new_blank_slide(prs)
+        _tb(s1, 0.4, 0.17, 12.5, 0.75, "Campaign Performance Summary", 28, bold=True)
+        _box(s1, 0.4, 0.95, 12.5, 0.04, _PPT_BLUE)
 
-    # Title + electric blue accent line
-    _tb(s1, 0.4, 0.17, 12.5, 0.75, "Campaign Performance Summary", 28, bold=True)
-    _box(s1, 0.4, 0.95, 12.5, 0.04, _PPT_BLUE)
+        # KPI cards — only when summary_metrics is checked
+        if sections.get("summary_metrics"):
+            total_impr = (camp_summary["impressions"].sum()
+                          if "impressions" in camp_summary.columns else 0)
+            total_rev  = (camp_summary["spend_usd"].sum()
+                          if "spend_usd" in camp_summary.columns else 0)
+            kpi_data = [
+                ("Total Impressions", f"{total_impr:,.0f}"),
+                ("Total Revenue",     f"${total_rev:,.0f}"),
+                ("Number of Brands",  str(len(campaigns))),
+            ]
+            kpi_w, kpi_gap = 3.8, 0.35
+            for i, (lbl, val) in enumerate(kpi_data):
+                _kpi_box(s1, 0.4 + i * (kpi_w + kpi_gap), 1.08, kpi_w, 1.05, lbl, val)
 
-    # Three KPI cards
-    total_impr = (camp_summary["impressions"].sum()
-                  if "impressions" in camp_summary.columns else 0)
-    total_rev  = (camp_summary["spend_usd"].sum()
-                  if "spend_usd" in camp_summary.columns else 0)
-    kpi_data = [
-        ("Total Impressions", f"{total_impr:,.0f}"),
-        ("Total Revenue",     f"${total_rev:,.0f}"),
-        ("Number of Brands",  str(len(campaigns))),
-    ]
-    kpi_w, kpi_gap = 3.8, 0.35
-    for i, (lbl, val) in enumerate(kpi_data):
-        _kpi_box(s1, 0.4 + i * (kpi_w + kpi_gap), 1.08, kpi_w, 1.05, lbl, val)
+        # Revenue chart — only when performance_charts is checked
+        if sections.get("performance_charts"):
+            chart_buf = _make_revenue_chart_pptx(camp_summary)
+            if chart_buf:
+                s1.shapes.add_picture(chart_buf,
+                                      Inches(0.4), Inches(2.32), Inches(7.8), Inches(3.95))
 
-    # Revenue by Brand chart (left panel)
-    chart_buf = _make_revenue_chart_pptx(camp_summary)
-    if chart_buf:
-        s1.shapes.add_picture(chart_buf,
-                              Inches(0.4), Inches(2.32), Inches(7.8), Inches(3.95))
-
-    # AI best/worst insight (right panel)
-    exec_text = _ai_pptx(
-        api_key,
-        f"""Campaign performance data:
+        # AI best/worst insight — always shown on the executive summary slide
+        exec_text = _ai_pptx(
+            api_key,
+            f"""Campaign performance data:
 {data_text}
 
 Write two short insight paragraphs for an executive summary slide:
@@ -933,33 +992,86 @@ Write two short insight paragraphs for an executive summary slide:
 2. Start "Worst performer: [Brand] —" then 1-2 sentences on WHY, citing key metrics.
 
 Plain paragraphs only — no headings, no bullets, no extra text.""",
-        max_tokens=200,
-    )
-    _tb(s1, 8.5, 2.32, 4.5, 0.28, "KEY INSIGHTS", 8, bold=True, color=_PPT_BLUE)
-    txb = s1.shapes.add_textbox(Inches(8.5), Inches(2.7), Inches(4.45), Inches(3.6))
-    tf  = txb.text_frame
-    tf.word_wrap = True
-    run = tf.paragraphs[0].add_run()
-    run.text           = exec_text
-    run.font.name      = "Calibri"
-    run.font.size      = Pt(10.5)
-    run.font.color.rgb = _PPT_GREY
+            max_tokens=200,
+        )
+        _tb(s1, 8.5, 2.32, 4.5, 0.28, "KEY INSIGHTS", 8, bold=True, color=_PPT_BLUE)
+        txb = s1.shapes.add_textbox(Inches(8.5), Inches(2.7), Inches(4.45), Inches(3.6))
+        tf  = txb.text_frame
+        tf.word_wrap = True
+        run = tf.paragraphs[0].add_run()
+        run.text           = exec_text
+        run.font.name      = "Calibri"
+        run.font.size      = Pt(10.5)
+        run.font.color.rgb = _PPT_GREY
 
-    _slide_footer(s1, slide_num)
-    slide_num += 1
+        _slide_footer(s1, slide_num)
+        slide_num += 1
 
-    # ── Slides 2+3 per brand ──────────────────────────────────────────────────
-    for brand in campaigns:
+    # ── Daily Performance slide ───────────────────────────────────────────────
+    if sections.get("daily_performance") and "date" in df_all.columns:
+        s_daily = _new_blank_slide(prs)
+        _tb(s_daily, 0.4, 0.17, 12.5, 0.65, "Daily Performance", 20, bold=True)
+        _box(s_daily, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
+        daily_buf = _make_daily_chart_pptx(df_all)
+        if daily_buf:
+            s_daily.shapes.add_picture(daily_buf,
+                                       Inches(0.4), Inches(1.05),
+                                       Inches(12.5), Inches(5.5))
+        _slide_footer(s_daily, slide_num)
+        slide_num += 1
 
-        # ── Performance Breakdown ─────────────────────────────────────────────
-        s2 = _new_blank_slide(prs)
-        _tb(s2, 0.4, 0.17, 12.5, 0.65,
-            f"{brand}  —  Performance Breakdown", 20, bold=True)
-        _box(s2, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
+    # ── Period Comparison slide ───────────────────────────────────────────────
+    if sections.get("period_comparison") and "date" in df_all.columns:
+        try:
+            _dp = pd.to_datetime(df_all["date"], errors="coerce")
+            _dr = (_dp.max() - _dp.min()).days
+            if _dr >= 14:
+                s_pc = _new_blank_slide(prs)
+                _tb(s_pc, 0.4, 0.17, 12.5, 0.65,
+                    "Period Comparison — Last 30 Days vs Prior 30 Days", 20, bold=True)
+                _box(s_pc, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
 
-        breakdown = _ai_pptx(
-            api_key,
-            f"""Campaign performance data:
+                today    = _dp.max()
+                curr_df  = df_all[_dp >= today - pd.Timedelta(days=29)]
+                prior_df = df_all[(_dp >= today - pd.Timedelta(days=59)) &
+                                  (_dp <  today - pd.Timedelta(days=29))]
+
+                def _safe_sum(d, col):
+                    return d[col].sum() if col in d.columns and len(d) > 0 else 0
+
+                y_pos = 1.1
+                for m_col, m_lbl, fmt in [
+                    ("spend_usd",   "Spend",       "${:,.0f}"),
+                    ("impressions", "Impressions",  "{:,.0f}"),
+                    ("clicks",      "Clicks",       "{:,.0f}"),
+                ]:
+                    c_v = _safe_sum(curr_df, m_col)
+                    p_v = _safe_sum(prior_df, m_col)
+                    chg = f"{(c_v - p_v) / p_v * 100:+.1f}%" if p_v > 0 else "N/A"
+                    row_txt = (f"{m_lbl}:   Current {fmt.format(c_v)}"
+                               f"   |   Prior {fmt.format(p_v)}"
+                               f"   |   Change {chg}")
+                    _tb(s_pc, 0.5, y_pos, 12.0, 0.5, row_txt, 12, color=_PPT_WHITE)
+                    y_pos += 0.7
+
+                _slide_footer(s_pc, slide_num)
+                slide_num += 1
+        except Exception:
+            pass  # Skip period comparison slide if date parsing fails
+
+    # ── Per-brand slides — AI Advertiser Insights ─────────────────────────────
+    if sections.get("ai_advertiser_insights"):
+        for brand in campaigns:
+
+            # ── Performance Breakdown ─────────────────────────────────────────
+            s2 = _new_blank_slide(prs)
+            _tb(s2, 0.4, 0.17, 12.5, 0.65,
+                f"{brand}  —  Performance Breakdown", 20, bold=True)
+            _box(s2, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
+
+            breakdown = _ai_pptx(
+                api_key,
+                f"""Campaign performance data:
 {data_text}
 
 Write a performance breakdown for brand: "{brand}"
@@ -982,35 +1094,35 @@ YOUTUBE:
 • [third point — max 3 bullets]
 
 Only include DISPLAY / VIDEO / YOUTUBE headings that have real data for this brand.""",
-            max_tokens=350,
-        )
+                max_tokens=350,
+            )
 
-        sections = _parse_io_sections(breakdown)
-        if sections:
-            n     = len(sections)
-            col_w = (12.5 - (n - 1) * 0.3) / n
-            cx    = 0.4
-            for sec_title, sec_bullets in sections:
-                _box(s2, cx, 1.05, col_w, 0.38, _PPT_DIM)
-                _tb(s2, cx + 0.12, 1.1, col_w - 0.24, 0.3,
-                    sec_title.upper(), 11, bold=True, color=_PPT_BLUE)
-                if sec_bullets:
-                    _add_bullets(s2, cx + 0.08, 1.58,
-                                 col_w - 0.16, 5.5, sec_bullets[:3], size=10)
-                cx += col_w + 0.3
+            parsed_sections = _parse_io_sections(breakdown)
+            if parsed_sections:
+                n     = len(parsed_sections)
+                col_w = (12.5 - (n - 1) * 0.3) / n
+                cx    = 0.4
+                for sec_title, sec_bullets in parsed_sections:
+                    _box(s2, cx, 1.05, col_w, 0.38, _PPT_DIM)
+                    _tb(s2, cx + 0.12, 1.1, col_w - 0.24, 0.3,
+                        sec_title.upper(), 11, bold=True, color=_PPT_BLUE)
+                    if sec_bullets:
+                        _add_bullets(s2, cx + 0.08, 1.58,
+                                     col_w - 0.16, 5.5, sec_bullets[:3], size=10)
+                    cx += col_w + 0.3
 
-        _slide_footer(s2, slide_num)
-        slide_num += 1
+            _slide_footer(s2, slide_num)
+            slide_num += 1
 
-        # ── Recommendations ───────────────────────────────────────────────────
-        s3 = _new_blank_slide(prs)
-        _tb(s3, 0.4, 0.17, 12.5, 0.65,
-            f"{brand}  —  Recommendations", 20, bold=True)
-        _box(s3, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
+            # ── Recommendations ───────────────────────────────────────────────
+            s3 = _new_blank_slide(prs)
+            _tb(s3, 0.4, 0.17, 12.5, 0.65,
+                f"{brand}  —  Recommendations", 20, bold=True)
+            _box(s3, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
 
-        recs_raw = _ai_pptx(
-            api_key,
-            f"""Campaign performance data:
+            recs_raw = _ai_pptx(
+                api_key,
+                f"""Campaign performance data:
 {data_text}
 
 Write exactly 5 optimisation recommendations for brand: "{brand}"
@@ -1020,26 +1132,26 @@ Rules:
 - Reference specific line items, creatives, or metrics from the data
 - Max 18 words per line
 - Return only the 5 lines — no bullet symbols, no numbering, no extra text""",
-            max_tokens=250,
-        )
-        bullets = [ln.strip().lstrip("•-–—●0123456789.) ").strip()
-                   for ln in recs_raw.split("\n")
-                   if ln.strip() and not ln.strip().startswith("#")]
-        bullets = [b for b in bullets if b][:5]
-        _add_bullets(s3, 0.6, 1.12, 12.1, 5.85, bullets, size=13)
+                max_tokens=250,
+            )
+            bullets = [ln.strip().lstrip("•-–—●0123456789.) ").strip()
+                       for ln in recs_raw.split("\n")
+                       if ln.strip() and not ln.strip().startswith("#")]
+            bullets = [b for b in bullets if b][:5]
+            _add_bullets(s3, 0.6, 1.12, 12.1, 5.85, bullets, size=13)
 
-        _slide_footer(s3, slide_num)
-        slide_num += 1
+            _slide_footer(s3, slide_num)
+            slide_num += 1
 
-    # ── Final slide: Budget Shift Recommendations ─────────────────────────────
-    s_last = _new_blank_slide(prs)
-    _tb(s_last, 0.4, 0.17, 12.5, 0.65,
-        "Budget Shift Recommendations", 20, bold=True)
-    _box(s_last, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
+        # ── Budget Shift Recommendations — part of AI Advertiser Insights ─────
+        s_last = _new_blank_slide(prs)
+        _tb(s_last, 0.4, 0.17, 12.5, 0.65,
+            "Budget Shift Recommendations", 20, bold=True)
+        _box(s_last, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
 
-    budget_raw = _ai_pptx(
-        api_key,
-        f"""Campaign performance data:
+        budget_raw = _ai_pptx(
+            api_key,
+            f"""Campaign performance data:
 {data_text}
 
 For each brand, provide one budget reallocation recommendation.
@@ -1051,11 +1163,76 @@ Nike Summer 2024 | Display | Increase Display budget by 20% — lowest CPM at $3
 Coke Q3 | YouTube | Shift 15% from Display to YouTube — VTR of 68% outperforms
 
 Only include brands from the data. Cite actual numbers. No extra text.""",
-        max_tokens=350,
-    )
-    _add_budget_table(s_last, budget_raw, x=0.4, y=1.08, w=12.5, h=5.9)
+            max_tokens=350,
+        )
+        _add_budget_table(s_last, budget_raw, x=0.4, y=1.08, w=12.5, h=5.9)
 
-    _slide_footer(s_last, slide_num)
+        _slide_footer(s_last, slide_num)
+        slide_num += 1
+
+    # ── AI-Driven Analysis slide ──────────────────────────────────────────────
+    if sections.get("ai_driven_analysis"):
+        s_ai = _new_blank_slide(prs)
+        _tb(s_ai, 0.4, 0.17, 12.5, 0.65, "AI-Driven Analysis", 20, bold=True)
+        _box(s_ai, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
+
+        if ai_analysis_cache and isinstance(ai_analysis_cache, dict):
+            # Reuse cached result from session state — no extra API call needed
+            summary_txt   = ai_analysis_cache.get("summary", "")
+            anomaly_txt   = ai_analysis_cache.get("top_anomaly", "")
+        else:
+            # No cached result — generate brief text via AI
+            ai_driven_raw = _ai_pptx(
+                api_key,
+                f"""Campaign performance data:
+{data_text}
+
+Provide a brief AI analysis in two parts:
+1. SUMMARY: One paragraph on the most important patterns in this dataset.
+2. TOP FINDING: The single most important anomaly or insight.
+
+Format exactly as:
+SUMMARY: [text]
+TOP FINDING: [text]""",
+                max_tokens=300,
+            )
+            summary_txt = ""
+            anomaly_txt = ""
+            for _line in ai_driven_raw.split("\n"):
+                if _line.startswith("SUMMARY:"):
+                    summary_txt = _line.replace("SUMMARY:", "").strip()
+                elif _line.startswith("TOP FINDING:"):
+                    anomaly_txt = _line.replace("TOP FINDING:", "").strip()
+
+        y_pos = 1.1
+        if summary_txt:
+            _tb(s_ai, 0.5, y_pos, 12.0, 0.28, "SUMMARY", 10, bold=True, color=_PPT_BLUE)
+            y_pos += 0.35
+            txb_s = s_ai.shapes.add_textbox(Inches(0.5), Inches(y_pos),
+                                            Inches(12.0), Inches(1.5))
+            tf_s        = txb_s.text_frame
+            tf_s.word_wrap = True
+            run_s       = tf_s.paragraphs[0].add_run()
+            run_s.text  = summary_txt
+            run_s.font.name      = "Calibri"
+            run_s.font.size      = Pt(11)
+            run_s.font.color.rgb = _PPT_WHITE
+            y_pos += 1.7
+        if anomaly_txt:
+            _tb(s_ai, 0.5, y_pos, 12.0, 0.28, "TOP FINDING", 10, bold=True, color=_PPT_BLUE)
+            y_pos += 0.35
+            txb_a = s_ai.shapes.add_textbox(Inches(0.5), Inches(y_pos),
+                                            Inches(12.0), Inches(1.2))
+            tf_a        = txb_a.text_frame
+            tf_a.word_wrap = True
+            run_a       = tf_a.paragraphs[0].add_run()
+            run_a.text  = anomaly_txt
+            run_a.font.name      = "Calibri"
+            run_a.font.size      = Pt(11)
+            run_a.font.color.rgb = _PPT_WHITE
+
+        _slide_footer(s_ai, slide_num)
+        slide_num += 1
 
     # Serialise to buffer and return
     out = io.BytesIO()
@@ -1684,12 +1861,14 @@ else:
     # PERIOD COMPARISON — Week-on-Week / Month-on-Month
     # Only shown when date column spans at least 14 days
     # ─────────────────────────────────────────────────────────────────────────
+    _period_comp_available = False  # updated to True inside the block when conditions are met
     if 'date' in df_all.columns:
         try:
             df_all['_date_parsed'] = pd.to_datetime(df_all['date'], errors='coerce')
             date_range = (df_all['_date_parsed'].max() - df_all['_date_parsed'].min()).days
 
             if date_range >= 14:
+                _period_comp_available = True
                 st.markdown("---")
                 st.markdown("## 📅 Period Comparison")
 
@@ -1794,6 +1973,19 @@ else:
     # Detect the best grouping column — works with any DSP export structure
     group_col, group_label = detect_grouping_column(df_all)
 
+    # Pre-compute camp_summary here so it is available for the report export dialog
+    # regardless of whether the AI Insights section has been expanded/triggered.
+    camp_summary = pd.DataFrame()
+    if group_col:
+        _cs_agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"]
+                   if c in df_all.columns}
+        if _cs_agg:
+            camp_summary = df_all.groupby(group_col).agg(**_cs_agg).reset_index()
+            if "impressions" in camp_summary.columns and "clicks" in camp_summary.columns:
+                camp_summary["ctr"] = camp_summary["clicks"] / camp_summary["impressions"]
+            if "impressions" in camp_summary.columns and "spend_usd" in camp_summary.columns:
+                camp_summary["cpm"] = camp_summary["spend_usd"] / camp_summary["impressions"] * 1000
+
     st.subheader(f"AI {group_label} Insights" if group_label else "AI Insights")
 
     # Get the Anthropic API key — check Streamlit secrets first, then env var
@@ -1811,18 +2003,10 @@ else:
     elif group_col is None:
         st.info("No suitable grouping column found in this file. AI insights require at least one text/category column.")
     else:
-        # Build an aggregated summary per group (recalculate from totals, not averages)
+        # camp_summary is pre-computed above (before this if/elif/else block)
         has_spend  = "spend_usd"   in df_all.columns
         has_clicks = "clicks"      in df_all.columns
         has_imps   = "impressions" in df_all.columns
-
-        agg_cols = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"] if c in df_all.columns}
-        camp_summary = df_all.groupby(group_col).agg(**agg_cols).reset_index()
-
-        if has_imps and has_clicks:
-            camp_summary["ctr"] = camp_summary["clicks"] / camp_summary["impressions"]
-        if has_imps and has_spend:
-            camp_summary["cpm"] = camp_summary["spend_usd"] / camp_summary["impressions"] * 1000
 
         # Format the data as a text table for the prompt.
         # Includes campaign-level totals AND a campaign × environment breakdown
@@ -2398,42 +2582,132 @@ Provide a direct, specific answer in plain English. Include the specific numbers
                 if i < len(st.session_state["nl_query_history"]) - 1:
                     st.markdown("---")
 
-    # ── Sidebar: Export ───────────────────────────────────────────────────────
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Export")
 
-    # Load the API key for report generation (same source as insights section)
-    _rpt_key = (
-        st.secrets.get("ANTHROPIC_API_KEY")
-        if "ANTHROPIC_API_KEY" in st.secrets
-        else os.environ.get("ANTHROPIC_API_KEY")
-    )
+    # ── In-page Report Export ────────────────────────────────────────────────
+    st.markdown("---")
 
-    # "Generate Report" builds the PPTX (makes AI calls per brand — takes ~10–30s)
-    if st.sidebar.button("📊 Generate Report", type="primary", key="gen_report_btn"):
-        if not _rpt_key:
-            st.sidebar.warning(
-                "Add ANTHROPIC_API_KEY to Streamlit secrets to generate AI-powered slides."
-            )
-        elif camp_summary.empty:
-            st.sidebar.warning("Upload a CSV file first.")
-        else:
-            with st.spinner(
-                "Building report — generating AI slides for each brand… "
-                "This takes about 10–30 seconds."
-            ):
-                try:
-                    pptx_buf = build_pptx_report(_rpt_key, camp_summary, df_all)
-                    st.session_state["pptx_report"] = pptx_buf
-                    st.sidebar.success("Report ready — click Download below.")
-                except Exception as e:
-                    st.error(f"Report generation failed: {e}")
+    # Determine which sections have data available for the export modal
+    _rpt_key       = api_key  # same Anthropic key used for AI Insights above
+    _daily_avail   = "date" in df_all.columns
+    _ai_ins_avail  = bool(group_col and api_key and not camp_summary.empty)
 
-    # Show download button once the report has been generated
+    @st.dialog("Build Your Report")
+    def _show_report_dialog():
+        st.caption("Select the sections to include in your PowerPoint export.")
+
+        # Restore previous checkbox selections from session state
+        _defs = st.session_state.get("_rpt_section_defaults", {
+            "summary_metrics":        True,
+            "performance_charts":     True,
+            "daily_performance":      True,
+            "period_comparison":      True,
+            "ai_advertiser_insights": False,
+            "ai_driven_analysis":     False,
+        })
+
+        # Select all / Deselect all buttons
+        _sc = st.columns(2)
+        with _sc[0]:
+            if st.button("Select all", key="rpt_sel_all"):
+                st.session_state["_rpt_section_defaults"] = {k: True for k in _defs}
+                st.rerun()
+        with _sc[1]:
+            if st.button("Deselect all", key="rpt_desel_all"):
+                st.session_state["_rpt_section_defaults"] = {k: False for k in _defs}
+                st.rerun()
+
+        st.markdown("")
+
+        # One checkbox per section — disabled when data is unavailable
+        s_summary = st.checkbox(
+            "Summary Metrics", value=_defs.get("summary_metrics", True),
+            key="rpt_cb_summary",
+        )
+        s_charts = st.checkbox(
+            "Performance Charts", value=_defs.get("performance_charts", True),
+            key="rpt_cb_charts",
+        )
+        s_daily = st.checkbox(
+            "Daily Performance",
+            value=_defs.get("daily_performance", True) and _daily_avail,
+            disabled=not _daily_avail,
+            key="rpt_cb_daily",
+            help="Requires a date column in your data." if not _daily_avail else None,
+        )
+        s_period = st.checkbox(
+            "Period Comparison",
+            value=_defs.get("period_comparison", True) and _period_comp_available,
+            disabled=not _period_comp_available,
+            key="rpt_cb_period",
+            help="Requires 14+ days of date data." if not _period_comp_available else None,
+        )
+        s_ai_ins = st.checkbox(
+            "AI Advertiser Insights",
+            value=_defs.get("ai_advertiser_insights", False),
+            disabled=not _ai_ins_avail,
+            key="rpt_cb_ai_ins",
+            help="Requires a grouping column and API key." if not _ai_ins_avail else None,
+        )
+        s_ai_drv = st.checkbox(
+            "AI-Driven Analysis",
+            value=_defs.get("ai_driven_analysis", False),
+            key="rpt_cb_ai_drv",
+        )
+        st.caption("☝ AI sections use AI credits (API calls made at export time if not already cached).")
+
+        st.markdown("")
+
+        # Bottom action buttons
+        _bc = st.columns(2)
+        with _bc[0]:
+            if st.button("Generate PowerPoint", type="primary", key="rpt_gen_btn"):
+                # Persist selections for next time the dialog is opened
+                st.session_state["_rpt_section_defaults"] = {
+                    "summary_metrics":        s_summary,
+                    "performance_charts":     s_charts,
+                    "daily_performance":      s_daily,
+                    "period_comparison":      s_period,
+                    "ai_advertiser_insights": s_ai_ins,
+                    "ai_driven_analysis":     s_ai_drv,
+                }
+                _sections = st.session_state["_rpt_section_defaults"]
+                if not any(_sections.values()):
+                    st.warning("Select at least one section.")
+                elif not _rpt_key:
+                    st.warning("No API key found. Add ANTHROPIC_API_KEY to Streamlit secrets.")
+                elif camp_summary.empty:
+                    st.warning("No data loaded — upload a CSV file first.")
+                else:
+                    with st.spinner("Building PowerPoint… this may take 10–30 seconds."):
+                        try:
+                            pptx_buf = build_pptx_report(
+                                _rpt_key,
+                                camp_summary,
+                                df_all,
+                                sections=_sections,
+                                ai_analysis_cache=st.session_state.get("ai_analysis_result"),
+                            )
+                            st.session_state["pptx_report"] = pptx_buf
+                        except Exception as _e:
+                            st.error(f"Report generation failed: {_e}")
+                    st.rerun()
+        with _bc[1]:
+            if st.button("Cancel", key="rpt_cancel_btn"):
+                st.rerun()
+
+    # Centre the Generate Report button
+    _, _rpt_col, _ = st.columns([2, 2, 2])
+    with _rpt_col:
+        if st.button("📊 Generate Report", type="primary", key="open_report_dialog_btn"):
+            _show_report_dialog()
+
+    # Show download button and success message after a report has been generated
     if st.session_state.get("pptx_report"):
-        st.sidebar.download_button(
+        st.success("✅ Report ready — click below to download.")
+        st.download_button(
             label     = "📥 Download Report (.pptx)",
             data      = st.session_state["pptx_report"],
             file_name = f"{date.today():%Y-%m-%d}_campaign_report.pptx",
             mime      = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            key       = "download_report_inline",
         )
