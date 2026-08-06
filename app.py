@@ -275,13 +275,6 @@ if not prefs.get("onboarding_complete", False):
         }}
         </style>""", unsafe_allow_html=True)
 
-# ── Sidebar bottom: dark mode toggle — rendered after st.navigation() so it
-# ── appears below the nav section links, above the per-page Export button
-with st.sidebar:
-    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-    dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
-    st.session_state["dark_mode"] = dark_mode
-
 # ── Onboarding flow ───────────────────────────────────────────────────────────
 if not prefs.get("onboarding_complete", False):
     @st.dialog("Welcome to Pacebird 👋", width="large")
@@ -391,3 +384,10 @@ if not prefs.get("onboarding_complete", False):
 
 # ── Run the selected page ─────────────────────────────────────────────────────
 pg.run()
+
+# ── Sidebar Block 2: very bottom — rendered AFTER pg.run() so it appears
+# ── below all nav links and below any page-specific sidebar content (Export)
+with st.sidebar:
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
+    st.session_state["dark_mode"] = dark_mode
