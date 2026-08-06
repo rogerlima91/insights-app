@@ -126,14 +126,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 # STYLE LOCK
 
-# ── Source mode badge ─────────────────────────────────────────────────────────
-# Show a badge at the top of the page indicating how data was sourced.
-# _pi_source_mode is set by the calling page before navigating here.
+# ── Source mode detection ──────────────────────────────────────────────────────
+# _pi_source_mode is set by ongoing_performance.py before delegating here.
+# 'ongoing' = API Data section, 'one-off' = Upload Report section.
 _pi_source_mode = st.session_state.get('_pi_source_mode', 'one-off')
-if _pi_source_mode == 'ongoing':
-    st.markdown('<span style="background:#10B981;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📡 ONGOING · Live API Data</span>', unsafe_allow_html=True)
-else:
-    st.markdown('<span style="background:#1B2A4A;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · File Upload</span>', unsafe_allow_html=True)
 st.session_state.pop('_pi_source_mode', None)  # reset after reading
 
 # Change 6: API Data mode banner — shown only in 'ongoing' mode

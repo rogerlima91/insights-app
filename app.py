@@ -83,6 +83,32 @@ if "API Data" in visible_sections:
 if "Upload Report" in visible_sections:
     nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
 
+# ── Sidebar top: avatar + logo — rendered before st.navigation() so it
+# ── appears above the nav section headers in the sidebar
+with st.sidebar:
+    st.markdown(f"""
+    <div style="display:flex;justify-content:center;padding:20px 16px 8px 16px;">
+        <div style="width:52px;height:52px;border-radius:50%;
+                    background:{PRIMARY};
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:22px;font-weight:700;color:{WHITE};
+                    box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+            P
+        </div>
+    </div>
+    <div style="padding:4px 16px 12px 16px;
+                border-bottom:1px solid rgba(255,255,255,0.15);
+                margin-bottom:12px;text-align:center;">
+        <div style="font-size:22px;font-weight:800;
+                    color:{WHITE};letter-spacing:-0.5px;">
+            🐦 Pacebird
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px;">
+            Programmatic Intelligence
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 pg = st.navigation(nav_sections)
 
 # ── Session state and onboarding step ────────────────────────────────────────
@@ -100,15 +126,6 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] > div:first-child {{
         padding-top: 0 !important;
-        display: flex !important;
-        flex-direction: column !important;
-    }}
-    /* Avatar/logo (user content) floats above nav items */
-    [data-testid="stSidebarNav"] {{
-        order: 1 !important;
-    }}
-    [data-testid="stSidebarUserContent"] {{
-        order: 0 !important;
     }}
     section[data-testid="stSidebar"] * {{
         color: {WHITE} !important;
@@ -142,29 +159,49 @@ st.markdown(f"""
     }}
 
     /* ── Filter / selectbox widgets — compact, design-system styled ── */
+    /* Outer container: minimal vertical padding */
     [data-testid="stSelectbox"],
     [data-testid="stDateInput"],
     [data-testid="stMultiSelect"] {{
         background-color: #EEF1F4;
         border: 1px solid rgba(27,42,74,0.15);
         border-radius: 8px;
-        padding: 2px 6px;
+        padding: 1px 6px 2px 6px;
     }}
+    /* Label: smaller font, tighter bottom margin */
     [data-testid="stSelectbox"] label,
     [data-testid="stMultiSelect"] label,
     [data-testid="stDateInput"] label {{
-        font-size: 12px !important;
+        font-size: 11px !important;
         font-weight: 600 !important;
         color: {SECONDARY} !important;
         font-family: "Poppins", system-ui, sans-serif !important;
         text-transform: uppercase !important;
         letter-spacing: 0.04em !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+        line-height: 1.2 !important;
+    }}
+    /* Input field: reduced internal padding and min-height */
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+        min-height: 28px !important;
+        padding-top: 1px !important;
+        padding-bottom: 1px !important;
     }}
     [data-testid="stSelectbox"] div[data-baseweb="select"] *,
     [data-testid="stMultiSelect"] div[data-baseweb="select"] * {{
-        font-size: 13px !important;
+        font-size: 12px !important;
         font-family: "Poppins", system-ui, sans-serif !important;
         color: {SECONDARY} !important;
+    }}
+    /* Date input: tighter field height */
+    [data-testid="stDateInput"] input {{
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
+        min-height: 28px !important;
+        font-size: 12px !important;
+        font-family: "Poppins", system-ui, sans-serif !important;
     }}
 
     /* ── Inputs and selectboxes: rounded corners ─────────────────── */
@@ -238,42 +275,12 @@ if not prefs.get("onboarding_complete", False):
         }}
         </style>""", unsafe_allow_html=True)
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Sidebar bottom: dark mode toggle — rendered after st.navigation() so it
+# ── appears below the nav section links, above the per-page Export button
 with st.sidebar:
-    # Circular avatar placeholder above the Pacebird logo
-    st.markdown(f"""
-    <div style="display:flex;justify-content:center;padding:20px 16px 8px 16px;">
-        <div style="width:52px;height:52px;border-radius:50%;
-                    background:{PRIMARY};
-                    display:flex;align-items:center;justify-content:center;
-                    font-size:22px;font-weight:700;color:{WHITE};
-                    box-shadow:0 2px 8px rgba(0,0,0,0.25);">
-            P
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Pacebird logo
-    st.markdown(f"""
-    <div style="padding: 4px 16px 12px 16px;
-                border-bottom: 1px solid rgba(255,255,255,0.15);
-                margin-bottom: 12px; text-align:center;">
-        <div style="font-size: 22px; font-weight: 800;
-                    color: {WHITE}; letter-spacing: -0.5px;">
-            🐦 Pacebird
-        </div>
-        <div style="font-size: 11px; color: rgba(255,255,255,0.6);
-                    margin-top: 2px;">
-            Programmatic Intelligence
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Dark/Light mode toggle
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
     dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
     st.session_state["dark_mode"] = dark_mode
-
-    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
 # ── Onboarding flow ───────────────────────────────────────────────────────────
 if not prefs.get("onboarding_complete", False):
