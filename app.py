@@ -1,15 +1,20 @@
 import streamlit as st
 import json
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils.design_system import get_css, PRIMARY, SECONDARY, WHITE, TEXT_SEC
 
 # ── Page config ─────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Pacebird", layout="wide", initial_sidebar_state="expanded")
 
 # ── DESIGN SYSTEM LOCK — do not modify these values ─────────────────────────
-# Primary: #7C3AED  Secondary: #2563EB  Success: #10B981
-# Warning: #F59E0B  Danger: #EF4444
-# Background Light: #F8F9FA  Background Dark: #0F1117
-# Text Primary: #111827  Text Secondary: #6B7280
+# Primary: #F5A623 (warm orange)   Secondary: #1B2A4A (deep navy)
+# Success: #10B981   Warning: #F59E0B   Danger: #EF4444
+# Background: #EEF1F4 (light grey)   Font: Poppins
+# Text Primary: #111827   Text Secondary: #6B7280
+# DO NOT revert to old purple (#7C3AED) or blue (#2563EB) values.
+# Central design system: utils/design_system.py
 
 # ── Config helpers ───────────────────────────────────────────────────────────
 CONFIG_FILE  = "config.json"
@@ -84,112 +89,84 @@ pg = st.navigation(nav_sections)
 st.session_state["current_tier"] = current_tier
 ob_step = st.session_state.get("onboarding_step", 1)
 
-# ── Global CSS (Change 1: modern SaaS redesign) ───────────────────────────────
-st.markdown("""
+# ── Global CSS — Pacebird design system ───────────────────────────────────────
+st.markdown(get_css(), unsafe_allow_html=True)
+st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    /* ── Sidebar: deep navy background, white text ──────────────── */
+    section[data-testid="stSidebar"] {{
+        background-color: {SECONDARY} !important;
+        box-shadow: 2px 0 16px rgba(0,0,0,0.15) !important;
+    }}
+    section[data-testid="stSidebar"] > div:first-child {{
+        padding-top: 0 !important;
+    }}
+    section[data-testid="stSidebar"] * {{
+        color: {WHITE} !important;
+    }}
+    section[data-testid="stSidebar"] a {{
+        color: {WHITE} !important;
+        text-decoration: none !important;
+    }}
+    /* Active nav item: orange highlight */
+    section[data-testid="stSidebar"] [aria-current="page"],
+    section[data-testid="stSidebar"] [aria-selected="true"] {{
+        background-color: {PRIMARY} !important;
+        border-radius: 8px !important;
+        color: {WHITE} !important;
+    }}
+    /* Nav section headers (API DATA / UPLOAD REPORT labels) */
+    section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
+    section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
+    section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {{
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        letter-spacing: 1.5px !important;
+        color: {PRIMARY} !important;
+        text-transform: uppercase !important;
+        padding-top: 12px !important;
+    }}
 
-    /* Hide Streamlit default UI chrome */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    [data-testid="stHeader"] {
-        background: transparent;
-        height: 0;
-        min-height: 0;
-    }
-    [data-testid="stHeader"] > * {
-        display: none;
-    }
-    [data-testid="stToolbar"] {
-        display: none;
-    }
-    [data-testid="stDecoration"] {
-        display: none;
-    }
-    .stDeployButton {display: none;}
-    .block-container {padding-top: 1rem;}
+    /* ── Table row hover: orange tint ────────────────────────────── */
+    [data-testid="stDataFrame"] tr:hover > td {{
+        background-color: rgba(245,166,35,0.06) !important;
+    }}
 
-    /* Base font — Inter from Google Fonts */
-    html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-        font-size: 15px;
-    }
-
-    /* ── Metric cards: 16px radius, 24px padding, lighter background ── */
-    [data-testid="metric-container"] {
-        border-radius: 16px !important;
-        padding: 24px !important;
-        background: #FAFAFA !important;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
-        border: none !important;
-    }
-
-    /* ── Chart containers: 20px padding, 16px radius ─────────────── */
-    .element-container:has([data-testid="stPlotlyChart"]) {
-        border-radius: 16px !important;
-        padding: 20px !important;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
-    }
-
-    /* ── Inputs and selectboxes: 10px radius ─────────────────────── */
+    /* ── Inputs and selectboxes ──────────────────────────────────── */
     div[data-baseweb="select"] > div,
-    div[data-baseweb="input"] {
+    div[data-baseweb="input"] {{
         border-radius: 10px !important;
-    }
+    }}
 
-    /* ── Buttons: 10px radius, smooth hover ──────────────────────── */
-    .stButton > button {
+    /* ── Buttons: smooth hover ───────────────────────────────────── */
+    .stButton > button {{
         border-radius: 10px !important;
         transition: all 0.15s ease !important;
-    }
-    .stButton > button:hover {
+    }}
+    .stButton > button:hover {{
         transform: translateY(-1px) !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
-    }
+    }}
 
     /* ── Tables: rounded, no hard border ─────────────────────────── */
-    [data-testid="stDataFrame"] {
+    [data-testid="stDataFrame"] {{
         border-radius: 16px !important;
         overflow: hidden !important;
         box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
         border: none !important;
-    }
-    /* Table row hover highlight */
-    [data-testid="stDataFrame"] tr:hover > td {
-        background-color: rgba(124,58,237,0.04) !important;
-    }
+    }}
 
-    /* ── Sidebar: shadow instead of hard border ───────────────────── */
-    section[data-testid="stSidebar"] {
-        box-shadow: 2px 0 16px rgba(0,0,0,0.08) !important;
-    }
-    section[data-testid="stSidebar"] > div:first-child {
-        padding-top: 0 !important;
-    }
-
-    /* ── Sidebar nav section headers (API DATA / UPLOAD REPORT labels) ── */
-    section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
-    section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
-    section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {
-        font-size: 11px !important;
-        font-weight: 700 !important;
-        letter-spacing: 1.5px !important;
-        color: #7C3AED !important;
-        text-transform: uppercase !important;
-        padding-top: 12px !important;
-    }
-
-    /* ── Onboarding highlight class ─────────────────────────────── */
-    .onboarding-highlight {
-        border: 3px solid #7C3AED !important;
+    /* ── Onboarding highlight ────────────────────────────────────── */
+    .onboarding-highlight {{
+        border: 3px solid {PRIMARY} !important;
         border-radius: 8px !important;
         animation: pulse-border 2s infinite !important;
-    }
-    @keyframes pulse-border {
-        0%   { box-shadow: 0 0 0 0   rgba(124,58,237,0.4); }
-        70%  { box-shadow: 0 0 0 10px rgba(124,58,237,0);   }
-        100% { box-shadow: 0 0 0 0   rgba(124,58,237,0);   }
-    }
+    }}
+    @keyframes pulse-border {{
+        0%   {{ box-shadow: 0 0 0 0   rgba(245,166,35,0.4); }}
+        70%  {{ box-shadow: 0 0 0 10px rgba(245,166,35,0);   }}
+        100% {{ box-shadow: 0 0 0 0   rgba(245,166,35,0);   }}
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -197,63 +174,60 @@ st.markdown("""
 if not prefs.get("onboarding_complete", False):
     if ob_step == 2:
         # Step 2: highlight file upload area
-        st.markdown("""
+        st.markdown(f"""
         <style>
-        [data-testid="stFileUploader"] {
-            border: 3px solid #7C3AED !important;
+        [data-testid="stFileUploader"] {{
+            border: 3px solid {PRIMARY} !important;
             border-radius: 8px !important;
             animation: pulse-border 2s infinite !important;
-        }
+        }}
         </style>""", unsafe_allow_html=True)
     elif ob_step == 3:
         # Step 3: highlight Settings nav items in sidebar
-        st.markdown("""
+        st.markdown(f"""
         <style>
-        section[data-testid="stSidebar"] a[href*="settings"] {
-            border: 2px solid #7C3AED !important;
+        section[data-testid="stSidebar"] a[href*="settings"] {{
+            border: 2px solid {PRIMARY} !important;
             border-radius: 6px !important;
             animation: pulse-border 2s infinite !important;
-        }
+        }}
         </style>""", unsafe_allow_html=True)
     elif ob_step == 4:
         # Step 4: highlight Performance & Insights nav links
-        st.markdown("""
+        st.markdown(f"""
         <style>
-        section[data-testid="stSidebar"] a[href*="performance"] {
-            border: 2px solid #7C3AED !important;
+        section[data-testid="stSidebar"] a[href*="performance"] {{
+            border: 2px solid {PRIMARY} !important;
             border-radius: 6px !important;
             animation: pulse-border 2s infinite !important;
-        }
+        }}
         </style>""", unsafe_allow_html=True)
-
-# ── Dark mode CSS ────────────────────────────────────────────────────────────
-if st.session_state.get("dark_mode", False):
-    st.markdown("""
-    <style>
-        .stApp { background-color: #0F1117 !important; }
-        section[data-testid="stSidebar"] { background-color: #1A1D27 !important; }
-        .stApp [data-testid="stMarkdownContainer"],
-        .stApp p, .stApp label, .stApp span { color: #FAFAFA !important; }
-        [data-testid="metric-container"] { background: #1E2130 !important; }
-        .element-container:has([data-testid="stPlotlyChart"]) { background: #1E2130 !important; }
-        h1, h2, h3, h4, h5, h6 { color: #FAFAFA !important; }
-        .stButton > button[kind="primary"],
-        [data-testid="baseButton-primary"] { background-color: #7C3AED !important; }
-    </style>
-    """, unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # Pacebird logo — absolute first element in sidebar
-    st.markdown("""
-    <div style="padding: 20px 16px 12px 16px;
-                border-bottom: 1px solid #E5E7EB;
-                margin-bottom: 12px;">
-        <div style="font-size: 24px; font-weight: 800;
-                    color: #7C3AED; letter-spacing: -0.5px;">
+    # Circular avatar placeholder above the Pacebird logo
+    st.markdown(f"""
+    <div style="display:flex;justify-content:center;padding:20px 16px 8px 16px;">
+        <div style="width:52px;height:52px;border-radius:50%;
+                    background:{PRIMARY};
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:22px;font-weight:700;color:{WHITE};
+                    box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+            P
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Pacebird logo
+    st.markdown(f"""
+    <div style="padding: 4px 16px 12px 16px;
+                border-bottom: 1px solid rgba(255,255,255,0.15);
+                margin-bottom: 12px; text-align:center;">
+        <div style="font-size: 22px; font-weight: 800;
+                    color: {WHITE}; letter-spacing: -0.5px;">
             🐦 Pacebird
         </div>
-        <div style="font-size: 12px; color: #6B7280;
+        <div style="font-size: 11px; color: rgba(255,255,255,0.6);
                     margin-top: 2px;">
             Programmatic Intelligence
         </div>
@@ -268,7 +242,7 @@ with st.sidebar:
 
     # Tier badge
     st.markdown(
-        f"<div style='font-size:11px;color:#6B7280;padding:4px 0 2px 0;'>{tier_label}</div>",
+        f"<div style='font-size:11px;color:rgba(255,255,255,0.5);padding:4px 0 2px 0;'>{tier_label}</div>",
         unsafe_allow_html=True
     )
 
@@ -282,14 +256,14 @@ if not prefs.get("onboarding_complete", False):
         st.markdown(f"""
         <div style="
             position:fixed; bottom:24px; right:24px;
-            background:#7C3AED; color:#fff;
+            background:{PRIMARY}; color:#fff;
             padding:8px 16px; border-radius:20px;
             font-size:13px; font-weight:600;
-            box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+            box-shadow: 0 4px 12px rgba(245,166,35,0.4);
             z-index:9999;">
-            Step {step} of 4
+            Step {{step}} of 4
         </div>
-        """, unsafe_allow_html=True)
+        """.replace("{step}", str(step)), unsafe_allow_html=True)
 
         if step == 1:
             st.markdown("### Welcome to Pacebird 👋")
@@ -317,7 +291,7 @@ if not prefs.get("onboarding_complete", False):
 
             Find the upload panel in **Upload Report → Performance & Insights**.
 
-            *(The file upload area is now highlighted in purple on that page.)*
+            *(The file upload area is now highlighted in orange on that page.)*
             """)
             col1, col2 = st.columns(2)
             with col1:
@@ -337,7 +311,7 @@ if not prefs.get("onboarding_complete", False):
 
             Navigate to **Settings** (in the sidebar) to set up your brands.
 
-            *(The Settings nav link is now highlighted in purple.)*
+            *(The Settings nav link is now highlighted in orange.)*
             """)
             col1, col2 = st.columns(2)
             with col1:

@@ -12,11 +12,11 @@ st.markdown("""
     .block-container {padding-top: 1rem;}
 
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
-    .stApp { background-color: #F3F4F6; }
+    .stApp { background-color: #EEF1F4; }
     h1, h2, h3, h4, h5, h6 { font-weight: 700 !important; color: #111827 !important; }
 
     [data-testid="metric-container"] {
@@ -25,11 +25,11 @@ st.markdown("""
         border-radius: 16px;
         padding: 24px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        border-top: 4px solid #7C3AED;
+        border-top: 4px solid #F5A623;
     }
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 10px !important;

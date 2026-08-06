@@ -31,6 +31,16 @@ It processes that data to generate performance charts, AI-written insights, and 
 5. Column names from DSP exports vary — always check and normalise headers early in any script
 6. After every significant change or completed feature, automatically run `git add .` and `git commit` with a descriptive commit message — do this without asking for confirmation
 
+## Design System (Pacebird Brand)
+- **Primary:** `#F5A623` warm orange — buttons, accents, active nav, card top borders
+- **Secondary:** `#1B2A4A` deep navy — sidebar background, chart bars
+- **Success:** `#10B981` · **Warning:** `#F59E0B` · **Danger:** `#EF4444` (RAG — do not change)
+- **Page background:** `#EEF1F4` · **Cards:** white, 16px radius, `0 2px 12px rgba(0,0,0,0.06)` shadow
+- **Font:** Poppins (Google Fonts)
+- **Sidebar:** navy (`#1B2A4A`) background, white text, orange active nav item
+- **Central design system file:** `utils/design_system.py` — import colors and `get_css()` from here
+- **DO NOT revert to old purple (`#7C3AED`) or blue (`#2563EB`) values**
+
 ## Key Ad Tech Metrics to Know
 - **CTR** = clicks / impressions
 - **CPM** = (spend / impressions) × 1000

@@ -6,18 +6,18 @@ import streamlit as st
 import plotly.graph_objects as go
 import anthropic
 
-# STYLE LOCK: Do not remove or modify this CSS block.
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
 st.markdown("""
 <style>
     /* ── Base font and body ─────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
 
     /* ── Page background ────────────────────────────────────────── */
-    .stApp { background-color: #F3F4F6; }
+    .stApp { background-color: #EEF1F4; }
 
     /* ── Main area headings ──────────────────────────────────────── */
     h1, h2, h3, h4, h5, h6 { font-weight: 700 !important; color: #111827 !important; }
@@ -37,7 +37,7 @@ st.markdown("""
         border-radius: 16px;
         padding: 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #7C3AED;
+        border-top: 4px solid #F5A623;
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
@@ -60,10 +60,10 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
 
-    /* ── Primary buttons — purple ───────────────────────────────── */
+    /* ── Primary buttons — orange ───────────────────────────────── */
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
@@ -73,7 +73,7 @@ st.markdown("""
     }
     .stButton > button[kind="primary"]:hover,
     [data-testid="baseButton-primary"]:hover {
-        background-color: #6D28D9 !important;
+        background-color: #E8951A !important;
     }
 
     /* ── Secondary / default buttons ────────────────────────────── */
@@ -85,7 +85,7 @@ st.markdown("""
 
     /* ── File upload box ─────────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #7C3AED !important;
+        border: 2px dashed #F5A623 !important;
         border-radius: 12px;
         padding: 10px;
         background: #FFFFFF;
@@ -367,11 +367,11 @@ with tab_preflight:
             values=values,
             hole=0.45,
             marker=dict(colors=[
-                "#7C3AED", "#00A8E8", "#10B981", "#F59E0B",
-                "#EF4444", "#6366F1", "#EC4899", "#14B8A6",
+                "#F5A623", "#1B2A4A", "#10B981", "#F59E0B",
+                "#EF4444", "#F7B84B", "#2C4A7A", "#14B8A6",
             ]),
             textinfo="label+percent",
-            textfont=dict(family="Inter, sans-serif", size=12),
+            textfont=dict(family="Poppins, sans-serif", size=12),
             hovertemplate="%{label}<br>A$%{value:,.0f} (%{percent})<extra></extra>",
         ))
         pie_fig.update_layout(
@@ -380,7 +380,7 @@ with tab_preflight:
             height=360,
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Inter, sans-serif"),
+            font=dict(family="Poppins, sans-serif"),
         )
         st.plotly_chart(pie_fig, use_container_width=True)
 
@@ -523,11 +523,11 @@ with tab_inflight:
             elif pct <= 110:
                 bg, txt, label = "#ECFDF5", "#10B981", "On track"
             else:
-                bg, txt, label = "#F5F3FF", "#7C3AED", "Overpacing"
+                bg, txt, label = "#FFF4E0", "#F5A623", "Overpacing"
 
             # Build bar using styled div
             bar_pct_display = min(pct, 130)
-            bar_fill = "#10B981" if pct <= 110 else "#7C3AED"
+            bar_fill = "#10B981" if pct <= 110 else "#F5A623"
             if pct < 75:
                 bar_fill = "#EF4444"
             elif pct < 92:

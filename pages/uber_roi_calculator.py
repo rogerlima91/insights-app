@@ -13,18 +13,18 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 
 
-# STYLE LOCK: Do not remove or modify this CSS block.
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
 st.markdown("""
 <style>
     /* ── Base font and body ─────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
 
     /* ── Page background ────────────────────────────────────────── */
-    .stApp { background-color: #F3F4F6; }
+    .stApp { background-color: #EEF1F4; }
 
     /* ── Main area headings ──────────────────────────────────────── */
     h1, h2, h3, h4, h5, h6 { font-weight: 700 !important; color: #111827 !important; }
@@ -44,7 +44,7 @@ st.markdown("""
         border-radius: 16px;
         padding: 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #7C3AED;
+        border-top: 4px solid #F5A623;
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
@@ -67,10 +67,10 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
 
-    /* ── Primary buttons — purple ───────────────────────────────── */
+    /* ── Primary buttons — orange ───────────────────────────────── */
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
@@ -80,7 +80,7 @@ st.markdown("""
     }
     .stButton > button[kind="primary"]:hover,
     [data-testid="baseButton-primary"]:hover {
-        background-color: #6D28D9 !important;
+        background-color: #E8951A !important;
     }
 
     /* ── Secondary / default buttons ────────────────────────────── */
@@ -829,7 +829,7 @@ with tab_forecast:
         gauge_fig = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=base_roas,
-            number={"suffix": "x", "font": {"size": 28, "family": "Inter, sans-serif"}},
+            number={"suffix": "x", "font": {"size": 28, "family": "Poppins, sans-serif"}},
             delta={
                 "reference": break_even_roas,
                 "increasing": {"color": "#10B981"},
@@ -844,7 +844,7 @@ with tab_forecast:
                     "tickcolor": "#6B7280",
                     "tickfont": {"size": 11},
                 },
-                "bar": {"color": "#7C3AED", "thickness": 0.3},
+                "bar": {"color": "#F5A623", "thickness": 0.3},
                 "bgcolor": "white",
                 "borderwidth": 0,
                 "steps": [
@@ -862,7 +862,7 @@ with tab_forecast:
             height=280,
             margin=dict(t=40, b=20, l=30, r=30),
             paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Inter, sans-serif", color="#374151"),
+            font=dict(family="Poppins, sans-serif", color="#374151"),
         )
         st.plotly_chart(gauge_fig, use_container_width=True)
 
@@ -1379,18 +1379,18 @@ with tab_outcome:
                 labels=["Incremental Orders", "Organic (Ad-Influenced)"],
                 values=[oc_inp["incr_orders"], organic_orders],
                 hole=0.52,
-                marker=dict(colors=["#7C3AED", "#E5E7EB"]),
+                marker=dict(colors=["#F5A623", "#E5E7EB"]),
                 textinfo="label+percent",
-                textfont=dict(family="Inter, sans-serif", size=11),
+                textfont=dict(family="Poppins, sans-serif", size=11),
                 hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>",
             ))
             donut_fig.update_layout(
-                title=dict(text="Order Split", font=dict(size=13, family="Inter, sans-serif")),
+                title=dict(text="Order Split", font=dict(size=13, family="Poppins, sans-serif")),
                 showlegend=False,
                 height=300,
                 margin=dict(t=50, b=20, l=20, r=20),
                 paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif"),
+                font=dict(family="Poppins, sans-serif"),
             )
             st.plotly_chart(donut_fig, use_container_width=True)
 
@@ -1409,7 +1409,7 @@ with tab_outcome:
                 rows=1, cols=3,
                 subplot_titles=["ROAS", "CPO (AUD)", "Total Orders"],
             )
-            bar_colours = ["#E5E7EB", "#7C3AED"]   # Target = grey, Actual = purple
+            bar_colours = ["#E5E7EB", "#F5A623"]   # Target = grey, Actual = orange
 
             for col_i, (t_val, a_val, suffix) in enumerate([
                 (t_roas,   a_roas,   "x"),
@@ -1441,7 +1441,7 @@ with tab_outcome:
 
             bar_fig.update_layout(
                 title=dict(text="Target vs Actual",
-                           font=dict(size=13, family="Inter, sans-serif")),
+                           font=dict(size=13, family="Poppins, sans-serif")),
                 height=300,
                 barmode="group",
                 showlegend=True,
@@ -1449,7 +1449,7 @@ with tab_outcome:
                 margin=dict(t=50, b=40, l=20, r=20),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif"),
+                font=dict(family="Poppins, sans-serif"),
             )
             bar_fig.update_traces(width=0.5)
             st.plotly_chart(bar_fig, use_container_width=True)

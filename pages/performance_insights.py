@@ -26,19 +26,19 @@ PURPLE  = "#6e2ca9"
 MAGENTA = "#c70099"
 
 # ── Global CSS ────────────────────────────────────────────────────────────────
-# STYLE LOCK: Do not remove or modify this CSS block.
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
 st.markdown("""
 <style>
     /* ── Base font and body ─────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
 
     /* ── Page background ────────────────────────────────────────── */
     .stApp {
-        background-color: #F3F4F6;
+        background-color: #EEF1F4;
     }
 
     /* ── Main area headings ──────────────────────────────────────── */
@@ -62,7 +62,7 @@ st.markdown("""
         border-radius: 16px;
         padding: 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #7C3AED;
+        border-top: 4px solid #F5A623;
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
@@ -85,10 +85,10 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
 
-    /* ── Primary buttons — purple ───────────────────────────────── */
+    /* ── Primary buttons — orange ───────────────────────────────── */
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
@@ -98,12 +98,12 @@ st.markdown("""
     }
     .stButton > button[kind="primary"]:hover,
     [data-testid="baseButton-primary"]:hover {
-        background-color: #6D28D9 !important;
+        background-color: #E8951A !important;
     }
 
     /* ── File upload box ─────────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #7C3AED !important;
+        border: 2px dashed #F5A623 !important;
         border-radius: 12px;
         padding: 10px;
         background: #FFFFFF;
@@ -118,8 +118,8 @@ st.markdown("""
         font-weight: 700;
         margin-left: 6px;
     }
-    .badge-dv360   { background: #EFF6FF; color: #2563EB; }
-    .badge-ttd     { background: #F5F3FF; color: #7C3AED; }
+    .badge-dv360   { background: #EEF1F4; color: #1B2A4A; }
+    .badge-ttd     { background: #FFF4E0; color: #F5A623; }
     .badge-generic { background: #F0FDF4; color: #16A34A; }
     .badge-amazon  { background: #FFF7ED; color: #C2410C; }
 </style>
@@ -133,7 +133,7 @@ _pi_source_mode = st.session_state.get('_pi_source_mode', 'one-off')
 if _pi_source_mode == 'ongoing':
     st.markdown('<span style="background:#10B981;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📡 ONGOING · Live API Data</span>', unsafe_allow_html=True)
 else:
-    st.markdown('<span style="background:#2563EB;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · File Upload</span>', unsafe_allow_html=True)
+    st.markdown('<span style="background:#1B2A4A;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · File Upload</span>', unsafe_allow_html=True)
 st.session_state.pop('_pi_source_mode', None)  # reset after reading
 
 # Change 6: API Data mode banner — shown only in 'ongoing' mode
@@ -143,7 +143,7 @@ if _pi_source_mode == 'ongoing':
     col_banner, col_refresh = st.columns([4, 1])
     with col_banner:
         st.markdown("""
-        <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+        <div style="background:#EEF1F4;border-left:4px solid #1B2A4A;border-radius:8px;
         padding:10px 16px;margin-bottom:12px;">
             <strong>📡 Live API Data Mode</strong> — data is loaded from the live API connection.
         </div>
@@ -1328,8 +1328,8 @@ else:
     st.subheader("Performance Charts")
 
     # Colour palette — one colour per brand, consistent across all charts
-    PALETTE = ["#2563EB", "#60A5FA", "#93C5FD", "#1D4ED8", "#3B82F6",
-               "#7C3AED", "#A78BFA", "#10B981", "#F59E0B", "#EF4444"]
+    PALETTE = ["#1B2A4A", "#F5A623", "#2C4A7A", "#F7B84B", "#162238",
+               "#E8951A", "#10B981", "#F59E0B", "#EF4444", "#4A7AB5"]
 
     def no_data_msg(msg):
         st.markdown(
@@ -1350,13 +1350,13 @@ else:
         fig.update_layout(
             plot_bgcolor="#FFFFFF",
             paper_bgcolor="#FFFFFF",
-            font=dict(family="Inter, system-ui, sans-serif", size=13, color="#374151"),
+            font=dict(family="Poppins, system-ui, sans-serif", size=13, color="#374151"),
             margin=dict(t=36, b=56, l=70, r=24),
             showlegend=False,
             hoverlabel=dict(
                 bgcolor="#FFFFFF",
                 font_size=13,
-                font_family="Inter, system-ui, sans-serif",
+                font_family="Poppins, system-ui, sans-serif",
                 bordercolor="#E5E7EB",
             ),
         )
@@ -1664,8 +1664,8 @@ else:
                     y=daily[left_col],
                     name=left_label,
                     mode="lines+markers",
-                    line=dict(color="#2563EB", width=2, dash="solid"),
-                    marker=dict(symbol="circle", size=6, color="#2563EB"),
+                    line=dict(color="#1B2A4A", width=2, dash="solid"),
+                    marker=dict(symbol="circle", size=6, color="#1B2A4A"),
                     hovertemplate=f"%{{x}}<br>{left_label}: <b>%{{y:,}}</b><extra></extra>",
                 ),
                 secondary_y=False,
@@ -1690,7 +1690,7 @@ else:
                 title=dict(text="Daily Performance", font=dict(size=15, color="#111827")),
                 plot_bgcolor="#FFFFFF",
                 paper_bgcolor="#FFFFFF",
-                font=dict(family="Inter, system-ui, sans-serif", color="#374151"),
+                font=dict(family="Poppins, system-ui, sans-serif", color="#374151"),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 margin=dict(l=60, r=60, t=60, b=50),
                 hovermode="x unified",
@@ -1698,8 +1698,8 @@ else:
             fig_daily.update_yaxes(
                 title_text=left_label, secondary_y=False,
                 tickformat=",", gridcolor="#F3F4F6",
-                title_font=dict(color="#2563EB"),
-                tickfont=dict(color="#2563EB"),
+                title_font=dict(color="#1B2A4A"),
+                tickfont=dict(color="#1B2A4A"),
             )
             fig_daily.update_yaxes(
                 title_text=right_label if right_col != left_col else "",
@@ -2103,7 +2103,7 @@ else:
                     # Show indicator when brand memory is applied
                     if _campaign_brand_context:
                         st.markdown(
-                            "<p style='color:#2563EB;font-size:13px;font-weight:600;"
+                            "<p style='color:#F5A623;font-size:13px;font-weight:600;"
                             "margin:0 0 8px 0;'>✓ Brand context applied</p>",
                             unsafe_allow_html=True,
                         )
@@ -2234,8 +2234,8 @@ Return exactly 3 chart recommendations. Seed: {seed_val}"""
 
         if summary:
             st.markdown(f"""
-            <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;padding:16px;margin-bottom:12px;">
-                <div style="font-weight:700;color:#1E3A5F;margin-bottom:6px;">📊 Dataset Summary</div>
+            <div style="background:#EEF1F4;border-left:4px solid #1B2A4A;border-radius:8px;padding:16px;margin-bottom:12px;">
+                <div style="font-weight:700;color:#1B2A4A;margin-bottom:6px;">📊 Dataset Summary</div>
                 <div style="color:#374151;">{summary}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -2272,23 +2272,23 @@ Return exactly 3 chart recommendations. Seed: {seed_val}"""
 
                             if chart_type == "bar":
                                 fig = px.bar(plot_df, x=x_col, y=y_col, title=title,
-                                            color_discrete_sequence=["#7C3AED"])
+                                            color_discrete_sequence=["#1B2A4A"])
                             elif chart_type == "line":
                                 fig = px.line(plot_df, x=x_col, y=y_col, title=title,
-                                             color_discrete_sequence=["#7C3AED"])
+                                             color_discrete_sequence=["#1B2A4A"])
                             elif chart_type == "scatter":
                                 fig = px.scatter(plot_df, x=x_col, y=y_col, title=title,
-                                               color_discrete_sequence=["#7C3AED"])
+                                               color_discrete_sequence=["#1B2A4A"])
                             elif chart_type == "pie":
                                 fig = px.pie(plot_df, names=x_col, values=y_col, title=title)
                             else:
                                 fig = px.bar(plot_df, x=x_col, y=y_col, title=title,
-                                            color_discrete_sequence=["#7C3AED"])
+                                            color_discrete_sequence=["#1B2A4A"])
 
                             fig.update_layout(
                                 paper_bgcolor="rgba(0,0,0,0)",
                                 plot_bgcolor="rgba(0,0,0,0)",
-                                font_family="Inter, sans-serif",
+                                font_family="Poppins, sans-serif",
                                 height=300,
                                 margin=dict(l=20, r=20, t=40, b=20),
                             )

@@ -25,19 +25,19 @@ def load_embedding_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 # ── Global CSS ────────────────────────────────────────────────────────────────
-# STYLE LOCK: Do not remove or modify this CSS block.
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
 st.markdown("""
 <style>
     /* ── Base font and body ─────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
 
     /* ── Page background ────────────────────────────────────────── */
     .stApp {
-        background-color: #F3F4F6;
+        background-color: #EEF1F4;
     }
 
     /* ── Main area headings ──────────────────────────────────────── */
@@ -54,10 +54,10 @@ st.markdown("""
         padding-left: 0 !important;
     }
 
-    /* ── Primary buttons — purple ───────────────────────────────── */
+    /* ── Primary buttons — orange ───────────────────────────────── */
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
@@ -67,12 +67,12 @@ st.markdown("""
     }
     .stButton > button[kind="primary"]:hover,
     [data-testid="baseButton-primary"]:hover {
-        background-color: #6D28D9 !important;
+        background-color: #E8951A !important;
     }
 
     /* ── File upload box ─────────────────────────────────────────── */
     [data-testid="stFileUploader"] {
-        border: 2px dashed #7C3AED !important;
+        border: 2px dashed #F5A623 !important;
         border-radius: 12px;
         padding: 10px;
         background: #FFFFFF;
@@ -311,7 +311,7 @@ with tab_bm:
                         elif entry_type == "transcript":
                             badge_color, badge_label = "#F59E0B", "Transcript"
                         else:
-                            badge_color, badge_label = "#7C3AED", "Email"
+                            badge_color, badge_label = "#F5A623", "Email"
 
                         col_info, col_btn = st.columns([9, 1])
 

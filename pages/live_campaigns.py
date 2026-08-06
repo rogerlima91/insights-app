@@ -5,15 +5,15 @@ import streamlit as st
 from datetime import date, timedelta, datetime
 
 # ── Global CSS (identical to app.py — STYLE LOCK) ─────────────────────────────
-# STYLE LOCK: Do not remove or modify this CSS block.
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
 st.markdown("""
 <style>
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
-    .stApp { background-color: #F3F4F6; }
+    .stApp { background-color: #EEF1F4; }
 
     h1, h2, h3, h4, h5, h6 { font-weight: 700 !important; color: #111827 !important; }
     h2, h3 {
@@ -31,7 +31,7 @@ st.markdown("""
         border-radius: 16px;
         padding: 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #7C3AED;
+        border-top: 4px solid #F5A623;
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
@@ -48,7 +48,7 @@ st.markdown("""
 
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
@@ -57,7 +57,7 @@ st.markdown("""
         padding: 0.5rem 1.25rem !important;
     }
     .stButton > button[kind="primary"]:hover,
-    [data-testid="baseButton-primary"]:hover { background-color: #6D28D9 !important; }
+    [data-testid="baseButton-primary"]:hover { background-color: #E8951A !important; }
 </style>
 """, unsafe_allow_html=True)
 # STYLE LOCK
@@ -65,7 +65,7 @@ st.markdown("""
 # Show source mode badge
 _lc_source_mode = st.session_state.get('_lc_source_mode', 'ongoing')
 if _lc_source_mode == 'one-off':
-    st.markdown('<span style="background:#2563EB;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · Pacing Checker</span>', unsafe_allow_html=True)
+    st.markdown('<span style="background:#1B2A4A;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">📁 ONE-OFF · Pacing Checker</span>', unsafe_allow_html=True)
 else:
     st.markdown('<span style="background:#10B981;color:white;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;">🎯 ONGOING · Live Campaigns</span>', unsafe_allow_html=True)
 st.session_state.pop('_lc_source_mode', None)
@@ -77,7 +77,7 @@ if _lc_source_mode != 'one-off':
     col_lc_banner, col_lc_refresh = st.columns([4, 1])
     with col_lc_banner:
         st.markdown("""
-        <div style="background:#EFF6FF;border-left:4px solid #2563EB;border-radius:8px;
+        <div style="background:#EEF1F4;border-left:4px solid #1B2A4A;border-radius:8px;
         padding:10px 16px;margin-bottom:12px;">
             <strong>📡 Live API Data Mode</strong> — showing live campaign data for Optus.
         </div>
@@ -188,7 +188,7 @@ def calc_pacing(c):
     elif pacing_index <= 110:
         risk, risk_color, risk_bg = "On track",   "#10B981", "#ECFDF5"
     else:
-        risk, risk_color, risk_bg = "Overpacing", "#7C3AED", "#F5F3FF"
+        risk, risk_color, risk_bg = "Overpacing", "#F5A623", "#FFF4E0"
 
     return {
         **c,
@@ -865,7 +865,7 @@ def build_campaigns_from_df(df):
         elif pacing_index <= 110:
             risk, risk_color, risk_bg = "On track",   "#10B981", "#ECFDF5"
         else:
-            risk, risk_color, risk_bg = "Overpacing", "#7C3AED", "#F5F3FF"
+            risk, risk_color, risk_bg = "Overpacing", "#F5A623", "#FFF4E0"
 
         # Composite key used to look up the line-item breakdown in the pacing table.
         breakdown_key = f"{advertiser}|{dsp}|{campaign_name}"
@@ -1079,10 +1079,10 @@ st.subheader("Pacing Dashboard")
 def dsp_badge(dsp):
     """Coloured pill badge for DSP."""
     if dsp == "TTD":
-        return ("<span style='background:#F5F3FF;color:#7C3AED;border-radius:4px;"
+        return ("<span style='background:#FFF4E0;color:#F5A623;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>TTD</span>")
     if dsp == "DV360":
-        return ("<span style='background:#EFF6FF;color:#2563EB;border-radius:4px;"
+        return ("<span style='background:#EEF1F4;color:#1B2A4A;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>DV360</span>")
     if dsp == "Amazon DSP":
         return ("<span style='background:#FFF7ED;color:#EA580C;border-radius:4px;"
@@ -1100,10 +1100,10 @@ def buy_type_badge(buy_type):
         return ("<span style='background:#FFF7ED;color:#EA580C;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>PMP</span>")
     if buy_type == "Open":
-        return ("<span style='background:#EFF6FF;color:#2563EB;border-radius:4px;"
+        return ("<span style='background:#EEF1F4;color:#1B2A4A;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>Open</span>")
     if buy_type == "APD":
-        return ("<span style='background:#F5F3FF;color:#7C3AED;border-radius:4px;"
+        return ("<span style='background:#FFF4E0;color:#F5A623;border-radius:4px;"
                 "padding:2px 8px;font-size:11px;font-weight:700;'>APD</span>")
     return ("<span style='background:#F3F4F6;color:#6B7280;border-radius:4px;"
             f"padding:2px 8px;font-size:11px;font-weight:700;'>{buy_type}</span>")
@@ -1158,7 +1158,7 @@ def calc_sub_pacing(budget, spent, start, end):
     elif pacing_index <= 110:
         risk, risk_color, risk_bg = "On track",   "#10B981", "#ECFDF5"
     else:
-        risk, risk_color, risk_bg = "Overpacing", "#7C3AED", "#F5F3FF"
+        risk, risk_color, risk_bg = "Overpacing", "#F5A623", "#FFF4E0"
 
     return {
         "pacing_index": pacing_index,
@@ -1233,11 +1233,11 @@ for client_name, client_campaigns in clients_map.items():
     elif agg_pacing <= 110:
         agg_risk, agg_rc, agg_rb = "On track",   "#10B981", "#ECFDF5"
     else:
-        agg_risk, agg_rc, agg_rb = "Overpacing", "#7C3AED", "#F5F3FF"
+        agg_risk, agg_rc, agg_rb = "Overpacing", "#F5A623", "#FFF4E0"
 
     n_camps = len(client_campaigns)
     client_row = (
-        f"<tr style='border-bottom:1px solid #F3F4F6;'>"
+        f"<tr style='border-bottom:1px solid #E5E7EB;'>"
         f"<td style='padding:14px 16px;width:28px;color:#9CA3AF;font-size:11px;'>▶</td>"
         f"<td style='padding:14px 16px;font-weight:600;color:#111827;'>{client_name}"
         f"<span style='font-size:11px;color:#6B7280;font-weight:400;margin-left:8px;'>"
@@ -1320,7 +1320,7 @@ for client_name, client_campaigns in clients_map.items():
                         for li in all_li:
                             lp = calc_sub_pacing(li["budget"], li["spent"], c["start"], c["end"])
                             li_rows += (
-                                f"<tr style='border-bottom:1px solid #F3F4F6;'>"
+                                f"<tr style='border-bottom:1px solid #E5E7EB;'>"
                                 f"<td style='padding:10px 14px 10px 24px;color:#374151;"
                                 f"font-size:13px;'>{li['name']}</td>"
                                 f"<td style='padding:10px 14px;text-align:right;"
@@ -1338,7 +1338,7 @@ for client_name, client_campaigns in clients_map.items():
                             f"<div style='background:#F9FAFB;border-radius:8px;"
                             f"overflow:hidden;margin-top:8px;'>"
                             f"<table style='width:100%;border-collapse:collapse;'>"
-                            f"<thead><tr style='background:#F3F4F6;border-bottom:1px solid #E5E7EB;'>"
+                            f"<thead><tr style='background:#EEF1F4;border-bottom:1px solid #E5E7EB;'>"
                             f"<th style='padding:8px 14px 8px 24px;text-align:left;font-size:11px;"
                             f"color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;'>"
                             f"Line Item</th>"

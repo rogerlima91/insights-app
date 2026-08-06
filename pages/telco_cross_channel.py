@@ -13,15 +13,15 @@ from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 
-# STYLE LOCK: Do not remove or modify this CSS block.
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
 st.markdown("""
 <style>
     html, body, [class*="css"] {
-        font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 15px;
         color: #374151;
     }
-    .stApp { background-color: #F3F4F6; }
+    .stApp { background-color: #EEF1F4; }
     h1, h2, h3, h4, h5, h6 { font-weight: 700 !important; color: #111827 !important; }
     h2, h3 {
         margin-top: 2rem !important;
@@ -37,7 +37,7 @@ st.markdown("""
         border-radius: 16px;
         padding: 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #7C3AED;
+        border-top: 4px solid #F5A623;
     }
     [data-testid="metric-container"] label {
         font-size: 12px;
@@ -59,7 +59,7 @@ st.markdown("""
     }
     .stButton > button[kind="primary"],
     [data-testid="baseButton-primary"] {
-        background-color: #7C3AED !important;
+        background-color: #F5A623 !important;
         color: #FFFFFF !important;
         border: none !important;
         border-radius: 8px !important;
@@ -68,7 +68,7 @@ st.markdown("""
         padding: 0.5rem 1.25rem !important;
     }
     .stButton > button[kind="primary"]:hover,
-    [data-testid="baseButton-primary"]:hover { background-color: #6D28D9 !important; }
+    [data-testid="baseButton-primary"]:hover { background-color: #E8951A !important; }
     .stButton > button[kind="secondary"],
     [data-testid="baseButton-secondary"] { border-radius: 8px !important; font-weight: 600 !important; }
     [data-testid="stDataFrame"] {
@@ -132,8 +132,8 @@ DEFAULT_CPA_TARGETS = {
     "Affiliates":              15,
 }
 
-# Blue palette for charts (7 entries, one per channel)
-CHART_COLOURS = ["#1E40AF","#2563EB","#3B82F6","#60A5FA","#93C5FD","#BFDBFE","#7C3AED"]
+# Navy/orange palette for charts (7 entries, one per channel)
+CHART_COLOURS = ["#1B2A4A","#F5A623","#2C4A7A","#F7B84B","#162238","#E8951A","#4A7AB5"]
 
 # Column name candidates for mapping uploaded file headers to standard names
 UPLOAD_COLUMN_CANDIDATES = {
