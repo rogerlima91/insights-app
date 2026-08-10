@@ -20,7 +20,9 @@
       "Bash(grep -E \"\\\\.\\(py|txt|css|json|html\\)$\")",
       "Bash(git rm:*)",
       "Bash(pip show:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git -C C:/projects/insights-app add app.py)",
+      "Bash(git -C C:/projects/insights-app commit -m \"Replace sidebar logo with assets/logo.png \\(base64 embedded\\); set favicon\")"
     ]
   }
 }
