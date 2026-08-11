@@ -410,20 +410,29 @@ def show_qbr_dialog():
                 st.warning("Select at least one section.")
                 return
             with st.spinner("Building QBR deck..."):
-                pptx_buf = _build_qbr_pptx(sections, selected_q, prev_q, curr, prev, daily_rev, rev_fmt, top5_display, bot5_display)
-            st.session_state["_qbr_pptx"] = pptx_buf
-            st.rerun()
+                try:
+                    pptx_buf = _build_qbr_pptx(
+                        sections, selected_q, prev_q, curr, prev,
+                        daily_rev, rev_fmt, top5_display, bot5_display,
+                    )
+                    st.session_state["_qbr_pptx"] = pptx_buf
+                    st.session_state["_qbr_filename"] = (
+                        f"QBR_{selected_pub.replace(' ', '_')}_{selected_q.replace(' ', '_')}.pptx"
+                    )
+                except Exception as e:
+                    st.error(f"Export failed: {e}")
+                    return
     with bc[1]:
         if st.button("Cancel", key="qbr_cancel_btn"):
             st.rerun()
 
-    # Download button shown once PPTX is ready
+    # Download button shown immediately once PPTX is ready (no rerun — stays in dialog)
     if "_qbr_pptx" in st.session_state:
         st.success("Deck ready!")
         st.download_button(
             "📥 Download QBR (.pptx)",
             data=st.session_state["_qbr_pptx"],
-            file_name=f"QBR_{selected_pub.replace(' ', '_')}_{selected_q.replace(' ', '_')}.pptx",
+            file_name=st.session_state.get("_qbr_filename", "QBR_report.pptx"),
             mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
             key="qbr_dl_btn",
         )
@@ -546,13 +555,13 @@ def _build_qbr_pptx(sections, curr_q, prev_q_lbl, curr_metrics, prev_metrics, da
         sl = add_slide()
         add_text(sl, "Placement Performance", 0.5, 0.3, 12.0, 0.6, size=20, bold=True)
         add_text(sl, "Top 5 Placements by eCPM", 0.5, 1.0, 6.0, 0.4, size=13, color=ACCENT)
-        for j, row in top5_df.iterrows():
+        for j, (_, row) in enumerate(top5_df.iterrows()):
             vals = row.values
-            add_text(sl, f"• {vals[0]}  |  eCPM: {vals[1]}  |  Rev: {vals[2]}  |  Fill: {vals[3]}", 0.5, 1.5 + (j % 5) * 0.55, 12.0, 0.45, size=11, color=WHITE_)
+            add_text(sl, f"• {vals[0]}  |  eCPM: {vals[1]}  |  Rev: {vals[2]}  |  Fill: {vals[3]}", 0.5, 1.5 + j * 0.55, 12.0, 0.45, size=11, color=WHITE_)
         add_text(sl, "Bottom 5 Placements by eCPM", 0.5, 4.4, 6.0, 0.4, size=13, color=GREY_)
-        for j, row in bot5_df.iterrows():
+        for j, (_, row) in enumerate(bot5_df.iterrows()):
             vals = row.values
-            add_text(sl, f"• {vals[0]}  |  eCPM: {vals[1]}  |  Rev: {vals[2]}  |  Fill: {vals[3]}", 0.5, 4.9 + (j % 5) * 0.45, 12.0, 0.4, size=11, color=GREY_)
+            add_text(sl, f"• {vals[0]}  |  eCPM: {vals[1]}  |  Rev: {vals[2]}  |  Fill: {vals[3]}", 0.5, 4.9 + j * 0.45, 12.0, 0.4, size=11, color=GREY_)
         add_footer(sl, slide_num); slide_num += 1
 
     buf = io.BytesIO()
@@ -561,12 +570,21 @@ def _build_qbr_pptx(sections, curr_q, prev_q_lbl, curr_metrics, prev_metrics, da
     return buf
 
 
-# Button to open dialog
-col_btn, _ = st.columns([2, 6])
+# Button to open dialog + persistent download once a deck has been generated
+col_btn, col_dl, _ = st.columns([2, 3, 3])
 with col_btn:
     if st.button("📊 Generate QBR Deck", type="primary", key="qbr_open_dialog"):
-        # Clear any previous PPTX so the dialog starts fresh
-        st.session_state.pop("_qbr_pptx", None)
         show_qbr_dialog()
+
+# Persistent download — visible even after the dialog closes
+with col_dl:
+    if "_qbr_pptx" in st.session_state:
+        st.download_button(
+            "📥 Download QBR (.pptx)",
+            data=st.session_state["_qbr_pptx"],
+            file_name=st.session_state.get("_qbr_filename", "QBR_report.pptx"),
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            key="qbr_dl_persistent",
+        )
 
 print("Done. QBR Generator page loaded.")

@@ -225,16 +225,14 @@ with m3:
 with m4:
     st.metric("Avg Fill Rate", f"{avg_fill:.1f}%")
 
-# ── Three-level expandable hierarchy: Publisher → Placement → Format ───────────
-# Mirrors the Live Campaigns pattern (Client → Campaign → Line Item).
-# Timeout RAG threshold: 5% for column-level coloring in the hierarchy.
+# ── Inventory Hierarchy ────────────────────────────────────────────────────────
 st.markdown("### Inventory Hierarchy")
 st.caption(
-    "Expand each publisher to see placement detail, then expand a placement for format breakdown. "
-    "Fill Rate and eCPM RAG vs benchmarks. Timeout Rate 🔴 above 10%, 🟡 above 5%, 🟢 below 5%."
+    "Publisher summary above. Use the Format filter to drill into placement detail. "
+    "Fill Rate, eCPM and Timeout Rate cells are RAG-coloured vs benchmarks."
 )
 
-# Aggregate publisher-level summary once (used for header rows)
+# Aggregate publisher-level summary (one row per publisher)
 pub_agg = df.groupby("publisher").agg(
     revenue_aud=("revenue_aud",  "sum"),
     impressions=("impressions",  "sum"),
@@ -246,96 +244,160 @@ pub_agg = df.groupby("publisher").agg(
     timeout_rate=("timeout_rate","mean"),
 ).reset_index()
 pub_agg["ecpm"] = (pub_agg["revenue_aud"] / pub_agg["impressions"] * 1000).round(2)
-pub_agg[["bid_rate", "win_rate", "timeout_rate"]] = pub_agg[["bid_rate", "win_rate", "timeout_rate"]].round(1)
+pub_agg[["fill_rate", "bid_rate", "win_rate", "timeout_rate"]] = (
+    pub_agg[["fill_rate", "bid_rate", "win_rate", "timeout_rate"]].round(1)
+)
 
-for _, pub_row in pub_agg.iterrows():
-    pub_name = pub_row["publisher"]
-    fill_rag, fill_clr = rag_status(pub_row["fill_rate"], pub_row["fill_target"], higher_is_better=True)
-    to_rag,   _        = timeout_rag(pub_row["timeout_rate"], threshold=5.0)
-
-    with st.expander(
-        f"{fill_rag} **{pub_name}**"
-        f"  ·  A${pub_row['revenue_aud']:,.0f}"
-        f"  ·  eCPM A${pub_row['ecpm']:.2f}"
-        f"  ·  Fill {pub_row['fill_rate']:.1f}%"
-        f"  ·  {to_rag} Timeout {pub_row['timeout_rate']:.1f}%",
-        expanded=False,
-    ):
-        # Publisher summary banner
-        st.markdown(
-            f"<div style='background:#f0fdf4;border-left:4px solid {fill_clr};"
-            f"padding:8px 12px;border-radius:6px;margin-bottom:8px;font-size:13px;'>"
-            f"Fill Rate: <b>{pub_row['fill_rate']:.1f}%</b> vs target {pub_row['fill_target']:.0f}%"
-            f"&nbsp;|&nbsp; eCPM: <b>A${pub_row['ecpm']:.2f}</b> vs target A${pub_row['ecpm_target']:.2f}"
-            f"&nbsp;|&nbsp; Bid Rate: <b>{pub_row['bid_rate']:.1f}%</b>"
-            f"&nbsp;|&nbsp; Win Rate: <b>{pub_row['win_rate']:.1f}%</b>"
-            f"&nbsp;|&nbsp; Timeout: <b>{pub_row['timeout_rate']:.1f}%</b>"
-            f"</div>",
-            unsafe_allow_html=True,
+# Status column for publisher summary
+pub_agg["Status"] = pub_agg.apply(
+    lambda row: (
+        "🔴 Needs attention" if (
+            rag_status(row["fill_rate"], row["fill_target"])[0] == "🔴" or
+            timeout_rag(row["timeout_rate"], 5.0)[0] == "🔴"
+        ) else (
+            "🟡 Watch" if (
+                rag_status(row["fill_rate"], row["fill_target"])[0] == "🟡" or
+                timeout_rag(row["timeout_rate"], 5.0)[0] == "🟡"
+            ) else "🟢 Healthy"
         )
+    ),
+    axis=1,
+)
 
-        # Placement-level breakdown
-        place_agg = (
-            df[df["publisher"] == pub_name]
-            .groupby("placement")
-            .agg(
-                revenue_aud=("revenue_aud",  "sum"),
-                impressions=("impressions",  "sum"),
-                fill_rate=("fill_rate",      "mean"),
-                fill_target=("fill_target",  "first"),
-                ecpm_target=("ecpm_target",  "first"),
-                bid_rate=("bid_rate",        "mean"),
-                win_rate=("win_rate",        "mean"),
-                timeout_rate=("timeout_rate","mean"),
-            )
-            .reset_index()
+# Rename for display (keep helper cols for Styler, hidden later)
+pub_display = pub_agg.rename(columns={
+    "publisher":    "Publisher",
+    "revenue_aud":  "Revenue",
+    "impressions":  "Impressions",
+    "ecpm":         "eCPM",
+    "fill_rate":    "Fill Rate %",
+    "bid_rate":     "Bid Rate %",
+    "win_rate":     "Win Rate %",
+    "timeout_rate": "Timeout Rate %",
+})
+
+def style_pub_summary(row):
+    """RAG background on Fill Rate, eCPM and Timeout Rate for publisher summary."""
+    styles = pd.Series("", index=row.index)
+    fill_rag, _ = rag_status(row["Fill Rate %"], row["fill_target"])
+    ecpm_rag, _ = rag_status(row["eCPM"], row["ecpm_target"])
+    to_rag, _   = timeout_rag(row["Timeout Rate %"], 5.0)
+    rag_bg = {
+        "🟢": "background-color: #D1FAE5",
+        "🟡": "background-color: #FEF3C7",
+        "🔴": "background-color: #FEE2E2",
+    }
+    styles["Fill Rate %"]    = rag_bg.get(fill_rag, "")
+    styles["eCPM"]           = rag_bg.get(ecpm_rag, "")
+    styles["Timeout Rate %"] = rag_bg.get(to_rag, "")
+    return styles
+
+st.markdown("#### Publisher Summary")
+pub_styled = (
+    pub_display.style
+    .apply(style_pub_summary, axis=1)
+    .format({
+        "Revenue":        "A${:,.0f}",
+        "eCPM":           "A${:.2f}",
+        "Fill Rate %":    "{:.1f}%",
+        "Bid Rate %":     "{:.1f}%",
+        "Win Rate %":     "{:.1f}%",
+        "Timeout Rate %": "{:.1f}%",
+        "Impressions":    "{:,.0f}",
+    })
+    .hide(axis="columns", subset=["fill_target", "ecpm_target"])
+)
+st.dataframe(pub_styled, use_container_width=True, hide_index=True)
+
+# ── Format filter for placement detail table ───────────────────────────────────
+st.markdown("#### Placement Detail")
+fmt_options = ["All Formats"] + sorted(df["format"].unique().tolist())
+selected_fmt = st.selectbox("Format", fmt_options, key="yield_fmt")
+
+# Filter source data by selected format
+detail_src = df.copy()
+if selected_fmt != "All Formats":
+    detail_src = detail_src[detail_src["format"] == selected_fmt]
+
+# Aggregate to placement × format level (each row is a unique placement/format combo)
+detail_agg = detail_src.groupby(["publisher", "placement", "format"]).agg(
+    revenue=("revenue_aud",  "sum"),
+    impressions=("impressions",  "sum"),
+    fill_rate=("fill_rate",      "mean"),
+    fill_target=("fill_target",  "first"),
+    ecpm_target=("ecpm_target",  "first"),
+    bid_rate=("bid_rate",        "mean"),
+    win_rate=("win_rate",        "mean"),
+    timeout_rate=("timeout_rate","mean"),
+).reset_index()
+detail_agg["ecpm"] = (detail_agg["revenue"] / detail_agg["impressions"] * 1000).round(2)
+detail_agg[["fill_rate", "bid_rate", "win_rate", "timeout_rate"]] = (
+    detail_agg[["fill_rate", "bid_rate", "win_rate", "timeout_rate"]].round(1)
+)
+
+# Status column for detail table
+detail_agg["Status"] = detail_agg.apply(
+    lambda row: (
+        "🔴 Needs attention" if (
+            rag_status(row["fill_rate"], row["fill_target"])[0] == "🔴" or
+            timeout_rag(row["timeout_rate"], 5.0)[0] == "🔴"
+        ) else (
+            "🟡 Watch" if (
+                rag_status(row["fill_rate"], row["fill_target"])[0] == "🟡" or
+                timeout_rag(row["timeout_rate"], 5.0)[0] == "🟡"
+            ) else "🟢 Healthy"
         )
-        place_agg["ecpm"] = (place_agg["revenue_aud"] / place_agg["impressions"] * 1000).round(2)
+    ),
+    axis=1,
+)
 
-        for _, pl_row in place_agg.iterrows():
-            p_fill_rag, p_fill_clr = rag_status(pl_row["fill_rate"], pl_row["fill_target"])
-            p_to_rag,   _           = timeout_rag(pl_row["timeout_rate"], threshold=5.0)
+# Rename for display
+detail_display = detail_agg.rename(columns={
+    "publisher":    "Publisher",
+    "placement":    "Placement",
+    "format":       "Format",
+    "revenue":      "Revenue",
+    "impressions":  "Impressions",
+    "ecpm":         "eCPM",
+    "fill_rate":    "Fill Rate %",
+    "bid_rate":     "Bid Rate %",
+    "win_rate":     "Win Rate %",
+    "timeout_rate": "Timeout Rate %",
+})
+detail_display = detail_display.sort_values(["Publisher", "Format"])
 
-            with st.expander(
-                f"{p_fill_rag} {pl_row['placement']}"
-                f"  ·  A${pl_row['revenue_aud']:,.0f}"
-                f"  ·  eCPM A${pl_row['ecpm']:.2f}"
-                f"  ·  Fill {pl_row['fill_rate']:.1f}%"
-                f"  ·  {p_to_rag} Timeout {pl_row['timeout_rate']:.1f}%",
-                expanded=False,
-            ):
-                # Format-level breakdown table
-                fmt_df = (
-                    df[df["placement"] == pl_row["placement"]]
-                    .groupby("format")
-                    .agg(
-                        revenue_aud=("revenue_aud",  "sum"),
-                        impressions=("impressions",  "sum"),
-                        fill_rate=("fill_rate",      "mean"),
-                        bid_rate=("bid_rate",        "mean"),
-                        win_rate=("win_rate",        "mean"),
-                        timeout_rate=("timeout_rate","mean"),
-                    )
-                    .reset_index()
-                )
-                fmt_df["ecpm"] = (fmt_df["revenue_aud"] / fmt_df["impressions"] * 1000).round(2)
-                fmt_df = fmt_df.sort_values("revenue_aud", ascending=False)
+def style_detail(row):
+    """RAG background on Fill Rate, eCPM and Timeout Rate for placement detail."""
+    styles = pd.Series("", index=row.index)
+    fill_rag, _ = rag_status(row["Fill Rate %"], row["fill_target"])
+    ecpm_rag, _ = rag_status(row["eCPM"], row["ecpm_target"])
+    to_rag, _   = timeout_rag(row["Timeout Rate %"], 5.0)
+    rag_bg = {
+        "🟢": "background-color: #D1FAE5",
+        "🟡": "background-color: #FEF3C7",
+        "🔴": "background-color: #FEE2E2",
+    }
+    styles["Fill Rate %"]    = rag_bg.get(fill_rag, "")
+    styles["eCPM"]           = rag_bg.get(ecpm_rag, "")
+    styles["Timeout Rate %"] = rag_bg.get(to_rag, "")
+    return styles
 
-                display_fmt = fmt_df.copy()
-                display_fmt["revenue_aud"]  = display_fmt["revenue_aud"].apply(lambda x: f"A${x:,.0f}")
-                display_fmt["ecpm"]         = display_fmt["ecpm"].apply(lambda x: f"A${x:.2f}")
-                display_fmt["fill_rate"]    = display_fmt["fill_rate"].apply(lambda x: f"{x:.1f}%")
-                display_fmt["impressions"]  = display_fmt["impressions"].apply(lambda x: f"{x:,.0f}")
-                display_fmt["bid_rate"]     = display_fmt["bid_rate"].apply(lambda x: f"{x:.1f}%")
-                display_fmt["win_rate"]     = display_fmt["win_rate"].apply(lambda x: f"{x:.1f}%")
-                display_fmt["timeout_rate"] = display_fmt["timeout_rate"].apply(lambda x: f"{x:.1f}%")
-                display_fmt.columns = ["Format", "Revenue", "Impressions", "Fill Rate", "Bid Rate %", "Win Rate %", "Timeout Rate %", "eCPM"]
-
-                st.dataframe(
-                    display_fmt[["Format", "Revenue", "Impressions", "eCPM", "Fill Rate", "Bid Rate %", "Win Rate %", "Timeout Rate %"]],
-                    use_container_width=True,
-                    hide_index=True,
-                )
+# Use Styler.format() for currency — avoids the dollar-sign LaTeX bug in st.markdown
+detail_styled = (
+    detail_display.style
+    .apply(style_detail, axis=1)
+    .format({
+        "Revenue":        "A${:,.0f}",
+        "eCPM":           "A${:.2f}",
+        "Fill Rate %":    "{:.1f}%",
+        "Bid Rate %":     "{:.1f}%",
+        "Win Rate %":     "{:.1f}%",
+        "Timeout Rate %": "{:.1f}%",
+        "Impressions":    "{:,.0f}",
+    })
+    .hide(axis="columns", subset=["fill_target", "ecpm_target"])
+)
+st.dataframe(detail_styled, use_container_width=True, hide_index=True)
 
 # ── Revenue by publisher bar chart ─────────────────────────────────────────────
 st.markdown("### Revenue by Publisher")
