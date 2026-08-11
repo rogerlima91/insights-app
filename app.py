@@ -81,7 +81,6 @@ UPLOAD_REPORT_PAGES = [
 SELL_SIDE_PAGES = [
     st.Page("pages/publisher_qbr.py",      title="QBR Generator"),
     st.Page("pages/publisher_yield.py",    title="Yield Dashboard"),
-    st.Page("pages/header_bidding.py",     title="Header Bidding"),
 ]
 
 nav_sections = {}
@@ -114,6 +113,9 @@ st.markdown(f"""
         padding-top: 0 !important;
     }}
     /* Logo area rendered by st.logo() above stSidebarNav — match navy sidebar */
+    [data-testid="stSidebarNav"] {{
+        margin-top: 16px !important;
+    }}
     [data-testid="stSidebarHeader"] {{
         background-color: {SECONDARY} !important;
         padding: 16px 12px 12px 12px !important;
