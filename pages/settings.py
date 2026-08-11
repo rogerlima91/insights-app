@@ -1139,11 +1139,12 @@ if _current_tier == "full_access":
             json.dump(c, _f, indent=2)
 
     _cfg = _load_config()
-    _tier_options = ["full_access", "api_only", "upload_only"]
+    _tier_options = ["full_access", "api_only", "upload_only", "sell_side"]
     _tier_labels  = {
-        "full_access":  "✨ Full Access — show both API Data and File Upload sections",
-        "api_only":     "📡 API Data Only — hide File Upload section",
-        "upload_only":  "📁 File Upload Only — hide API Data section",
+        "full_access":  "✨ Full Access — show API Data, Upload Report and Sell Side",
+        "api_only":     "📡 API Data Only — hide Upload Report and Sell Side",
+        "upload_only":  "📁 Upload Report Only — hide API Data and Sell Side",
+        "sell_side":    "📈 Sell Side Only — hide API Data and Upload Report",
     }
     _current_idx = _tier_options.index(_cfg.get("current_tier", "full_access"))
 

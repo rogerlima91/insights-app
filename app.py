@@ -50,9 +50,10 @@ cfg   = load_config()
 prefs = load_prefs()
 
 TIER_MAP = {
-    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report"]},
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Sell Side"]},
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
     "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
+    "sell_side":    {"label": "📈 Sell Side",    "visible": ["Sell Side"]},
 }
 current_tier     = cfg.get("current_tier", "full_access")
 visible_sections = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["visible"]
@@ -77,11 +78,19 @@ UPLOAD_REPORT_PAGES = [
     st.Page("pages/settings_link.py",                title="Settings"),
 ]
 
+SELL_SIDE_PAGES = [
+    st.Page("pages/publisher_qbr.py",      title="QBR Generator"),
+    st.Page("pages/publisher_yield.py",    title="Yield Dashboard"),
+    st.Page("pages/header_bidding.py",     title="Header Bidding"),
+]
+
 nav_sections = {}
 if "API Data" in visible_sections:
     nav_sections["📡 API DATA"] = API_DATA_PAGES
 if "Upload Report" in visible_sections:
     nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
+if "Sell Side" in visible_sections:
+    nav_sections["📈 SELL SIDE"] = SELL_SIDE_PAGES
 
 # ── Sidebar top: logo image — rendered before st.navigation() so it
 # ── appears above the nav section headers in the sidebar
@@ -130,7 +139,7 @@ st.markdown(f"""
     }}
     /* Push nav links down so they start below the logo block */
     [data-testid="stSidebarNav"] {{
-        margin-top: 200px !important;
+        margin-top: 140px !important;
     }}
     section[data-testid="stSidebar"] * {{
         color: {WHITE} !important;

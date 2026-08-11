@@ -5,23 +5,35 @@
         "API Data"
       ],
       "hidden": [
-        "File Upload"
+        "Upload Report",
+        "Sell Side"
       ]
     },
     "upload_only": {
       "visible": [
-        "File Upload"
+        "Upload Report"
       ],
       "hidden": [
-        "API Data"
+        "API Data",
+        "Sell Side"
       ]
     },
     "full_access": {
       "visible": [
         "API Data",
-        "File Upload"
+        "Upload Report",
+        "Sell Side"
       ],
       "hidden": []
+    },
+    "sell_side": {
+      "visible": [
+        "Sell Side"
+      ],
+      "hidden": [
+        "API Data",
+        "Upload Report"
+      ]
     }
   },
   "current_tier": "full_access"
