@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import sys
+import base64
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.design_system import get_css, PRIMARY, SECONDARY, WHITE, TEXT_SEC
 
@@ -91,9 +92,20 @@ if "Upload Report" in visible_sections:
 if "Sell Side" in visible_sections:
     nav_sections["📈 SELL SIDE"] = SELL_SIDE_PAGES
 
-# ── Sidebar logo: st.logo() places the image natively above stSidebarNav ─────
-# ── Official Streamlit API for sidebar logos (Streamlit >= 1.35). No CSS hacks needed.
-st.logo("assets/logo.png")
+# ── Sidebar logo — rendered in normal document flow inside stSidebarUserContent ──
+# ── stSidebarUserContent gets order:-1 via CSS flexbox, moving it above stSidebarNav.
+# ── No absolute positioning: the element stays in flow so its height is reserved.
+_logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
+with open(_logo_path, "rb") as _lf:
+    _LOGO_B64 = base64.b64encode(_lf.read()).decode()
+
+with st.sidebar:
+    st.markdown(f'''
+    <div class="pacebird-logo">
+        <img src="data:image/png;base64,{_LOGO_B64}" alt="Pacebird" />
+    </div>
+    ''', unsafe_allow_html=True)
+
 pg = st.navigation(nav_sections)
 
 # ── Session state and onboarding step ────────────────────────────────────────
@@ -109,23 +121,40 @@ st.markdown(f"""
         background-color: {SECONDARY} !important;
         box-shadow: 2px 0 16px rgba(0,0,0,0.15) !important;
     }}
+    /* Flexbox reorder: stSidebarUserContent (logo) before stSidebarNav (links) ── */
+    /* No absolute positioning — the logo stays in normal flow so its height     */
+    /* is reserved automatically; no gap-guessing needed.                        */
     section[data-testid="stSidebar"] > div:first-child {{
+        display: flex !important;
+        flex-direction: column !important;
         padding-top: 0 !important;
     }}
-    /* Logo area rendered by st.logo() above stSidebarNav — match navy sidebar */
+    [data-testid="stSidebarUserContent"] {{
+        order: -1 !important;
+    }}
     [data-testid="stSidebarNav"] {{
-        margin-top: 16px !important;
+        order: 1 !important;
     }}
-    [data-testid="stSidebarHeader"] {{
+    /* Logo: static positioning — in normal document flow */
+    .pacebird-logo {{
+        position: static !important;
+        padding: 12px 12px 20px 12px;
+        text-align: center;
+        background-color: {SECONDARY};
+    }}
+    .pacebird-logo img {{
+        width: 170px;
+        height: auto;
+        display: inline-block;
+    }}
+    /* Dark mode toggle: sticky to bottom of sidebar viewport */
+    .sidebar-bottom {{
+        position: sticky !important;
+        bottom: 0 !important;
         background-color: {SECONDARY} !important;
-        padding: 16px 12px 12px 12px !important;
-        text-align: center !important;
-        border-bottom: 1px solid rgba(255,255,255,0.15) !important;
-    }}
-    [data-testid="stSidebarHeader"] img {{
-        width: 170px !important;
-        height: auto !important;
-        display: inline-block !important;
+        padding: 8px 12px 12px 12px !important;
+        z-index: 10 !important;
+        border-top: 1px solid rgba(255,255,255,0.08) !important;
     }}
     section[data-testid="stSidebar"] * {{
         color: {WHITE} !important;
@@ -416,6 +445,8 @@ pg.run()
 # ── Sidebar Block 2: very bottom — rendered AFTER pg.run() so it appears
 # ── below all nav links and below any page-specific sidebar content (Export)
 with st.sidebar:
-    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    # sidebar-bottom: sticky-positioned at bottom of sidebar via CSS.
+    # The div marker sits alongside the toggle in stSidebarUserContent.
+    st.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
     dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
     st.session_state["dark_mode"] = dark_mode
