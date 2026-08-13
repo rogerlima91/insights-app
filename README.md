@@ -109,7 +109,8 @@ insights-app/
 ├── app.py                          # Entry point: navigation, global CSS, sidebar, onboarding
 ├── config.json                     # Access tier configuration (api_only / upload_only / full_access)
 ├── user_prefs.json                 # Persisted user preferences (onboarding state, etc.)
-├── brand_memory.json               # Brand context store — objectives, emails, transcripts per brand
+├── brand_memory.json               # Brand context store — gitignored (see brand_memory.example.json)
+├── brand_memory.example.json       # Schema example with placeholder data — copy to brand_memory.json
 ├── requirements.txt                # Python package dependencies
 │
 ├── pages/
@@ -207,6 +208,54 @@ streamlit run app.py
 ```
 
 The app opens at `http://localhost:8501` by default.
+
+---
+
+## Quick Commands
+
+### With `make` (requires installation — see below)
+
+| Command | What it does |
+|---------|-------------|
+| `make install` | Install dependencies from `requirements.txt` |
+| `make run` | Launch the Streamlit app |
+| `make dev` | Launch with auto-reload on file save |
+| `make clean` | Remove `__pycache__` directories and `.pyc` files |
+| `make freeze` | Overwrite `requirements.txt` with the current environment |
+
+### Installing `make` on Windows
+
+`make` is not included with Windows. Install it with one of:
+
+```powershell
+# Option 1 — winget (built into Windows 11)
+winget install GnuWin32.Make
+
+# Option 2 — Chocolatey (if installed)
+choco install make
+```
+
+After installation, restart your terminal and `make` will be available.
+
+### PowerShell fallbacks (no `make` required)
+
+If you prefer not to install `make`, equivalent scripts are included:
+
+```powershell
+# Run the app
+.\run.ps1
+
+# Run in dev mode (auto-reload)
+.\dev.ps1
+
+# All other targets via tasks.ps1
+.\tasks.ps1 install
+.\tasks.ps1 clean
+.\tasks.ps1 freeze
+```
+
+> **First-time PowerShell setup:** if scripts are blocked by execution policy, run once as Administrator:
+> `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
 ---
 

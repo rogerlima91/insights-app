@@ -23,6 +23,18 @@ It processes that data to generate performance charts, AI-written insights, and 
 - **openai** — Whisper API for meeting transcription
 - **google-api-python-client** — Gmail integration for email context
 
+## Quick Commands
+
+| `make` | PowerShell | What it does |
+|--------|-----------|-------------|
+| `make install` | `.\tasks.ps1 install` | Install dependencies from `requirements.txt` |
+| `make run` | `.\run.ps1` | Launch the Streamlit app |
+| `make dev` | `.\dev.ps1` | Launch with auto-reload on file save |
+| `make clean` | `.\tasks.ps1 clean` | Remove `__pycache__` and `.pyc` files |
+| `make freeze` | `.\tasks.ps1 freeze` | Update `requirements.txt` from current environment |
+
+`make` is not installed by default on Windows. Install via `winget install GnuWin32.Make` or `choco install make`. Until then, use the `.ps1` scripts.
+
 ## Code Rules
 1. Always use **pandas** for data work
 2. Add **comments** explaining what each section of code does — especially anything non-obvious
