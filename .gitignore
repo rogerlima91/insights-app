@@ -7,6 +7,9 @@ credentials/
 .env
 .env.*
 
+# Brand memory (contains real client names and internal strategy notes)
+brand_memory.json
+
 # Streamlit
 .streamlit/secrets.toml
 

@@ -1,0 +1,35 @@
+{
+  "Example Brand": {
+    "entries": [
+      {
+        "type": "manual",
+        "timestamp": "2026-01-01 09:00",
+        "text": "Focus on CPM efficiency for Display campaigns. Prioritise mobile inventory."
+      },
+      {
+        "type": "transcript",
+        "timestamp": "2026-01-02 10:00",
+        "text": "Meeting transcript (saved 2026-01-02 10:00, file: 'example-meeting.mp3'):\n\nClient wants to understand which line items are driving the lowest CPM. Video completion rate is a key KPI this quarter."
+      }
+    ],
+    "rationale": "Focus on CPM efficiency for Display campaigns. Prioritise mobile inventory.\n\nMeeting transcript (saved 2026-01-02 10:00, file: 'example-meeting.mp3'):\n\nClient wants to understand which line items are driving the lowest CPM. Video completion rate is a key KPI this quarter."
+  },
+  "Another Brand": {
+    "entries": [
+      {
+        "type": "manual",
+        "timestamp": "2026-01-05 14:00",
+        "text": "For Video campaigns, VTR is the primary KPI. CPV target is under $0.10."
+      },
+      {
+        "type": "email",
+        "timestamp": "2026-01-06 09:30",
+        "email_date": "Mon, 6 Jan 2026 09:00:00 +0000",
+        "sender": "client@example.com",
+        "subject": "Q1 Campaign Brief",
+        "snippet": "Please focus the Q1 reporting on YouTube VTR and CPV performance. We want to see breakdowns by device type and line item."
+      }
+    ],
+    "rationale": "For Video campaigns, VTR is the primary KPI. CPV target is under $0.10.\n\nPlease focus the Q1 reporting on YouTube VTR and CPV performance. We want to see breakdowns by device type and line item."
+  }
+}
