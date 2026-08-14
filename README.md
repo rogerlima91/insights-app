@@ -107,31 +107,42 @@ Brand Memory entries are matched to campaigns using partial, case-insensitive na
 insights-app/
 │
 ├── app.py                          # Entry point: navigation, global CSS, sidebar, onboarding
-├── config.json                     # Access tier configuration (api_only / upload_only / full_access)
+├── config.json                     # Access tier configuration — controls sidebar nav visibility
 ├── user_prefs.json                 # Persisted user preferences (onboarding state, etc.)
 ├── brand_memory.json               # Brand context store — gitignored (see brand_memory.example.json)
 ├── brand_memory.example.json       # Schema example with placeholder data — copy to brand_memory.json
 ├── requirements.txt                # Python package dependencies
 │
 ├── pages/
-│   ├── performance_insights.py     # Performance & Insights (Upload Report mode)
-│   ├── ongoing_performance.py      # Performance & Insights (API Data mode — thin wrapper)
-│   ├── portfolio_overview_upload.py# Portfolio Overview (Upload Report mode)
-│   ├── portfolio_overview.py       # Portfolio Overview (API Data mode)
-│   ├── live_campaigns.py           # Live Campaigns — pacing dashboard and troubleshooters
-│   ├── pacing_checker.py           # Live Campaigns (Upload Report mode — pacing from CSV)
-│   ├── telco_cross_channel.py      # Cross-Channel Dashboard (API Data mode)
-│   ├── telco_cross_channel_upload.py # Cross-Channel Dashboard (Upload Report mode)
-│   ├── settings.py                 # Settings — Brand Memory, Email, Transcription, KPIs, Alerts
-│   ├── settings_link.py            # Settings (Upload Report mode — thin wrapper)
-│   ├── brand_settings.py           # Brand settings sub-page
-│   ├── budget_allocation.py        # Budget allocation and forecasting tool
-│   └── uber_roi_calculator.py      # ROI calculator with scenario modelling
+│   │
+│   │   ── 📡 API DATA ──────────────────────────────────────────────────────
+│   ├── ongoing_performance.py          # Performance & Insights (API Data mode)
+│   ├── portfolio_overview.py           # Portfolio Overview (API Data mode)
+│   ├── live_campaigns.py               # Live Campaigns — pacing dashboard and troubleshooters
+│   ├── telco_cross_channel.py          # Cross-Channel Dashboard (API Data mode)
+│   ├── settings.py                     # Settings — Brand Memory, Email, Transcription, KPIs, Alerts
+│   │
+│   │   ── 📁 UPLOAD REPORT ────────────────────────────────────────────────
+│   ├── performance_insights.py         # Performance & Insights (Upload Report mode)
+│   ├── portfolio_overview_upload.py    # Portfolio Overview (Upload Report mode)
+│   ├── pacing_checker.py               # Live Campaigns (Upload Report mode — pacing from CSV)
+│   ├── telco_cross_channel_upload.py   # Cross-Channel Dashboard (Upload Report mode)
+│   ├── settings_link.py                # Settings (Upload Report mode — thin wrapper)
+│   │
+│   │   ── 📈 SELL SIDE ──────────────────────────────────────────────────
+│   ├── publisher_qbr.py                # QBR Generator — quarterly business review decks
+│   ├── publisher_yield.py              # Yield Dashboard — publisher revenue analytics
+│   │
+│   │   ── 🎯 AUDIENCES & DEALS PIPELINE ──────────────────────────────────
+│   └── audience_solutions.py           # Audience Solutions — segment matching and proposal builder
 │
 ├── utils/
 │   └── design_system.py            # Central design system: colour constants and shared CSS
 │
-├── data/                           # Drop raw DSP CSV exports here for local analysis
+├── data/
+│   ├── audience_segments.json      # Are Media mock audience taxonomy (36 segments, fabricated)
+│   └── audience_segments_README.md # Schema reference for audience_segments.json
+│
 ├── outputs/                        # Generated PowerPoint files saved here
 │
 ├── .streamlit/
@@ -263,7 +274,7 @@ If you prefer not to install `make`, equivalent scripts are included:
 
 ### Access Tiers (`config.json`)
 
-`config.json` controls which navigation sections are visible. Set `current_tier` to one of the three values:
+`config.json` controls which navigation sections are visible. Set `current_tier` to one of the four values:
 
 ```json
 {
@@ -273,11 +284,12 @@ If you prefer not to install `make`, equivalent scripts are included:
 
 | Tier | Sidebar sections visible |
 |------|--------------------------|
-| `full_access` | 📡 API Data + 📁 Upload Report |
+| `full_access` | 📡 API Data + 📁 Upload Report + 📈 Sell Side + 🎯 Audiences & Deals Pipeline |
 | `api_only` | 📡 API Data only |
 | `upload_only` | 📁 Upload Report only |
+| `sell_side` | 📈 Sell Side + 🎯 Audiences & Deals Pipeline |
 
-In `full_access` mode the sidebar shows both sections, each with its own set of pages (Performance & Insights, Portfolio Overview, Live Campaigns, Cross-Channel Dashboard, Settings).
+Sidebar order is always: logo → API Data → Upload Report → Sell Side → Audiences & Deals Pipeline. Sections not included in the active tier's `visible` list are hidden entirely.
 
 ---
 

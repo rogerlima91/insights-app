@@ -6,7 +6,8 @@
       ],
       "hidden": [
         "Upload Report",
-        "Sell Side"
+        "Sell Side",
+        "Audiences & Deals Pipeline"
       ]
     },
     "upload_only": {
@@ -15,20 +16,23 @@
       ],
       "hidden": [
         "API Data",
-        "Sell Side"
+        "Sell Side",
+        "Audiences & Deals Pipeline"
       ]
     },
     "full_access": {
       "visible": [
         "API Data",
         "Upload Report",
-        "Sell Side"
+        "Sell Side",
+        "Audiences & Deals Pipeline"
       ],
       "hidden": []
     },
     "sell_side": {
       "visible": [
-        "Sell Side"
+        "Sell Side",
+        "Audiences & Deals Pipeline"
       ],
       "hidden": [
         "API Data",

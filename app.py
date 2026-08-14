@@ -51,10 +51,10 @@ cfg   = load_config()
 prefs = load_prefs()
 
 TIER_MAP = {
-    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Sell Side"]},
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Sell Side", "Audiences & Deals Pipeline"]},
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
     "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
-    "sell_side":    {"label": "📈 Sell Side",    "visible": ["Sell Side"]},
+    "sell_side":    {"label": "📈 Sell Side",    "visible": ["Sell Side", "Audiences & Deals Pipeline"]},
 }
 current_tier     = cfg.get("current_tier", "full_access")
 visible_sections = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["visible"]
@@ -80,9 +80,12 @@ UPLOAD_REPORT_PAGES = [
 ]
 
 SELL_SIDE_PAGES = [
-    st.Page("pages/audience_solutions.py", title="Audience Solutions"),
     st.Page("pages/publisher_qbr.py",      title="QBR Generator"),
     st.Page("pages/publisher_yield.py",    title="Yield Dashboard"),
+]
+
+AUDIENCE_PIPELINE_PAGES = [
+    st.Page("pages/audience_solutions.py", title="Audience Solutions"),
 ]
 
 nav_sections = {}
@@ -92,6 +95,8 @@ if "Upload Report" in visible_sections:
     nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
 if "Sell Side" in visible_sections:
     nav_sections["📈 SELL SIDE"] = SELL_SIDE_PAGES
+if "Audiences & Deals Pipeline" in visible_sections:
+    nav_sections["🎯 AUDIENCES & DEALS PIPELINE"] = AUDIENCE_PIPELINE_PAGES
 
 # ── Sidebar logo — rendered in normal document flow inside stSidebarUserContent ──
 # ── stSidebarUserContent gets order:-1 via CSS flexbox, moving it above stSidebarNav.

@@ -68,7 +68,8 @@ It processes that data to generate performance charts, AI-written insights, and 
 ## Project Structure
 ```
 insights-app/
-├── app.py                      ← Main page: upload, charts, insights, PPTX export
+├── app.py                      ← Entry point: nav, global CSS, sidebar, onboarding
+├── config.json                 ← Access tier config — controls which nav sections are visible
 ├── brand_memory.json           ← Stores brand context for AI insights
 ├── credentials.json            ← Google OAuth credentials (never commit)
 ├── token.json                  ← Google OAuth token (never commit)
@@ -78,11 +79,34 @@ insights-app/
 ├── .streamlit/
 │   └── secrets.toml            ← API keys (never commit)
 ├── pages/
-│   └── brand_memory.py         ← Brand Memory page with three tabs (see below)
-├── data/                       ← Raw CSV exports from DSPs go here
+│   ├── brand_memory.py              ← Brand Memory page (three tabs — see below)
+│   ├── publisher_qbr.py             ← QBR Generator (Sell Side)
+│   ├── publisher_yield.py           ← Yield Dashboard (Sell Side)
+│   └── audience_solutions.py        ← Audience Solutions (Audiences & Deals Pipeline)
+├── data/
+│   ├── audience_segments.json       ← Are Media mock first-party audience taxonomy (36 segments)
+│   └── audience_segments_README.md  ← Schema reference for audience_segments.json
 ├── outputs/                    ← Generated PowerPoint and chart files
-└── utils/                      ← Helper scripts (currently unused)
+└── utils/
+    └── design_system.py        ← Central design system: colour constants and shared CSS
 ```
+
+## Navigation Sections (sidebar order)
+```
+Pacebird logo
+📡 API DATA              — live API-connected workflows
+📁 UPLOAD REPORT         — drag-and-drop DSP CSV analysis
+📈 SELL SIDE             — publisher QBR and yield tools
+🎯 AUDIENCES & DEALS PIPELINE — audience segment matching and proposal builder
+```
+
+### Access tier gating (config.json → current_tier)
+| Tier | Sections visible |
+|------|-----------------|
+| `full_access` | All four sections |
+| `api_only` | 📡 API DATA only |
+| `upload_only` | 📁 UPLOAD REPORT only |
+| `sell_side` | 📈 SELL SIDE + 🎯 AUDIENCES & DEALS PIPELINE |
 
 ---
 
