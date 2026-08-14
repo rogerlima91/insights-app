@@ -80,6 +80,7 @@ UPLOAD_REPORT_PAGES = [
 ]
 
 SELL_SIDE_PAGES = [
+    st.Page("pages/audience_solutions.py", title="Audience Solutions"),
     st.Page("pages/publisher_qbr.py",      title="QBR Generator"),
     st.Page("pages/publisher_yield.py",    title="Yield Dashboard"),
 ]
@@ -147,15 +148,7 @@ st.markdown(f"""
         height: auto;
         display: inline-block;
     }}
-    /* Dark mode toggle: sticky to bottom of sidebar viewport */
-    .sidebar-bottom {{
-        position: sticky !important;
-        bottom: 0 !important;
-        background-color: {SECONDARY} !important;
-        padding: 8px 12px 12px 12px !important;
-        z-index: 10 !important;
-        border-top: 1px solid rgba(255,255,255,0.08) !important;
-    }}
+
     section[data-testid="stSidebar"] * {{
         color: {WHITE} !important;
     }}
@@ -442,11 +435,4 @@ if not prefs.get("onboarding_complete", False):
 # ── Run the selected page ─────────────────────────────────────────────────────
 pg.run()
 
-# ── Sidebar Block 2: very bottom — rendered AFTER pg.run() so it appears
-# ── below all nav links and below any page-specific sidebar content (Export)
-with st.sidebar:
-    # sidebar-bottom: sticky-positioned at bottom of sidebar via CSS.
-    # The div marker sits alongside the toggle in stSidebarUserContent.
-    st.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
-    dark_mode = st.toggle("🌙 Dark mode", value=st.session_state.get("dark_mode", False))
-    st.session_state["dark_mode"] = dark_mode
+
