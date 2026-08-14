@@ -41,7 +41,7 @@ It processes that data to generate performance charts, AI-written insights, and 
 3. End every script with a **confirmation print message** (e.g. `print("Done. Report exported.")`)
 4. Keep code **simple and readable** — no clever one-liners, no unnecessary abstractions
 5. Column names from DSP exports vary — always check and normalise headers early in any script
-6. After every significant change or completed feature, automatically run `git add .` and `git commit` with a descriptive commit message — do this without asking for confirmation
+6. After every significant change or completed feature, automatically run `git add .`, `git commit` with a descriptive commit message, and `git push origin master` — do this without asking for confirmation
 
 ## Design System (Pacebird Brand)
 - **Primary:** `#F5A623` warm orange — buttons, accents, active nav, card top borders
