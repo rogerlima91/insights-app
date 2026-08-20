@@ -460,6 +460,7 @@ def generate_api_mock_data():
                     "conversions":     conversions,
                     "video_views":     video_views,
                     "dsp_source":      "DV360",
+                    "exchange":        rng.choice(["Magnite", "PubMatic", "Index Exchange", "OpenX", "Google AdX"]),
                     "source_file":     "api_mock_data",
                 })
 
@@ -1235,68 +1236,142 @@ else:
     if "date" in df_all.columns:
         df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
 
-    # ── Global filters — side by side ─────────────────────────────────────────
-    # Advertiser filter + DSP filter always shown; date range filter appears only
-    # when the data has a date column. Laid out in 2 or 3 equal columns.
+    # ── Global filter bar — all filters in one row ─────────────────────────────
+    # Order: ADVERTISER | DSP | CAMPAIGN | LINE ITEM | CREATIVE | METRIC | DATE RANGE
+    # Cascading: advertiser selection narrows campaign options, campaign narrows
+    # line item, line item narrows creative.
     _adv_col  = "advertiser" if "advertiser" in df_all.columns else (
                 "campaign"   if "campaign"   in df_all.columns else None)
     _has_date = "date" in df_all.columns
 
-    # 3 columns when date data is present, otherwise 2
-    _filter_cols = st.columns(3 if _has_date else 2)
+    # Build metric options before the filter bar so the Metric selectbox can use them
+    _METRIC_LABELS = {
+        "spend_usd": "Spend", "impressions": "Impressions", "clicks": "Clicks",
+        "conversions": "Conversions", "cpm": "CPM", "ctr": "CTR",
+    }
+    avail_metrics = {k: v for k, v in _METRIC_LABELS.items() if k in df_all.columns}
+    for _col in df_all.select_dtypes(include="number").columns:
+        if _col not in avail_metrics and _col not in ("source_file",):
+            avail_metrics[_col] = _col.replace("_", " ").title()
 
-    with _filter_cols[0]:
+    # Shared label style — identical across every filter widget
+    _CL = (
+        "font-size:11px;font-weight:600;text-transform:uppercase;"
+        "letter-spacing:0.04em;color:#1B2A4A;margin:0 0 4px 0;"
+        "font-family:'Poppins',system-ui,sans-serif;line-height:1.2;display:block;"
+    )
+
+    _fc = st.columns([1.2, 0.8, 1.5, 1.5, 1.2, 1.0, 1.8])
+
+    # ── ADVERTISER ────────────────────────────────────────────────────────────
+    with _fc[0]:
+        st.markdown(f'<span style="{_CL}">Advertiser</span>', unsafe_allow_html=True)
         if _adv_col:
-            adv_options    = ["All Advertisers"] + sorted(df_all[_adv_col].dropna().unique().tolist())
-            sel_adv_global = st.selectbox(
-                "Filter by Advertiser",
-                options=adv_options,
-                key="global_adv_filter",
-            )
+            _adv_opts = ["All"] + sorted(df_all[_adv_col].dropna().unique().tolist())
+            sel_adv = st.selectbox("Advertiser", _adv_opts, key="gf_adv",
+                                   label_visibility="collapsed")
         else:
-            sel_adv_global = None
+            sel_adv = "All"
 
-    # DSP filter — populated from the dsp_source column tagged during file load
-    with _filter_cols[1]:
-        _dsp_opts      = ["All DSPs"] + sorted(df_all["dsp_source"].dropna().unique().tolist())
-        sel_dsp_global = st.selectbox(
-            "Filter by DSP",
-            options=_dsp_opts,
-            key="global_dsp_filter",
-        )
+    # ── DSP ───────────────────────────────────────────────────────────────────
+    with _fc[1]:
+        st.markdown(f'<span style="{_CL}">DSP</span>', unsafe_allow_html=True)
+        _dsp_opts = ["All"] + sorted(df_all["dsp_source"].dropna().unique().tolist())
+        sel_dsp = filter_widget("DSP", _dsp_opts, key="gf_dsp",
+                                label_visibility="collapsed")
 
-    if _has_date:
-        with _filter_cols[2]:
+    # Apply advertiser + DSP to get cascading base for Campaign/LI/Creative
+    _df_base = df_all.copy()
+    if sel_adv != "All" and _adv_col:
+        _df_base = _df_base[_df_base[_adv_col] == sel_adv]
+    if sel_dsp != "All":
+        _df_base = _df_base[_df_base["dsp_source"] == sel_dsp]
+
+    # ── CAMPAIGN (cascades from advertiser + DSP) ─────────────────────────────
+    with _fc[2]:
+        st.markdown(f'<span style="{_CL}">Campaign</span>', unsafe_allow_html=True)
+        if "campaign" in _df_base.columns:
+            _camp_opts = ["All"] + sorted(_df_base["campaign"].dropna().unique().tolist())
+            sel_campaign = st.selectbox("Campaign", _camp_opts, key="gf_campaign",
+                                        label_visibility="collapsed")
+        else:
+            sel_campaign = "All"
+
+    _df_camp = _df_base.copy()
+    if sel_campaign != "All" and "campaign" in _df_camp.columns:
+        _df_camp = _df_camp[_df_camp["campaign"] == sel_campaign]
+
+    # ── LINE ITEM (cascades from campaign) ────────────────────────────────────
+    with _fc[3]:
+        st.markdown(f'<span style="{_CL}">Line Item</span>', unsafe_allow_html=True)
+        if "line_item" in _df_camp.columns:
+            _li_opts = ["All"] + sorted(_df_camp["line_item"].dropna().unique().tolist())
+            sel_line_item = st.selectbox("Line Item", _li_opts, key="gf_line_item",
+                                         label_visibility="collapsed")
+        else:
+            sel_line_item = "All"
+
+    _df_li = _df_camp.copy()
+    if sel_line_item != "All" and "line_item" in _df_li.columns:
+        _df_li = _df_li[_df_li["line_item"] == sel_line_item]
+
+    # ── CREATIVE (cascades from line item) ────────────────────────────────────
+    with _fc[4]:
+        st.markdown(f'<span style="{_CL}">Creative</span>', unsafe_allow_html=True)
+        if "creative" in _df_li.columns:
+            _cr_opts = ["All"] + sorted(_df_li["creative"].dropna().unique().tolist())
+            sel_creative = st.selectbox("Creative", _cr_opts, key="gf_creative",
+                                        label_visibility="collapsed")
+        else:
+            sel_creative = "All"
+
+    # ── METRIC ────────────────────────────────────────────────────────────────
+    with _fc[5]:
+        st.markdown(f'<span style="{_CL}">Metric</span>', unsafe_allow_html=True)
+        sel_label = st.selectbox("Metric", list(avail_metrics.values()),
+                                 key="gf_metric", label_visibility="collapsed")
+    sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
+
+    # ── DATE RANGE ────────────────────────────────────────────────────────────
+    with _fc[6]:
+        st.markdown(f'<span style="{_CL}">Date Range</span>', unsafe_allow_html=True)
+        if _has_date:
             _min_date   = df_all["date"].dropna().min().date()
             _max_date   = df_all["date"].dropna().max().date()
             _date_range = st.date_input(
-                "Filter by Date Range",
+                "Date Range",
                 value=(_min_date, _max_date),
                 min_value=_min_date,
                 max_value=_max_date,
-                key="date_range_filter",
+                key="gf_date_range",
+                label_visibility="collapsed",
             )
-        # Apply date filter when the user has selected a full start + end range
-        if isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
-            _start, _end = _date_range
-            df_all = df_all[
-                (df_all["date"].dt.date >= _start) &
-                (df_all["date"].dt.date <= _end)
-            ].copy()
+        else:
+            _date_range = None
 
-    # Apply global DSP filter to df_all — affects summary metrics AND all charts
-    if sel_dsp_global != "All DSPs":
-        df_all = df_all[df_all["dsp_source"] == sel_dsp_global].copy()
+    # ── Apply all filters to build df_metrics (drives every section below) ────
+    df_metrics = _df_li.copy()
+    if sel_creative != "All" and "creative" in df_metrics.columns:
+        df_metrics = df_metrics[df_metrics["creative"] == sel_creative]
+    if _has_date and isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
+        _start, _end = _date_range
+        df_metrics = df_metrics[
+            (df_metrics["date"].dt.date >= _start) &
+            (df_metrics["date"].dt.date <= _end)
+        ]
 
-    # Apply advertiser filter on the (possibly date/DSP-filtered) df_all
-    if _adv_col and sel_adv_global and sel_adv_global != "All Advertisers":
-        df_metrics = df_all[df_all[_adv_col] == sel_adv_global].copy()
-    else:
-        df_metrics = df_all.copy()
+    # Also narrow df_all by date + DSP so sections that still reference df_all
+    # (period comparison, AI insights, PPTX) see a consistently filtered dataset
+    if sel_dsp != "All":
+        df_all = df_all[df_all["dsp_source"] == sel_dsp].copy()
+    if _has_date and isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
+        _start, _end = _date_range
+        df_all = df_all[
+            (df_all["date"].dt.date >= _start) &
+            (df_all["date"].dt.date <= _end)
+        ].copy()
 
     # ── Summary metrics ───────────────────────────────────────────────────────
-    st.subheader("Summary Metrics")
-
     total_impressions = df_metrics["impressions"].sum()  if "impressions" in df_metrics.columns else 0
     total_clicks      = df_metrics["clicks"].sum()       if "clicks"      in df_metrics.columns else 0
     total_spend       = df_metrics["spend_usd"].sum()    if "spend_usd"   in df_metrics.columns else 0
@@ -1369,10 +1444,10 @@ else:
 
     # Build top-level summary for PPTX export — group by best available dimension
     _top_col = next((c for c in ("advertiser", "campaign", "insertion_order")
-                     if c in df_all.columns), None)
+                     if c in df_metrics.columns), None)
     if _top_col:
-        _agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"] if c in df_all.columns}
-        camp_summary = df_all.groupby(_top_col).agg(**_agg).reset_index()
+        _agg = {c: (c, "sum") for c in ["impressions", "clicks", "spend_usd"] if c in df_metrics.columns}
+        camp_summary = df_metrics.groupby(_top_col).agg(**_agg).reset_index()
         if "impressions" in camp_summary.columns and "clicks" in camp_summary.columns:
             camp_summary["ctr"] = camp_summary["clicks"] / camp_summary["impressions"]
         if "impressions" in camp_summary.columns and "spend_usd" in camp_summary.columns:
@@ -1381,8 +1456,6 @@ else:
         camp_summary = pd.DataFrame()
 
     # ── Charts ────────────────────────────────────────────────────────────────
-    st.subheader("Performance Charts")
-
     # Colour palette — one colour per brand, consistent across all charts
     # Design-system palette only — RAG colors (#10B981 / #F59E0B / #EF4444)
     # are reserved for status indicators and must never appear in performance charts.
@@ -1436,25 +1509,10 @@ else:
     # Auto-detect audience / segment column for the last chart
     for _cfg in CHART_CONFIGS:
         if _cfg["dim_col"] is None:
-            for _col in df_all.columns:
+            for _col in df_metrics.columns:
                 if any(kw in _col.lower() for kw in ("audience", "segment")):
                     _cfg["dim_col"] = _col
                     break
-
-    # Build the set of available numeric metrics from whatever columns exist
-    METRIC_LABELS = {
-        "spend_usd":   "Spend",
-        "impressions": "Impressions",
-        "clicks":      "Clicks",
-        "conversions": "Conversions",
-        "cpm":         "CPM",
-        "ctr":         "CTR",
-    }
-    avail_metrics = {k: v for k, v in METRIC_LABELS.items() if k in df_all.columns}
-    # Include any extra numeric columns from the raw file that weren't in METRIC_LABELS
-    for _col in df_all.select_dtypes(include="number").columns:
-        if _col not in avail_metrics and _col not in ("source_file",):
-            avail_metrics[_col] = _col.replace("_", " ").title()
 
     def fmt_val(v, col):
         """Format a metric value for chart data labels."""
@@ -1494,53 +1552,14 @@ else:
     # Only render charts whose dimension column was detected in the data
     visible_charts = [
         cfg for cfg in CHART_CONFIGS
-        if cfg["dim_col"] and cfg["dim_col"] in df_all.columns
+        if cfg["dim_col"] and cfg["dim_col"] in df_metrics.columns
     ]
 
     if not visible_charts or not avail_metrics:
         no_data_msg("No chartable dimensions or metrics found in the uploaded data.")
     else:
-        # ── Global control bar — single DSP filter + metric selector above all charts ──
-        # Custom HTML labels ensure both widgets have identical label style and height.
-        # label_visibility="collapsed" hides the native widget labels.
-        _CTRL_LABEL = (
-            "font-size:11px;font-weight:600;text-transform:uppercase;"
-            "letter-spacing:0.04em;color:#1B2A4A;margin:0 0 4px 0;"
-            "font-family:'Poppins',system-ui,sans-serif;line-height:1.2;"
-            "display:block;"
-        )
-        _ctrl1, _ctrl2, _ctrl_pad = st.columns([2, 1.5, 4.5])
-
-        with _ctrl1:
-            st.markdown(f'<span style="{_CTRL_LABEL}">Filter by DSP</span>',
-                        unsafe_allow_html=True)
-            _dsp_opts = ["All DSPs"] + sorted(
-                df_all["dsp_source"].dropna().unique().tolist()
-            )
-            sel_chart_dsp = filter_widget(
-                "Filter by DSP",
-                _dsp_opts,
-                key="global_chart_dsp",
-                label_visibility="collapsed",
-            )
-
-        # Filter the base dataframe by DSP — applied to every chart
-        df_chart_base = (
-            df_all[df_all["dsp_source"] == sel_chart_dsp].copy()
-            if sel_chart_dsp != "All DSPs" else df_all.copy()
-        )
-
-        with _ctrl2:
-            st.markdown(f'<span style="{_CTRL_LABEL}">Select Metric</span>',
-                        unsafe_allow_html=True)
-            sel_label = st.selectbox(
-                "Select Metric",
-                options=list(avail_metrics.values()),
-                key="global_chart_metric",
-                label_visibility="collapsed",
-            )
-        # Reverse-map the display label back to the internal column name
-        sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
+        # df_metrics from the global filter bar drives all charts
+        df_chart_base = df_metrics.copy()
 
         # ── 2×2 chart grid — no per-chart filter widgets ─────────────────────────
         for _i in range(0, len(visible_charts), 2):
@@ -1640,9 +1659,72 @@ else:
                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
                                     key=f"chart_{title.replace(' ', '_')}_{sel_col}")
 
+    # ── Breakdown donut charts — DSP / Device / Environment / Exchange ─────────
+    # 4-column row; each chart shows share of the selected metric by that dimension.
+    # A chart is hidden when its column is absent from the data.
+    _DONUT_PALETTE = ["#1B2A4A", "#F5A623", "#3D5A80", "#F7C566", "#6B85A8",
+                      "#2C4A7A", "#E8951A", "#4A7AB5"]
+    _DONUT_DIMS = [
+        ("dsp_source",  "DSP"),
+        ("device_type", "Device"),
+        ("environment", "Environment"),
+        ("exchange",    "Exchange / SSP"),
+    ]
+    _donut_visible = [(col, lbl) for col, lbl in _DONUT_DIMS
+                      if col in df_metrics.columns and df_metrics[col].notna().any()]
+
+    if _donut_visible and sel_col in df_metrics.columns:
+        _donut_cols = st.columns(len(_donut_visible))
+        for _di, (d_col, d_lbl) in enumerate(_donut_visible):
+            with _donut_cols[_di]:
+                _d_agg = (
+                    df_metrics.groupby(d_col)[sel_col].sum()
+                    .reset_index()
+                    .sort_values(sel_col, ascending=False)
+                )
+                # Skip if all values are zero
+                if _d_agg[sel_col].sum() == 0:
+                    continue
+                _d_fig = go.Figure(go.Pie(
+                    labels=_d_agg[d_col].astype(str),
+                    values=_d_agg[sel_col],
+                    hole=0.5,
+                    marker=dict(colors=_DONUT_PALETTE[:len(_d_agg)]),
+                    textinfo="percent",
+                    textfont=dict(size=11, family="Poppins, system-ui, sans-serif"),
+                    hovertemplate=(
+                        f"<b>%{{label}}</b><br>{sel_label}: "
+                        f"%{{value:,.0f}} (%{{percent}})<extra></extra>"
+                    ),
+                ))
+                _d_fig.update_layout(
+                    title=dict(
+                        text=d_lbl,
+                        font=dict(size=14, color=SECONDARY,
+                                  family="Poppins, system-ui, sans-serif"),
+                        x=0.5, xanchor="center",
+                    ),
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="top",
+                        y=-0.1,
+                        xanchor="center",
+                        x=0.5,
+                        font=dict(size=10, family="Poppins, system-ui, sans-serif"),
+                    ),
+                    margin=dict(l=10, r=10, t=40, b=60),
+                    height=280,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(_d_fig, use_container_width=True,
+                                config=PLOTLY_CONFIG,
+                                key=f"donut_{d_col}_{sel_col}")
+
     # ── Daily Performance chart ────────────────────────────────────────────────
     # Shown when the data contains a date column and at least one summable metric.
-    if "date" in df_all.columns:
+    if "date" in df_metrics.columns:
         st.subheader("Daily Performance")
 
         # Only include summable metrics — CPM and CTR need to be recalculated from
@@ -1658,16 +1740,16 @@ else:
 
             with _d_col1:
                 if _adv_col:
-                    daily_adv_opts = ["All"] + sorted(df_all[_adv_col].dropna().unique().tolist())
+                    daily_adv_opts = ["All"] + sorted(df_metrics[_adv_col].dropna().unique().tolist())
                     sel_daily_adv = st.selectbox(
                         "Advertiser", daily_adv_opts,
                         key="daily_adv_filter",
                         label_visibility="collapsed",
                     )
-                    df_daily_src = (df_all if sel_daily_adv == "All"
-                                    else df_all[df_all[_adv_col] == sel_daily_adv])
+                    df_daily_src = (df_metrics if sel_daily_adv == "All"
+                                    else df_metrics[df_metrics[_adv_col] == sel_daily_adv])
                 else:
-                    df_daily_src = df_all
+                    df_daily_src = df_metrics
 
             daily_keys   = list(daily_summable.keys())
             daily_labels = list(daily_summable.values())
