@@ -58,17 +58,26 @@ COLUMN_MAP = {
 # METRIC_MAP: lowercased source column name → internal metric/dimension name.
 # Covers numeric, date, device, and environment columns across all DSPs.
 METRIC_MAP = {
-    # Device type
+    # Device type — covers DV360, TTD, and generic DSP column names
     "device type":                 "device_type",
     "device":                      "device_type",
     "device_type":                 "device_type",
     "device category":             "device_type",
-    # Environment / inventory
+    "device make":                 "device_type",
+    # Environment / inventory — covers DV360, TTD, Amazon, and generic names
     "environment":                 "environment",
     "environment type":            "environment",
     "inventory type":              "environment",
     "supply type":                 "environment",
     "site type":                   "environment",
+    "app/url":                     "environment",
+    "platform":                    "environment",
+    "device environment":          "environment",
+    # Buy type — covers DV360, TTD, Amazon, and generic DSP deal-type columns
+    "buy type":                    "buy_type",
+    "deal type":                   "buy_type",
+    "inventory source":            "buy_type",
+    "auction type":                "buy_type",
     # Date
     "date":                        "date",
     "day":                         "date",
@@ -293,9 +302,13 @@ def detect_grouping_column(df):
 def generate_api_mock_data():
     """
     Generate 30 days of realistic mock data for Woolworths, Commonwealth Bank,
-    and Toyota Australia programmatic campaigns.
+    and Toyota Australia programmatic campaigns across DV360, TTD, and Amazon DSP.
     Uses a fixed random seed so numbers are consistent across reruns.
     Returns a DataFrame with the same column structure as a normalised DSP export.
+
+    DSP split: DV360 (3 campaigns) · TTD (2 campaigns) · Amazon (1 campaign)
+    Environment values: Web · In-App · CTV · Audio
+    Buy type values: Open Auction · Programmatic Guaranteed · Preferred Deal · Private Auction
     """
     import random as _rnd
     from datetime import date as _date, timedelta as _td
@@ -303,140 +316,158 @@ def generate_api_mock_data():
     today = _date(2026, 7, 28)
     start = today - _td(days=29)
 
-    # Campaign configuration: advertiser, campaign name, line items, environment type
+    # Each campaign config includes:
+    #   dsp         — explicit DSP assignment (no random pick — guarantees all 3 appear)
+    #   environments — Web / In-App / CTV / Audio per line item
+    #   is_video     — True for line items that generate VTR / video_views
     CAMPAIGNS = [
+        # ── DV360 campaigns (3) ──────────────────────────────────────────────
         {
-            "advertiser": "Woolworths",
-            "campaign": "Woolworths_Fresh_Food_Brand_Q3_2026",
+            "advertiser":      "Woolworths",
+            "campaign":        "Woolworths_Fresh_Food_Brand_Q3_2026",
             "insertion_order": "WOW_FreshFood_Brand_IO_Q3",
-            "line_items": [
+            "dsp":             "DV360",
+            "line_items":      [
                 "Fresh Food Display - Desktop",
                 "Fresh Food Display - Mobile",
                 "Fresh Food Video - YouTube",
                 "Brand Awareness - CTV",
             ],
-            "environments": ["Display", "Display", "Video", "Video"],
-            "devices": ["Desktop", "Mobile", "Connected TV", "Connected TV"],
-            "imp_range": (90000, 160000),
-            "ctr_range": (0.003, 0.005),
-            "cpm_range": (4.5, 7.0),
-            "vtr_range": (0.48, 0.62),
+            "environments":    ["Web", "In-App", "Web", "CTV"],
+            "devices":         ["Desktop", "Mobile", "Desktop", "Connected TV"],
+            "is_video":        [False, False, True, True],
+            "imp_range":       (90000, 160000),
+            "ctr_range":       (0.003, 0.005),
+            "cpm_range":       (4.5, 7.0),
+            "vtr_range":       (0.48, 0.62),
         },
         {
-            "advertiser": "Woolworths",
-            "campaign": "Woolworths_Everyday_Rewards_Retargeting_Q3_2026",
-            "insertion_order": "WOW_EverydayRewards_Retargeting_IO",
-            "line_items": [
-                "Rewards Retargeting - Desktop",
-                "Rewards Retargeting - Mobile",
-                "Rewards Email Match - Display",
-            ],
-            "environments": ["Display", "Display", "Display"],
-            "devices": ["Desktop", "Mobile", "Desktop"],
-            "imp_range": (20000, 45000),
-            "ctr_range": (0.008, 0.016),
-            "cpm_range": (5.5, 8.5),
-            "vtr_range": (0.0, 0.0),
-        },
-        {
-            "advertiser": "Commonwealth Bank",
-            "campaign": "CBA_HomeLoan_Prospecting_Q3_2026",
+            "advertiser":      "Commonwealth Bank",
+            "campaign":        "CBA_HomeLoan_Prospecting_Q3_2026",
             "insertion_order": "CBA_HomeLoan_Prospecting_IO",
-            "line_items": [
+            "dsp":             "DV360",
+            "line_items":      [
                 "Home Loan - Premium Finance Sites",
                 "Home Loan - Desktop Prospecting",
                 "Home Loan - Mobile Display",
                 "Home Loan - News Premium",
             ],
-            "environments": ["Display", "Display", "Display", "Display"],
-            "devices": ["Desktop", "Desktop", "Mobile", "Desktop"],
-            "imp_range": (35000, 70000),
-            "ctr_range": (0.002, 0.004),
-            "cpm_range": (14.0, 22.0),
-            "vtr_range": (0.0, 0.0),
+            "environments":    ["Web", "Web", "In-App", "Web"],
+            "devices":         ["Desktop", "Desktop", "Mobile", "Desktop"],
+            "is_video":        [False, False, False, False],
+            "imp_range":       (35000, 70000),
+            "ctr_range":       (0.002, 0.004),
+            "cpm_range":       (14.0, 22.0),
+            "vtr_range":       (0.0, 0.0),
         },
         {
-            "advertiser": "Commonwealth Bank",
-            "campaign": "CBA_NetBank_Retargeting_Q3_2026",
-            "insertion_order": "CBA_NetBank_Retargeting_IO",
-            "line_items": [
-                "NetBank Retargeting - Display",
-                "NetBank Video - Pre-roll",
-                "NetBank Mobile App Retargeting",
-            ],
-            "environments": ["Display", "Video", "Display"],
-            "devices": ["Desktop", "Mobile", "Mobile"],
-            "imp_range": (18000, 40000),
-            "ctr_range": (0.005, 0.012),
-            "cpm_range": (12.0, 18.0),
-            "vtr_range": (0.52, 0.68),
-        },
-        {
-            "advertiser": "Toyota Australia",
-            "campaign": "Toyota_RAV4_Launch_Q3_2026",
-            "insertion_order": "Toyota_RAV4_Launch_IO",
-            "line_items": [
-                "RAV4 YouTube Pre-roll",
-                "RAV4 Video - Connected TV",
-                "RAV4 Display - Auto Enthusiast Sites",
-                "RAV4 Video - Mobile",
-            ],
-            "environments": ["Video", "Video", "Display", "Video"],
-            "devices": ["Desktop", "Connected TV", "Desktop", "Mobile"],
-            "imp_range": (60000, 120000),
-            "ctr_range": (0.002, 0.005),
-            "cpm_range": (8.0, 14.0),
-            "vtr_range": (0.58, 0.74),
-        },
-        {
-            "advertiser": "Toyota Australia",
-            "campaign": "Toyota_GR_Sport_Prospecting_Q3_2026",
+            "advertiser":      "Toyota Australia",
+            "campaign":        "Toyota_GR_Sport_Prospecting_Q3_2026",
             "insertion_order": "Toyota_GR_Sport_Prospecting_IO",
-            "line_items": [
+            "dsp":             "DV360",
+            "line_items":      [
                 "GR Sport Display - Premium Sports Sites",
                 "GR Sport Video - Pre-roll",
                 "GR Sport - Auto Enthusiasts Display",
             ],
-            "environments": ["Display", "Video", "Display"],
-            "devices": ["Desktop", "Desktop", "Mobile"],
-            "imp_range": (25000, 55000),
-            "ctr_range": (0.003, 0.006),
-            "cpm_range": (16.0, 24.0),
-            "vtr_range": (0.50, 0.65),
+            "environments":    ["Web", "Web", "Web"],
+            "devices":         ["Desktop", "Desktop", "Mobile"],
+            "is_video":        [False, True, False],
+            "imp_range":       (25000, 55000),
+            "ctr_range":       (0.003, 0.006),
+            "cpm_range":       (16.0, 24.0),
+            "vtr_range":       (0.50, 0.65),
+        },
+        # ── TTD campaigns (2) ────────────────────────────────────────────────
+        {
+            "advertiser":      "Woolworths",
+            "campaign":        "Woolworths_Everyday_Rewards_Retargeting_Q3_2026",
+            "insertion_order": "WOW_EverydayRewards_Retargeting_IO",
+            "dsp":             "TTD",
+            "line_items":      [
+                "Rewards Retargeting - Desktop Web",
+                "Rewards Retargeting - Mobile In-App",
+                "Rewards Audio - Podcast Streaming",
+                "Rewards CTV - Connected TV",
+            ],
+            "environments":    ["Web", "In-App", "Audio", "CTV"],
+            "devices":         ["Desktop", "Mobile", "Mobile", "Connected TV"],
+            "is_video":        [False, False, False, True],
+            "imp_range":       (20000, 45000),
+            "ctr_range":       (0.008, 0.016),
+            "cpm_range":       (5.5, 8.5),
+            "vtr_range":       (0.38, 0.52),
+        },
+        {
+            "advertiser":      "Commonwealth Bank",
+            "campaign":        "CBA_NetBank_Retargeting_Q3_2026",
+            "insertion_order": "CBA_NetBank_Retargeting_IO",
+            "dsp":             "TTD",
+            "line_items":      [
+                "NetBank Retargeting - Web Display",
+                "NetBank Video - Pre-roll Web",
+                "NetBank Mobile App Retargeting",
+                "NetBank Audio - Streaming Radio",
+            ],
+            "environments":    ["Web", "Web", "In-App", "Audio"],
+            "devices":         ["Desktop", "Desktop", "Mobile", "Mobile"],
+            "is_video":        [False, True, False, False],
+            "imp_range":       (18000, 40000),
+            "ctr_range":       (0.005, 0.012),
+            "cpm_range":       (12.0, 18.0),
+            "vtr_range":       (0.52, 0.68),
+        },
+        # ── Amazon DSP campaign (1) ──────────────────────────────────────────
+        {
+            "advertiser":      "Toyota Australia",
+            "campaign":        "Toyota_RAV4_Launch_Q3_2026",
+            "insertion_order": "Toyota_RAV4_Launch_IO",
+            "dsp":             "Amazon",
+            "line_items":      [
+                "RAV4 CTV - Connected TV",
+                "RAV4 Display - Auto Enthusiast Sites",
+                "RAV4 Video - Mobile In-App",
+                "RAV4 In-App Display",
+            ],
+            "environments":    ["CTV", "Web", "In-App", "In-App"],
+            "devices":         ["Connected TV", "Desktop", "Mobile", "Mobile"],
+            "is_video":        [True, False, True, False],
+            "imp_range":       (60000, 120000),
+            "ctr_range":       (0.002, 0.005),
+            "cpm_range":       (8.0, 14.0),
+            "vtr_range":       (0.58, 0.74),
         },
     ]
 
-    # DSP assignment — realistic split: DV360 ~55%, TTD ~30%, Amazon ~15%
-    # Each campaign is assigned one DSP; exchange pool varies by DSP
-    _DSP_WEIGHTS = ["DV360", "DV360", "DV360", "TTD", "TTD", "Amazon"]
-    _EXCHANGES = {
-        "DV360":  ["Google AdX", "Magnite", "PubMatic", "Index Exchange", "OpenX"],
-        "TTD":    ["Magnite", "Index Exchange", "PubMatic", "OpenX", "Xandr"],
-        "Amazon": ["Amazon Publisher Services", "Magnite", "Index Exchange", "PubMatic"],
-    }
-    # Assign one DSP per campaign (consistent across all days for realism)
-    _camp_dsp = {camp["campaign"]: rng.choice(_DSP_WEIGHTS) for camp in CAMPAIGNS}
+    # Buy type pool — weighted: Open Auction ~55%, PG ~20%, Preferred Deal ~15%, Private Auction ~10%
+    _BUY_TYPE_POOL = (
+        ["Open Auction"] * 11 +
+        ["Programmatic Guaranteed"] * 4 +
+        ["Preferred Deal"] * 3 +
+        ["Private Auction"] * 2
+    )
 
     rows = []
     for day_offset in range(30):
         current_date = start + _td(days=day_offset)
 
         for camp in CAMPAIGNS:
-            dsp = _camp_dsp[camp["campaign"]]
+            dsp = camp["dsp"]
             for i, li in enumerate(camp["line_items"]):
-                env = camp["environments"][i]
-                device = camp["devices"][i]
+                env      = camp["environments"][i]
+                device   = camp["devices"][i]
+                is_video = camp["is_video"][i]
 
                 impressions = rng.randint(*camp["imp_range"])
-                ctr = rng.uniform(*camp["ctr_range"])
-                clicks = max(round(impressions * ctr), 1)
-                cpm = rng.uniform(*camp["cpm_range"])
-                spend_usd = round(impressions / 1000 * cpm, 2)
+                ctr         = rng.uniform(*camp["ctr_range"])
+                clicks      = max(round(impressions * ctr), 1)
+                cpm         = rng.uniform(*camp["cpm_range"])
+                spend_usd   = round(impressions / 1000 * cpm, 2)
                 conversions = max(round(clicks * rng.uniform(0.02, 0.08)), 0)
 
-                # VTR only applies to video environments
-                vtr = rng.uniform(*camp["vtr_range"]) if env == "Video" else 0.0
-                video_views = round(impressions * vtr) if env == "Video" else 0
+                # VTR only applies to video line items (CTV, pre-roll, etc.)
+                vtr         = rng.uniform(*camp["vtr_range"]) if is_video else 0.0
+                video_views = round(impressions * vtr) if is_video else 0
 
                 rows.append({
                     "date":            pd.Timestamp(current_date),
@@ -453,7 +484,7 @@ def generate_api_mock_data():
                     "conversions":     conversions,
                     "video_views":     video_views,
                     "dsp_source":      dsp,
-                    "exchange":        rng.choice(_EXCHANGES[dsp]),
+                    "buy_type":        rng.choice(_BUY_TYPE_POOL),
                     "source_file":     "api_mock_data",
                 })
 
@@ -1669,7 +1700,7 @@ else:
         ("dsp_source",  "DSP"),
         ("device_type", "Device"),
         ("environment", "Environment"),
-        ("exchange",    "Exchange / SSP"),
+        ("buy_type",    "Buy Type"),
     ]
     _donut_visible = [(col, lbl) for col, lbl in _DONUT_DIMS
                       if col in df_metrics.columns and df_metrics[col].notna().any()]
