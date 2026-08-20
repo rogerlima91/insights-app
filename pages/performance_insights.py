@@ -1394,19 +1394,20 @@ else:
             unsafe_allow_html=True,
         )
 
-    def trunc(s, n=24):
+    def trunc(s, n=20):
         """Truncate a string to n characters for axis labels."""
         return s[:n] + "…" if len(str(s)) > n else str(s)
 
-    def apply_chart_style(fig, xaxis_title="", yaxis_title="", horizontal=False):
+    def apply_chart_style(fig, xaxis_title="", yaxis_title="", horizontal=False, height=320):
         """
         Apply the shared Pacebird Plotly template, then bar-chart-specific overrides.
         horizontal=True swaps grid to x-axis for horizontal bar charts.
+        height controls the chart height in pixels (default 320 for compact 2×2 grid).
         """
-        apply_plotly_style(fig, height=400)
+        apply_plotly_style(fig, height=height)
         fig.update_layout(
             showlegend=False,
-            margin=dict(l=50, r=20, t=55, b=50),  # t=55 leaves room for chart title
+            margin=dict(l=40, r=16, t=44, b=36),  # tight margins for compact cards
         )
         if horizontal:
             # Horizontal bars: grid on x, clear y grid
@@ -1423,11 +1424,11 @@ else:
     # dim_col is the normalised internal column name to group by.
     # None = auto-detect from df_all columns.
     CHART_CONFIGS = [
-        {"title": "Advertiser",      "dim_col": "advertiser"},
-        {"title": "Campaign",        "dim_col": "campaign"},
-        {"title": "Line Item",       "dim_col": "line_item"},
-        {"title": "Creative",        "dim_col": "creative"},
-        {"title": "Audience Segment", "dim_col": None},
+        {"title": "Advertiser",       "dim_col": "advertiser",  "horizontal": False},
+        {"title": "Campaign",         "dim_col": "campaign",    "horizontal": True},
+        {"title": "Line Item",        "dim_col": "line_item",   "horizontal": True},
+        {"title": "Creative",         "dim_col": "creative",    "horizontal": False},
+        {"title": "Audience Segment", "dim_col": None,          "horizontal": False},
     ]
 
     # Auto-detect audience / segment column for the last chart
@@ -1488,24 +1489,6 @@ else:
         else:
             return df.groupby(dim_col)[metric_col].sum().reset_index()
 
-    # Dimension columns available for the cascading filter in each chart.
-    # Only includes columns that are actually present in the data.
-    _DIMENSION_LABELS = {
-        "advertiser":      "Advertiser",
-        "campaign":        "Campaign",
-        "insertion_order": "Insertion Order",
-        "line_item":       "Line Item",
-        "creative":        "Creative",
-        "device_type":     "Device Type",
-        "environment":     "Environment",
-    }
-    _avail_dims = {col: lbl for col, lbl in _DIMENSION_LABELS.items()
-                   if col in df_all.columns}
-    # Also detect any audience/segment columns in the data
-    for _col in df_all.columns:
-        if any(kw in _col.lower() for kw in ("audience", "segment")) and _col not in _avail_dims:
-            _avail_dims[_col] = _col.replace("_", " ").title()
-
     # Only render charts whose dimension column was detected in the data
     visible_charts = [
         cfg for cfg in CHART_CONFIGS
@@ -1515,122 +1498,130 @@ else:
     if not visible_charts or not avail_metrics:
         no_data_msg("No chartable dimensions or metrics found in the uploaded data.")
     else:
-        # Render in a 2-column grid
+        # ── Global control bar — single DSP filter + metric selector above all charts ──
+        # Two widgets sit side-by-side; a spacer column pushes them left.
+        _ctrl1, _ctrl2, _ctrl_pad = st.columns([2, 2, 4])
+
+        with _ctrl1:
+            _dsp_opts = ["All DSPs"] + sorted(
+                df_all["dsp_source"].dropna().unique().tolist()
+            )
+            sel_chart_dsp = filter_widget(
+                "Filter by DSP",
+                _dsp_opts,
+                key="global_chart_dsp",
+            )
+
+        # Filter the base dataframe by DSP — applied to every chart
+        df_chart_base = (
+            df_all[df_all["dsp_source"] == sel_chart_dsp].copy()
+            if sel_chart_dsp != "All DSPs" else df_all.copy()
+        )
+
+        with _ctrl2:
+            sel_label = st.selectbox(
+                "Select Metric",
+                options=list(avail_metrics.values()),
+                key="global_chart_metric",
+            )
+        # Reverse-map the display label back to the internal column name
+        sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
+
+        # ── 2×2 chart grid — no per-chart filter widgets ─────────────────────────
         for _i in range(0, len(visible_charts), 2):
             _row_cols = st.columns(2)
             for _j, cfg in enumerate(visible_charts[_i:_i+2]):
                 with _row_cols[_j]:
-                    dim_col = cfg["dim_col"]
-                    title   = cfg["title"]
+                    dim_col    = cfg["dim_col"]
+                    title      = cfg["title"]
+                    horizontal = cfg.get("horizontal", False)
 
-                    # Single row: DSP | Dimension | Metric
-                    _cc1, _cc2, _cc3 = st.columns(3)
-
-                    # DSP filter — uses segmented_control when ≤4 options
-                    with _cc1:
-                        _chart_dsp_opts = ["All DSPs"] + sorted(
-                            df_all["dsp_source"].dropna().unique().tolist()
-                        )
-                        sel_chart_dsp = filter_widget(
-                            "Filter by DSP",
-                            _chart_dsp_opts,
-                            key=f"chart_dsp_{title.replace(' ', '_')}",
-                        )
-                    df_chart_base = (
-                        df_all[df_all["dsp_source"] == sel_chart_dsp].copy()
-                        if sel_chart_dsp != "All DSPs" else df_all.copy()
-                    )
-
-                    # Dimension filter — cascading: pick a dimension column to filter by
-                    _dim_filter_opts = ["(No filter)"] + [
-                        lbl for col, lbl in _avail_dims.items()
-                        if col in df_chart_base.columns
-                    ]
-                    with _cc2:
-                        sel_filter_dim_label = st.selectbox(
-                            "Filter by Dimension",
-                            options=_dim_filter_opts,
-                            key=f"filter_dim_{title.replace(' ', '_')}",
-                        )
-
-                    # Metric selector
-                    with _cc3:
-                        sel_label = st.selectbox(
-                            "Select Metric",
-                            options=list(avail_metrics.values()),
-                            key=f"chart_metric_{title.replace(' ', '_')}",
-                        )
-                    # Reverse-map display label back to column name
-                    sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)
-
-                    # When a dimension is selected, show a value picker below the row
-                    if sel_filter_dim_label != "(No filter)":
-                        sel_filter_dim_col = next(
-                            col for col, lbl in _avail_dims.items()
-                            if lbl == sel_filter_dim_label
-                        )
-                        _dim_val_opts = ["All"] + sorted(
-                            df_chart_base[sel_filter_dim_col].dropna().astype(str).unique().tolist()
-                        )
-                        sel_dim_val = st.selectbox(
-                            f"Filter by {sel_filter_dim_label}",
-                            options=_dim_val_opts,
-                            key=f"filter_dim_val_{title.replace(' ', '_')}",
-                        )
-                        df_chart_filtered = (
-                            df_chart_base[
-                                df_chart_base[sel_filter_dim_col].astype(str) == sel_dim_val
-                            ].copy()
-                            if sel_dim_val != "All" else df_chart_base
-                        )
-                    else:
-                        df_chart_filtered = df_chart_base
-
-                    agg_df = (get_agg(df_chart_filtered, dim_col, sel_col)
-                              .sort_values(sel_col, ascending=False)
+                    # Sort ascending for horizontal so top bar = highest value
+                    agg_df = (get_agg(df_chart_base, dim_col, sel_col)
+                              .sort_values(sel_col, ascending=horizontal)
                               .head(15))
 
                     if agg_df.empty or agg_df[sel_col].sum() == 0:
-                        no_data_msg(f"No {sel_label} data for this dimension.")
+                        no_data_msg(f"No {sel_label} data for {title}.")
                         continue
 
-                    bar_labels = [fmt_val(v, sel_col) for v in agg_df[sel_col]]
-                    colors     = [PALETTE[k % len(PALETTE)] for k in range(len(agg_df))]
+                    bar_labels  = [fmt_val(v, sel_col) for v in agg_df[sel_col]]
+                    colors      = [PALETTE[k % len(PALETTE)] for k in range(len(agg_df))]
+                    full_names  = agg_df[dim_col].astype(str).tolist()
+                    trunc_names = [trunc(s) for s in full_names]
 
-                    fig = go.Figure(go.Bar(
-                        x=agg_df[dim_col].apply(lambda s: trunc(str(s))),
-                        y=agg_df[sel_col],
-                        # customdata holds full untruncated names for hover tooltip
-                        customdata=agg_df[dim_col].astype(str).tolist(),
-                        marker_color=colors,
-                        text=bar_labels,
-                        textposition="outside",
-                        textfont=dict(size=10, color=SECONDARY),
-                        hovertemplate=f"<b>%{{customdata}}</b><br>{sel_label}: %{{text}}<extra></extra>",
-                    ))
-
-                    max_v = agg_df[sel_col].max()
-                    fig.update_layout(
-                        bargap=0.45,
-                        yaxis_range=[0, max_v * 1.3] if max_v > 0 else [0, 1],
-                        # Chart title inside the card
-                        title=dict(
-                            text=f"{title}",
-                            font=dict(size=15, color=SECONDARY,
-                                      family="Poppins, system-ui, sans-serif"),
-                            x=0.02, xanchor="left",
-                        ),
-                    )
-                    if sel_col in ("spend_usd", "cpm"):
-                        fig.update_yaxes(tickprefix="A$", tickformat=",.0f")
-                    elif sel_col == "ctr":
-                        fig.update_yaxes(tickformat=".1%")
+                    if horizontal:
+                        # Horizontal bars — category on y-axis
+                        # Used for Campaign and Line Item where names are long
+                        chart_h = max(280, len(agg_df) * 32 + 80)
+                        fig = go.Figure(go.Bar(
+                            y=trunc_names,
+                            x=agg_df[sel_col],
+                            customdata=full_names,
+                            orientation="h",
+                            marker_color=colors,
+                            text=bar_labels,
+                            textposition="outside",
+                            textfont=dict(size=10, color=SECONDARY),
+                            hovertemplate=(
+                                f"<b>%{{customdata}}</b><br>"
+                                f"{sel_label}: %{{text}}<extra></extra>"
+                            ),
+                        ))
+                        max_v = agg_df[sel_col].max()
+                        fig.update_layout(
+                            bargap=0.35,
+                            xaxis_range=[0, max_v * 1.35] if max_v > 0 else [0, 1],
+                            title=dict(
+                                text=title,
+                                font=dict(size=15, color=SECONDARY,
+                                          family="Poppins, system-ui, sans-serif"),
+                                x=0.02, xanchor="left",
+                            ),
+                        )
+                        if sel_col in ("spend_usd", "cpm"):
+                            fig.update_xaxes(tickprefix="A$", tickformat=",.0f")
+                        elif sel_col == "ctr":
+                            fig.update_xaxes(tickformat=".1%")
+                        else:
+                            fig.update_xaxes(tickformat=",")
+                        apply_chart_style(fig, horizontal=True, height=chart_h)
                     else:
-                        fig.update_yaxes(tickformat=",")
+                        # Vertical bars — category on x-axis
+                        # Used for Advertiser and Creative where names are shorter
+                        fig = go.Figure(go.Bar(
+                            x=trunc_names,
+                            y=agg_df[sel_col],
+                            customdata=full_names,
+                            marker_color=colors,
+                            text=bar_labels,
+                            textposition="outside",
+                            textfont=dict(size=10, color=SECONDARY),
+                            hovertemplate=(
+                                f"<b>%{{customdata}}</b><br>"
+                                f"{sel_label}: %{{text}}<extra></extra>"
+                            ),
+                        ))
+                        max_v = agg_df[sel_col].max()
+                        fig.update_layout(
+                            bargap=0.45,
+                            yaxis_range=[0, max_v * 1.3] if max_v > 0 else [0, 1],
+                            title=dict(
+                                text=title,
+                                font=dict(size=15, color=SECONDARY,
+                                          family="Poppins, system-ui, sans-serif"),
+                                x=0.02, xanchor="left",
+                            ),
+                        )
+                        if sel_col in ("spend_usd", "cpm"):
+                            fig.update_yaxes(tickprefix="A$", tickformat=",.0f")
+                        elif sel_col == "ctr":
+                            fig.update_yaxes(tickformat=".1%")
+                        else:
+                            fig.update_yaxes(tickformat=",")
+                        apply_chart_style(fig, height=320)
+                        fig.update_xaxes(tickangle=0)
 
-                    apply_chart_style(fig, yaxis_title=sel_label)
-                    # 30-degree tick angle keeps labels readable without overlap
-                    fig.update_xaxes(tickangle=30)
                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
                                     key=f"chart_{title.replace(' ', '_')}_{sel_col}")
 
