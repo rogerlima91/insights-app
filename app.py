@@ -109,6 +109,7 @@ with st.sidebar:
     st.markdown(f'''
     <div class="pacebird-logo">
         <img src="data:image/png;base64,{_LOGO_B64}" alt="Pacebird" />
+        <p class="pacebird-tagline">Programmatic Intelligence</p>
     </div>
     ''', unsafe_allow_html=True)
 
@@ -144,14 +145,30 @@ st.markdown(f"""
     /* Logo: static positioning — in normal document flow */
     .pacebird-logo {{
         position: static !important;
-        padding: 12px 12px 20px 12px;
+        padding: 16px 16px 20px 16px;
         text-align: center;
         background-color: {SECONDARY};
     }}
+    /* border-radius smooths the logo's own rounded corners;
+       padding + narrower width keeps it from touching sidebar edges */
     .pacebird-logo img {{
-        width: 170px;
+        width: 154px;
         height: auto;
         display: inline-block;
+        border-radius: 10px;
+        padding: 4px;
+    }}
+    /* "Programmatic Intelligence" tagline beneath the logo */
+    .pacebird-tagline {{
+        margin: 8px 0 0 0 !important;
+        padding: 0 !important;
+        font-size: 11px !important;
+        font-weight: 400 !important;
+        letter-spacing: 0.08em !important;
+        color: rgba(255,255,255,0.65) !important;
+        font-family: "Poppins", system-ui, sans-serif !important;
+        text-align: center !important;
+        line-height: 1.4 !important;
     }}
 
     section[data-testid="stSidebar"] * {{

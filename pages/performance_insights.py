@@ -1384,8 +1384,10 @@ else:
     st.subheader("Performance Charts")
 
     # Colour palette — one colour per brand, consistent across all charts
+    # Design-system palette only — RAG colors (#10B981 / #F59E0B / #EF4444)
+    # are reserved for status indicators and must never appear in performance charts.
     PALETTE = ["#1B2A4A", "#F5A623", "#2C4A7A", "#F7B84B", "#162238",
-               "#E8951A", "#10B981", "#F59E0B", "#EF4444", "#4A7AB5"]
+               "#E8951A", "#4A7AB5", "#3D5A80", "#6B85A8", "#F7C566"]
 
     def no_data_msg(msg):
         st.markdown(
@@ -1499,10 +1501,19 @@ else:
         no_data_msg("No chartable dimensions or metrics found in the uploaded data.")
     else:
         # ── Global control bar — single DSP filter + metric selector above all charts ──
-        # Two widgets sit side-by-side; a spacer column pushes them left.
-        _ctrl1, _ctrl2, _ctrl_pad = st.columns([2, 2, 4])
+        # Custom HTML labels ensure both widgets have identical label style and height.
+        # label_visibility="collapsed" hides the native widget labels.
+        _CTRL_LABEL = (
+            "font-size:11px;font-weight:600;text-transform:uppercase;"
+            "letter-spacing:0.04em;color:#1B2A4A;margin:0 0 4px 0;"
+            "font-family:'Poppins',system-ui,sans-serif;line-height:1.2;"
+            "display:block;"
+        )
+        _ctrl1, _ctrl2, _ctrl_pad = st.columns([2, 1.5, 4.5])
 
         with _ctrl1:
+            st.markdown(f'<span style="{_CTRL_LABEL}">Filter by DSP</span>',
+                        unsafe_allow_html=True)
             _dsp_opts = ["All DSPs"] + sorted(
                 df_all["dsp_source"].dropna().unique().tolist()
             )
@@ -1510,6 +1521,7 @@ else:
                 "Filter by DSP",
                 _dsp_opts,
                 key="global_chart_dsp",
+                label_visibility="collapsed",
             )
 
         # Filter the base dataframe by DSP — applied to every chart
@@ -1519,10 +1531,13 @@ else:
         )
 
         with _ctrl2:
+            st.markdown(f'<span style="{_CTRL_LABEL}">Select Metric</span>',
+                        unsafe_allow_html=True)
             sel_label = st.selectbox(
                 "Select Metric",
                 options=list(avail_metrics.values()),
                 key="global_chart_metric",
+                label_visibility="collapsed",
             )
         # Reverse-map the display label back to the internal column name
         sel_col = next(k for k, v in avail_metrics.items() if v == sel_label)

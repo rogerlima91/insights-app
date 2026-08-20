@@ -370,8 +370,8 @@ with tab_preflight:
             values=values,
             hole=0.45,
             marker=dict(colors=[
-                "#F5A623", "#1B2A4A", "#10B981", "#F59E0B",
-                "#EF4444", "#F7B84B", "#2C4A7A", "#14B8A6",
+                "#F5A623", "#1B2A4A", "#2C4A7A", "#F7B84B",
+                "#162238", "#E8951A", "#4A7AB5", "#3D5A80",
             ]),
             textinfo="label+percent",
             textfont=dict(family="Poppins, sans-serif", size=12),
