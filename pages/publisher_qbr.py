@@ -8,7 +8,10 @@ import io
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from utils.design_system import get_css, PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_SEC, TEXT_PRI, CHART_PALETTE
+from utils.design_system import (
+    get_css, metric_card, apply_plotly_style, PLOTLY_CONFIG,
+    PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_SEC, TEXT_PRI, CHART_PALETTE,
+)
 
 # ── Apply Pacebird design system CSS ──────────────────────────────────────────
 # STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins.
@@ -195,13 +198,21 @@ ecpm_delta  = pct_chg(curr["ecpm"],        prev["ecpm"])        if prev else Non
 fill_delta  = pct_chg(curr["fill_rate"],   prev["fill_rate"])   if prev else None
 
 with m1:
-    st.metric("Revenue (AUD)", f"A${curr['revenue']:,.0f}", delta=delta_str(rev_delta))
+    st.markdown(metric_card("Revenue (AUD)", f"A${curr['revenue']:,.0f}",
+                            delta=delta_str(rev_delta), delta_label="vs prev period"),
+                unsafe_allow_html=True)
 with m2:
-    st.metric("Impressions", f"{curr['impressions']:,.0f}", delta=delta_str(imp_delta))
+    st.markdown(metric_card("Impressions", f"{curr['impressions']:,.0f}",
+                            delta=delta_str(imp_delta), delta_label="vs prev period"),
+                unsafe_allow_html=True)
 with m3:
-    st.metric("eCPM", f"A${curr['ecpm']:.2f}", delta=delta_str(ecpm_delta))
+    st.markdown(metric_card("eCPM", f"A${curr['ecpm']:.2f}",
+                            delta=delta_str(ecpm_delta), delta_label="vs prev period"),
+                unsafe_allow_html=True)
 with m4:
-    st.metric("Avg Fill Rate", f"{curr['fill_rate']:.1f}%", delta=delta_str(fill_delta))
+    st.markdown(metric_card("Avg Fill Rate", f"{curr['fill_rate']:.1f}%",
+                            delta=delta_str(fill_delta), delta_label="vs prev period"),
+                unsafe_allow_html=True)
 
 # ── Quarter-over-quarter comparison table ─────────────────────────────────────
 st.markdown("### Quarter-over-Quarter Comparison")
@@ -289,13 +300,9 @@ fig_trend.update_layout(
     yaxis_title="Revenue (A$)",
     yaxis_tickprefix="A$",
     yaxis_tickformat=",.0f",
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    font=dict(family="Poppins, sans-serif", size=12),
-    margin=dict(t=40, b=40, l=60, r=20),
-    height=320,
 )
-st.plotly_chart(fig_trend, use_container_width=True)
+apply_plotly_style(fig_trend, height=320)
+st.plotly_chart(fig_trend, use_container_width=True, config=PLOTLY_CONFIG)
 
 # ── Revenue by ad format bar chart ─────────────────────────────────────────────
 st.markdown("### Revenue by Ad Format")
@@ -312,17 +319,9 @@ fig_fmt = px.bar(
     text=rev_fmt["Revenue (AUD)"].apply(lambda x: f"A${x:,.0f}"),
 )
 fig_fmt.update_traces(textposition="outside", textfont_size=11)
-fig_fmt.update_layout(
-    showlegend=False,
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    yaxis_tickprefix="A$",
-    yaxis_tickformat=",.0f",
-    font=dict(family="Poppins, sans-serif", size=12),
-    margin=dict(t=20, b=40, l=60, r=20),
-    height=320,
-)
-st.plotly_chart(fig_fmt, use_container_width=True)
+fig_fmt.update_layout(showlegend=False, yaxis_tickprefix="A$", yaxis_tickformat=",.0f")
+apply_plotly_style(fig_fmt, height=320)
+st.plotly_chart(fig_fmt, use_container_width=True, config=PLOTLY_CONFIG)
 
 # ── Top 5 and Bottom 5 placements by eCPM ─────────────────────────────────────
 st.markdown("### Placement Performance")

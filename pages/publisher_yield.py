@@ -7,7 +7,10 @@ from datetime import date, timedelta
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from utils.design_system import get_css, PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_SEC, TEXT_PRI, CHART_PALETTE
+from utils.design_system import (
+    get_css, metric_card, apply_plotly_style, PLOTLY_CONFIG,
+    PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_SEC, TEXT_PRI, CHART_PALETTE,
+)
 
 # ── Apply Pacebird design system CSS ──────────────────────────────────────────
 # STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins.
@@ -222,13 +225,13 @@ avg_fill  = df["fill_rate"].mean()
 st.markdown("### Summary")
 m1, m2, m3, m4 = st.columns(4)
 with m1:
-    st.metric("Total Revenue", f"A${total_rev:,.0f}")
+    st.markdown(metric_card("Total Revenue", f"A${total_rev:,.0f}"), unsafe_allow_html=True)
 with m2:
-    st.metric("Impressions", f"{total_imp:,.0f}")
+    st.markdown(metric_card("Impressions", f"{total_imp:,.0f}"), unsafe_allow_html=True)
 with m3:
-    st.metric("Avg eCPM", f"A${avg_ecpm:.2f}")
+    st.markdown(metric_card("Avg eCPM", f"A${avg_ecpm:.2f}"), unsafe_allow_html=True)
 with m4:
-    st.metric("Avg Fill Rate", f"{avg_fill:.1f}%")
+    st.markdown(metric_card("Avg Fill Rate", f"{avg_fill:.1f}%"), unsafe_allow_html=True)
 
 # ── Inventory table ────────────────────────────────────────────────────────────
 st.markdown("### Inventory Hierarchy")
@@ -376,17 +379,9 @@ fig_rev = px.bar(
     text=rev_pub["Revenue (AUD)"].apply(lambda x: f"A${x:,.0f}"),
 )
 fig_rev.update_traces(textposition="outside", textfont_size=11)
-fig_rev.update_layout(
-    showlegend=False,
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    yaxis_tickprefix="A$",
-    yaxis_tickformat=",.0f",
-    font=dict(family="Poppins, sans-serif", size=12),
-    margin=dict(t=20, b=40, l=60, r=20),
-    height=320,
-)
-st.plotly_chart(fig_rev, use_container_width=True)
+fig_rev.update_layout(showlegend=False, yaxis_tickprefix="A$", yaxis_tickformat=",.0f")
+apply_plotly_style(fig_rev, height=320)
+st.plotly_chart(fig_rev, use_container_width=True, config=PLOTLY_CONFIG)
 
 # ── eCPM trend line chart ─────────────────────────────────────────────────────
 st.markdown("### eCPM Trend by Publisher")
@@ -406,16 +401,9 @@ fig_ecpm = px.line(
     color_discrete_sequence=CHART_PALETTE,
     labels={"date": "Date", "ecpm": "eCPM (A$)", "publisher": "Publisher"},
 )
-fig_ecpm.update_layout(
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    yaxis_tickprefix="A$",
-    font=dict(family="Poppins, sans-serif", size=12),
-    margin=dict(t=20, b=40, l=60, r=20),
-    height=340,
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-)
-st.plotly_chart(fig_ecpm, use_container_width=True)
+fig_ecpm.update_layout(yaxis_tickprefix="A$")
+apply_plotly_style(fig_ecpm, height=340)
+st.plotly_chart(fig_ecpm, use_container_width=True, config=PLOTLY_CONFIG)
 
 # ── Timeout rate bar chart per publisher ──────────────────────────────────────
 # Aggregated at publisher level regardless of the table granularity toggle.
@@ -457,13 +445,9 @@ fig_timeout.update_layout(
     yaxis_title="Timeout Rate (%)",
     yaxis_ticksuffix="%",
     yaxis_range=[0, max(timeout_pub["timeout_rate"].max() * 1.4, 12)],
-    plot_bgcolor="white",
-    paper_bgcolor="white",
-    font=dict(family="Poppins, sans-serif", size=12),
-    margin=dict(t=20, b=60, l=60, r=20),
-    height=300,
     showlegend=False,
 )
-st.plotly_chart(fig_timeout, use_container_width=True)
+apply_plotly_style(fig_timeout, height=300)
+st.plotly_chart(fig_timeout, use_container_width=True, config=PLOTLY_CONFIG)
 
 print("Done. Yield Dashboard page loaded.")

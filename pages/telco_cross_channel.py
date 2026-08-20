@@ -4,6 +4,7 @@ import os
 import random
 from datetime import date, datetime, timedelta
 
+import sys
 import anthropic
 import pandas as pd
 import plotly.graph_objects as go
@@ -12,72 +13,9 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
-
-# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
-st.markdown("""
-<style>
-    html, body, [class*="css"] {
-        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-        font-size: 15px;
-        color: #374151;
-    }
-    .stApp { background-color: #EEF1F4; }
-    h1, h2, h3, h4, h5, h6 { font-weight: 700 !important; color: #111827 !important; }
-    h2, h3 {
-        margin-top: 2rem !important;
-        padding-top: 0.25rem !important;
-        border-bottom: none !important;
-        padding-bottom: 0 !important;
-        border-left: none !important;
-        padding-left: 0 !important;
-    }
-    [data-testid="metric-container"] {
-        background: #FFFFFF;
-        border: none;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #F5A623;
-    }
-    [data-testid="metric-container"] label {
-        font-size: 12px;
-        font-weight: 600;
-        color: #6B7280;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    [data-testid="metric-container"] [data-testid="stMetricValue"] {
-        font-size: 26px;
-        font-weight: 700;
-        color: #111827;
-    }
-    .element-container:has([data-testid="stPlotlyChart"]) {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-    .stButton > button[kind="primary"],
-    [data-testid="baseButton-primary"] {
-        background-color: #F5A623 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        font-size: 15px !important;
-        padding: 0.5rem 1.25rem !important;
-    }
-    .stButton > button[kind="primary"]:hover,
-    [data-testid="baseButton-primary"]:hover { background-color: #E8951A !important; }
-    .stButton > button[kind="secondary"],
-    [data-testid="baseButton-secondary"] { border-radius: 8px !important; font-weight: 600 !important; }
-    [data-testid="stDataFrame"] {
-        background: #FFFFFF;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-    }
-</style>
-""", unsafe_allow_html=True)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.design_system import metric_card, apply_plotly_style, PLOTLY_CONFIG, SECONDARY
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins.
 # STYLE LOCK
 
 # ── Channel configuration ─────────────────────────────────────────────────────
@@ -532,15 +470,15 @@ blended_ctr    = filtered_df["Clicks"].sum() / max(filtered_df["Impressions"].su
 col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
 
 with col_m1:
-    st.metric("Total Spend", f"A${total_spend:,.0f}")
+    st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
 with col_m2:
-    st.metric("Total Conversions", f"{int(total_conv):,}")
+    st.markdown(metric_card("Total Conversions", f"{int(total_conv):,}"), unsafe_allow_html=True)
 with col_m3:
-    st.metric("Blended CPA", f"A${blended_cpa:.2f}")
+    st.markdown(metric_card("Blended CPA", f"A${blended_cpa:.2f}"), unsafe_allow_html=True)
 with col_m4:
-    st.metric("Blended CPO", f"A${blended_cpo:.2f}")
+    st.markdown(metric_card("Blended CPO", f"A${blended_cpo:.2f}"), unsafe_allow_html=True)
 with col_m5:
-    st.metric("Blended CTR", f"{blended_ctr:.2f}%")
+    st.markdown(metric_card("Blended CTR", f"{blended_ctr:.2f}%"), unsafe_allow_html=True)
 
 st.divider()
 
@@ -622,20 +560,11 @@ spend_fig = go.Figure(go.Bar(
 ))
 
 spend_fig.update_layout(
-    height=280,
-    margin=dict(l=20, r=80, t=20, b=20),
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    xaxis=dict(
-        showgrid=True,
-        gridcolor="#F3F4F6",
-        tickprefix="A$",
-        zeroline=False,
-    ),
+    xaxis=dict(showgrid=True, gridcolor="rgba(27,42,74,0.08)", tickprefix="A$", zeroline=False),
     yaxis=dict(showgrid=False),
 )
-
-st.plotly_chart(spend_fig, use_container_width=True)
+apply_plotly_style(spend_fig, height=280)
+st.plotly_chart(spend_fig, use_container_width=True, config=PLOTLY_CONFIG)
 
 st.divider()
 
@@ -758,19 +687,9 @@ for i, ch in enumerate(trend_channels_sel):
                 hovertemplate="⚠️ CPA: A$%{y:.2f}<extra></extra>",
             ))
 
-trend_fig.update_layout(
-    height=420,
-    xaxis_title="Date",
-    yaxis_title=metric_choice,
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    xaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
-    yaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
-    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="left", x=0),
-    margin=dict(l=20, r=20, t=20, b=80),
-)
-
-st.plotly_chart(trend_fig, use_container_width=True)
+trend_fig.update_layout(xaxis_title="Date", yaxis_title=metric_choice)
+apply_plotly_style(trend_fig, height=420)
+st.plotly_chart(trend_fig, use_container_width=True, config=PLOTLY_CONFIG)
 
 st.divider()
 

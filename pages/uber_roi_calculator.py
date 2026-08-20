@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 from datetime import date as _date
 
 import anthropic
@@ -7,6 +8,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.design_system import PLOTLY_CONFIG
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
@@ -864,7 +867,7 @@ with tab_forecast:
             paper_bgcolor="rgba(0,0,0,0)",
             font=dict(family="Poppins, sans-serif", color="#374151"),
         )
-        st.plotly_chart(gauge_fig, use_container_width=True)
+        st.plotly_chart(gauge_fig, use_container_width=True, config=PLOTLY_CONFIG)
 
         st.divider()
 
@@ -1392,7 +1395,7 @@ with tab_outcome:
                 paper_bgcolor="rgba(0,0,0,0)",
                 font=dict(family="Poppins, sans-serif"),
             )
-            st.plotly_chart(donut_fig, use_container_width=True)
+            st.plotly_chart(donut_fig, use_container_width=True, config=PLOTLY_CONFIG)
 
         # RIGHT: Grouped bars — Target vs Actual (ROAS, CPO, Orders)
         # Each metric is plotted in its own subplot so units don't conflict
@@ -1452,7 +1455,7 @@ with tab_outcome:
                 font=dict(family="Poppins, sans-serif"),
             )
             bar_fig.update_traces(width=0.5)
-            st.plotly_chart(bar_fig, use_container_width=True)
+            st.plotly_chart(bar_fig, use_container_width=True, config=PLOTLY_CONFIG)
 
         st.divider()
 

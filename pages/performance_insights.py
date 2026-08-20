@@ -4,8 +4,14 @@ import os
 import re
 import random
 from datetime import date
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 import pandas as pd
+from utils.design_system import (
+    metric_card, apply_plotly_style, filter_widget, PLOTLY_CONFIG,
+    PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_PRI, TEXT_SEC,
+)
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import plotly.graph_objects as go
@@ -25,105 +31,8 @@ GREEN   = "#34b233"
 PURPLE  = "#6e2ca9"
 MAGENTA = "#c70099"
 
-# ── Global CSS ────────────────────────────────────────────────────────────────
-# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
-st.markdown("""
-<style>
-    /* ── Base font and body ─────────────────────────────────────── */
-    html, body, [class*="css"] {
-        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-        font-size: 15px;
-        color: #374151;
-    }
-
-    /* ── Page background ────────────────────────────────────────── */
-    .stApp {
-        background-color: #EEF1F4;
-    }
-
-    /* ── Main area headings ──────────────────────────────────────── */
-    h1, h2, h3, h4, h5, h6 {
-        font-weight: 700 !important;
-        color: #111827 !important;
-    }
-    h2, h3 {
-        margin-top: 2rem !important;
-        padding-top: 0.25rem !important;
-        border-bottom: none !important;
-        padding-bottom: 0 !important;
-        border-left: none !important;
-        padding-left: 0 !important;
-    }
-
-    /* ── KPI metric cards ───────────────────────────────────────── */
-    [data-testid="metric-container"] {
-        background: #FFFFFF;
-        border: none;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #F5A623;
-    }
-    [data-testid="metric-container"] label {
-        font-size: 12px;
-        font-weight: 600;
-        color: #6B7280;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    [data-testid="metric-container"] [data-testid="stMetricValue"] {
-        font-size: 26px;
-        font-weight: 700;
-        color: #111827;
-    }
-
-    /* ── Chart cards — wrap Plotly chart output in white card ───── */
-    .element-container:has([data-testid="stPlotlyChart"]) {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-
-    /* ── Primary buttons — orange ───────────────────────────────── */
-    .stButton > button[kind="primary"],
-    [data-testid="baseButton-primary"] {
-        background-color: #F5A623 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        font-size: 15px !important;
-        padding: 0.5rem 1.25rem !important;
-    }
-    .stButton > button[kind="primary"]:hover,
-    [data-testid="baseButton-primary"]:hover {
-        background-color: #E8951A !important;
-    }
-
-    /* ── File upload box ─────────────────────────────────────────── */
-    [data-testid="stFileUploader"] {
-        border: 2px dashed #F5A623 !important;
-        border-radius: 12px;
-        padding: 10px;
-        background: #FFFFFF;
-    }
-
-    /* ── DSP source badges ───────────────────────────────────────── */
-    .source-badge {
-        display: inline-block;
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-size: 11px;
-        font-weight: 700;
-        margin-left: 6px;
-    }
-    .badge-dv360   { background: #EEF1F4; color: #1B2A4A; }
-    .badge-ttd     { background: #FFF4E0; color: #F5A623; }
-    .badge-generic { background: #F0FDF4; color: #16A34A; }
-    .badge-amazon  { background: #FFF7ED; color: #C2410C; }
-</style>
-""", unsafe_allow_html=True)
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins.
+# Shared CSS is applied globally by app.py via utils/design_system.get_css().
 # STYLE LOCK
 
 # ── Source mode detection ──────────────────────────────────────────────────────
@@ -1396,11 +1305,16 @@ else:
     avg_cpm           = df_metrics["cpm"].mean()         if "cpm"         in df_metrics.columns else None
 
     col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Total Impressions", f"{total_impressions:,.0f}")
-    col2.metric("Total Clicks",      f"{total_clicks:,.0f}")
-    col3.metric("Total Spend",       f"${total_spend:,.0f}")
-    col4.metric("Avg CTR",           f"{avg_ctr:.2%}"    if avg_ctr is not None else "N/A")
-    col5.metric("Avg CPM",           f"${avg_cpm:,.2f}"  if avg_cpm is not None else "N/A")
+    with col1:
+        st.markdown(metric_card("Total Impressions", f"{total_impressions:,.0f}"), unsafe_allow_html=True)
+    with col2:
+        st.markdown(metric_card("Total Clicks", f"{total_clicks:,.0f}"), unsafe_allow_html=True)
+    with col3:
+        st.markdown(metric_card("Total Spend", f"${total_spend:,.0f}"), unsafe_allow_html=True)
+    with col4:
+        st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}" if avg_ctr is not None else "N/A"), unsafe_allow_html=True)
+    with col5:
+        st.markdown(metric_card("Avg CPM", f"${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
 
     # ── KPI RAG Status (shown per brand if targets are set) ───────────────────
     if 'campaign' in df_metrics.columns:
@@ -1486,42 +1400,22 @@ else:
 
     def apply_chart_style(fig, xaxis_title="", yaxis_title="", horizontal=False):
         """
-        Apply consistent white-card styling to every Plotly chart.
-        horizontal=True swaps which axis gets the grid.
+        Apply the shared Pacebird Plotly template, then bar-chart-specific overrides.
+        horizontal=True swaps grid to x-axis for horizontal bar charts.
         """
+        apply_plotly_style(fig, height=400)
         fig.update_layout(
-            plot_bgcolor="#FFFFFF",
-            paper_bgcolor="#FFFFFF",
-            font=dict(family="Poppins, system-ui, sans-serif", size=13, color="#374151"),
-            margin=dict(t=36, b=56, l=70, r=24),
             showlegend=False,
-            hoverlabel=dict(
-                bgcolor="#FFFFFF",
-                font_size=13,
-                font_family="Poppins, system-ui, sans-serif",
-                bordercolor="#E5E7EB",
-            ),
+            margin=dict(l=50, r=20, t=55, b=50),  # t=55 leaves room for chart title
         )
-        # X-axis styling
-        fig.update_xaxes(
-            showgrid=horizontal,          # grid on x only for horizontal bar charts
-            gridcolor="#F3F4F6",
-            gridwidth=1,
-            linecolor="#E5E7EB",
-            tickfont=dict(size=11, color="#374151"),
-            title_text=xaxis_title,
-            title_font=dict(size=12, color="#374151"),
-        )
-        # Y-axis styling
-        fig.update_yaxes(
-            showgrid=not horizontal,      # grid on y only for vertical bar charts
-            gridcolor="#F3F4F6",
-            gridwidth=1,
-            linecolor="#E5E7EB",
-            tickfont=dict(size=11, color="#374151"),
-            title_text=yaxis_title,
-            title_font=dict(size=12, color="#374151"),
-        )
+        if horizontal:
+            # Horizontal bars: grid on x, clear y grid
+            fig.update_xaxes(showgrid=True, gridcolor="rgba(27,42,74,0.08)")
+            fig.update_yaxes(showgrid=False, showline=False)
+        if xaxis_title:
+            fig.update_xaxes(title_text=xaxis_title)
+        if yaxis_title:
+            fig.update_yaxes(title_text=yaxis_title)
         return fig
 
     # ── Chart dimension configs ────────────────────────────────────────────────
@@ -1632,14 +1526,14 @@ else:
                     # Single row: DSP | Dimension | Metric
                     _cc1, _cc2, _cc3 = st.columns(3)
 
-                    # DSP filter — independent from global DSP filter
+                    # DSP filter — uses segmented_control when ≤4 options
                     with _cc1:
                         _chart_dsp_opts = ["All DSPs"] + sorted(
                             df_all["dsp_source"].dropna().unique().tolist()
                         )
-                        sel_chart_dsp = st.selectbox(
+                        sel_chart_dsp = filter_widget(
                             "Filter by DSP",
-                            options=_chart_dsp_opts,
+                            _chart_dsp_opts,
                             key=f"chart_dsp_{title.replace(' ', '_')}",
                         )
                     df_chart_base = (
@@ -1692,8 +1586,6 @@ else:
                     else:
                         df_chart_filtered = df_chart_base
 
-                    st.markdown(f"**{title}** — {sel_label}")
-
                     agg_df = (get_agg(df_chart_filtered, dim_col, sel_col)
                               .sort_values(sel_col, ascending=False)
                               .head(15))
@@ -1711,7 +1603,7 @@ else:
                         marker_color=colors,
                         text=bar_labels,
                         textposition="outside",
-                        textfont=dict(size=10, color="#374151"),
+                        textfont=dict(size=10, color=SECONDARY),
                         hovertemplate=f"<b>%{{x}}</b><br>{sel_label}: %{{text}}<extra></extra>",
                     ))
 
@@ -1719,6 +1611,13 @@ else:
                     fig.update_layout(
                         bargap=0.45,
                         yaxis_range=[0, max_v * 1.3] if max_v > 0 else [0, 1],
+                        # Chart title inside the card
+                        title=dict(
+                            text=f"{title}",
+                            font=dict(size=15, color=SECONDARY,
+                                      family="Poppins, system-ui, sans-serif"),
+                            x=0.02, xanchor="left",
+                        ),
                     )
                     if sel_col in ("spend_usd", "cpm"):
                         fig.update_yaxes(tickprefix="$", tickformat=",.0f")
@@ -1728,7 +1627,7 @@ else:
                         fig.update_yaxes(tickformat=",")
 
                     apply_chart_style(fig, yaxis_title=sel_label)
-                    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False},
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
                                     key=f"chart_{title.replace(' ', '_')}_{sel_col}")
 
     # ── Daily Performance chart ────────────────────────────────────────────────
@@ -1853,7 +1752,7 @@ else:
             fig_daily.update_xaxes(gridcolor="#F3F4F6")
 
             st.plotly_chart(fig_daily, use_container_width=True,
-                            config={"displaylogo": False},
+                            config=PLOTLY_CONFIG,
                             key="chart_daily_performance")
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -2470,7 +2369,7 @@ Return exactly 3 chart recommendations. Seed: {seed_val}"""
                                 height=300,
                                 margin=dict(l=20, r=20, t=40, b=20),
                             )
-                            st.plotly_chart(fig, use_container_width=True, key=f"ai_chart_{i}")
+                            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG, key=f"ai_chart_{i}")
 
                             # Label showing this was AI-selected
                             st.markdown(f"""

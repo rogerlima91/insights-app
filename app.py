@@ -4,7 +4,7 @@ import os
 import sys
 import base64
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from utils.design_system import get_css, PRIMARY, SECONDARY, WHITE, TEXT_SEC
+from utils.design_system import get_css, PRIMARY, SECONDARY, WHITE, TEXT_SEC, PLOTLY_CONFIG
 
 # ── Page config ─────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Pacebird", page_icon="assets/logo.png", layout="wide", initial_sidebar_state="expanded")
@@ -178,109 +178,6 @@ st.markdown(f"""
         color: {PRIMARY} !important;
         text-transform: uppercase !important;
         padding-top: 12px !important;
-    }}
-
-    /* ── Table row hover: orange tint ────────────────────────────── */
-    [data-testid="stDataFrame"] tr:hover > td {{
-        background-color: rgba(245,166,35,0.06) !important;
-    }}
-
-    /* ── Filter / selectbox widgets — compact, design-system styled ── */
-    /* Outer container: minimal vertical padding */
-    [data-testid="stSelectbox"],
-    [data-testid="stDateInput"],
-    [data-testid="stMultiSelect"] {{
-        background-color: #EEF1F4;
-        border: 1px solid rgba(27,42,74,0.15);
-        border-radius: 8px;
-        padding: 1px 6px 2px 6px;
-    }}
-    /* Label: smaller font, tighter bottom margin */
-    [data-testid="stSelectbox"] label,
-    [data-testid="stMultiSelect"] label,
-    [data-testid="stDateInput"] label {{
-        font-size: 11px !important;
-        font-weight: 600 !important;
-        color: {SECONDARY} !important;
-        font-family: "Poppins", system-ui, sans-serif !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.04em !important;
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-        line-height: 1.2 !important;
-    }}
-    /* Input field: reduced internal padding and min-height */
-    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-    [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
-        min-height: 28px !important;
-        padding-top: 1px !important;
-        padding-bottom: 1px !important;
-    }}
-    [data-testid="stSelectbox"] div[data-baseweb="select"] *,
-    [data-testid="stMultiSelect"] div[data-baseweb="select"] * {{
-        font-size: 12px !important;
-        font-family: "Poppins", system-ui, sans-serif !important;
-        color: {SECONDARY} !important;
-    }}
-    /* Date input: tighter field height */
-    [data-testid="stDateInput"] input {{
-        padding-top: 2px !important;
-        padding-bottom: 2px !important;
-        min-height: 28px !important;
-        font-size: 12px !important;
-        font-family: "Poppins", system-ui, sans-serif !important;
-    }}
-
-    /* ── Selectbox / multiselect inner BaseWeb node height ──────── */
-    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-    [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
-        min-height: 30px !important;
-        height: 30px !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-    }}
-    div[data-baseweb="select"] div[data-baseweb="input"],
-    div[data-baseweb="select"] [class*="ValueContainer"],
-    div[data-baseweb="select"] input {{
-        min-height: 28px !important;
-        height: 28px !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        line-height: 28px !important;
-    }}
-    [data-testid="stSelectbox"] [data-testid="stWidgetLabel"],
-    [data-testid="stDateInput"] [data-testid="stWidgetLabel"],
-    [data-testid="stMultiSelect"] [data-testid="stWidgetLabel"] {{
-        min-height: 0 !important;
-        margin-bottom: 2px !important;
-    }}
-    [data-testid="stDateInput"] div[data-baseweb="input"] {{
-        min-height: 30px !important;
-        height: 30px !important;
-    }}
-
-    /* ── Inputs and selectboxes: rounded corners ─────────────────── */
-    div[data-baseweb="select"] > div,
-    div[data-baseweb="input"] {{
-        border-radius: 8px !important;
-    }}
-
-    /* ── Buttons: smooth hover ───────────────────────────────────── */
-    .stButton > button {{
-        border-radius: 10px !important;
-        transition: all 0.15s ease !important;
-    }}
-    .stButton > button:hover {{
-        transform: translateY(-1px) !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
-    }}
-
-    /* ── Tables: rounded, no hard border ─────────────────────────── */
-    [data-testid="stDataFrame"] {{
-        border-radius: 16px !important;
-        overflow: hidden !important;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
-        border: none !important;
     }}
 
     /* ── Onboarding highlight ────────────────────────────────────── */

@@ -1,8 +1,11 @@
 import json
 import os
+import sys
 from datetime import date, timedelta
 import pandas as pd
 import streamlit as st
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.design_system import apply_plotly_style, PLOTLY_CONFIG
 import plotly.graph_objects as go
 import anthropic
 
@@ -382,7 +385,8 @@ with tab_preflight:
             plot_bgcolor="rgba(0,0,0,0)",
             font=dict(family="Poppins, sans-serif"),
         )
-        st.plotly_chart(pie_fig, use_container_width=True)
+        apply_plotly_style(pie_fig, height=360)
+        st.plotly_chart(pie_fig, use_container_width=True, config=PLOTLY_CONFIG)
 
         # ── Key assumptions ───────────────────────────────────────────────────
         with st.expander("Key Assumptions", expanded=False):

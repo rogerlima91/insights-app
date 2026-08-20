@@ -3,60 +3,10 @@ import pandas as pd
 import plotly.express as px
 import json
 import os
-
-# ── Global CSS ─────────────────────────────────────────────────────────────────
-# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
-st.markdown("""
-<style>
-    /* Hide Streamlit chrome */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display: none;}
-    .block-container {padding-top: 1rem;}
-
-    html, body, [class*="css"] {
-        font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-        font-size: 15px;
-        color: #374151;
-    }
-    .stApp { background-color: #EEF1F4; }
-    h1, h2, h3, h4, h5, h6 {
-        font-weight: 700 !important;
-        color: #111827 !important;
-    }
-    h2, h3 {
-        margin-top: 2rem !important;
-        padding-top: 0.25rem !important;
-        border-bottom: none !important;
-        padding-bottom: 0 !important;
-        border-left: none !important;
-        padding-left: 0 !important;
-    }
-    [data-testid="metric-container"] {
-        background: #FFFFFF;
-        border: none;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        border-top: 4px solid #F5A623;
-    }
-    .element-container:has([data-testid="stPlotlyChart"]) {
-        background: #FFFFFF;
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-    .stButton > button[kind="primary"],
-    [data-testid="baseButton-primary"] {
-        background-color: #F5A623 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.design_system import metric_card, apply_plotly_style, PLOTLY_CONFIG, SECONDARY
+# STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins.
 
 # ── Page header ────────────────────────────────────────────────────────────────
 st.markdown("# 📋 Portfolio Overview")
@@ -129,17 +79,15 @@ if True:
         total_imps = df["impressions"].sum() if "impressions" in df.columns else 0
         total_clicks = df["clicks"].sum() if "clicks" in df.columns else 0
 
+        overall_ctr = (total_clicks / total_imps * 100) if total_imps > 0 else 0
         with col_m1:
-            st.metric("Total Advertisers", len(brands))
+            st.markdown(metric_card("Total Advertisers", str(len(brands))), unsafe_allow_html=True)
         with col_m2:
-            st.metric("Total Spend", f"${total_spend:,.0f}")
+            st.markdown(metric_card("Total Spend", f"${total_spend:,.0f}"), unsafe_allow_html=True)
         with col_m3:
-            st.metric("Total Impressions", f"{total_imps:,.0f}")
+            st.markdown(metric_card("Total Impressions", f"{total_imps:,.0f}"), unsafe_allow_html=True)
         with col_m4:
-            overall_ctr = (total_clicks / total_imps * 100) if total_imps > 0 else 0
-            st.metric("Portfolio CTR", f"{overall_ctr:.2f}%")
-
-        st.markdown("---")
+            st.markdown(metric_card("Portfolio CTR", f"{overall_ctr:.2f}%"), unsafe_allow_html=True)
 
         # ── Per-advertiser summary table ─────────────────────────────────────────
         st.markdown("## 📊 Advertiser Summary")
@@ -236,7 +184,8 @@ if True:
                 xaxis_title="",
             )
             fig_spend.update_traces(marker_line_width=0)
-            st.plotly_chart(fig_spend, use_container_width=True)
+            apply_plotly_style(fig_spend)
+            st.plotly_chart(fig_spend, use_container_width=True, config=PLOTLY_CONFIG)
 
         st.markdown("---")
 
