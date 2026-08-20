@@ -1330,7 +1330,7 @@ with tab_outcome:
         bench_rows_def = [
             # (label, actual, benchmark, unit, lower_is_better)
             ("ROAS",             oc_met["actual_roas"], oc_b["avg_roas"],          "x",  False),
-            ("CPO (AUD)",        oc_met["actual_cpo"],  oc_b["avg_cpo"],           "$",  True),
+            ("CPO (AUD)",        oc_met["actual_cpo"],  oc_b["avg_cpo"],           "A$", True),
             ("CTR (%)",          oc_met["ctr"],         oc_b["avg_ctr"],           "%",  False),
             ("Incremental Rate", oc_met["incr_rate"],   oc_b["incr_rate"] * 100,   "%",  False),
         ]
@@ -1338,7 +1338,7 @@ with tab_outcome:
         bench_rows_html = []
         for label, actual, bench_val, unit, lower_better in bench_rows_def:
             # Format display values
-            if unit == "$":
+            if unit == "A$":
                 a_disp = f"A${actual:.2f}"
                 b_disp = f"A${bench_val:.2f}"
             elif unit == "x":

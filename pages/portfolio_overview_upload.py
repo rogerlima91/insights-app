@@ -249,7 +249,7 @@ overall_ctr = (total_clicks / total_imps * 100) if total_imps > 0 else 0
 with col_m1:
     st.markdown(metric_card("Total Advertisers", str(len(brands))), unsafe_allow_html=True)
 with col_m2:
-    st.markdown(metric_card("Total Spend", f"${total_spend:,.0f}"), unsafe_allow_html=True)
+    st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
 with col_m3:
     st.markdown(metric_card("Total Impressions", f"{total_imps:,.0f}"), unsafe_allow_html=True)
 with col_m4:
@@ -291,11 +291,11 @@ for brand in brands:
 
     rows.append({
         "Advertiser":   brand,
-        "Total Spend":  f"${spend:,.0f}",
+        "Total Spend":  f"A${spend:,.0f}",
         "Impressions":  f"{imps:,.0f}",
         "CTR":          f"{ctr:.2f}%",
-        "CPM":          f"${cpm:.2f}",
-        "CPA":          f"${cpa:.2f}" if convs > 0 else "—",
+        "CPM":          f"A${cpm:.2f}",
+        "CPA":          f"A${cpa:.2f}" if convs > 0 else "—",
         "RAG Status":   rag_overall,
     })
 

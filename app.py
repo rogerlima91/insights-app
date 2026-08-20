@@ -168,16 +168,20 @@ st.markdown(f"""
         border-radius: 8px !important;
         color: {WHITE} !important;
     }}
-    /* Nav section headers (API DATA / UPLOAD REPORT labels) */
+    /* Nav section headers (API DATA / UPLOAD REPORT / AUDIENCES & DEALS PIPELINE labels) */
+    /* white-space: normal allows long headings like "AUDIENCES & DEALS PIPELINE" to wrap */
     section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
     section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
     section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {{
-        font-size: 11px !important;
+        font-size: 10px !important;
         font-weight: 700 !important;
-        letter-spacing: 1.5px !important;
+        letter-spacing: 0.08em !important;
         color: {PRIMARY} !important;
         text-transform: uppercase !important;
         padding-top: 12px !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.3 !important;
     }}
 
     /* ── Onboarding highlight ────────────────────────────────────── */

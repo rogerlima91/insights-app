@@ -602,11 +602,11 @@ def _make_revenue_chart_pptx(camp_summary):
                   color="#00A8E8", edgecolor="none", width=0.5)
     ax.yaxis.set_major_formatter(
         mticker.FuncFormatter(
-            lambda v, _: f"${v/1e6:.1f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
+            lambda v, _: f"A${v/1e6:.1f}M" if v >= 1e6 else f"A${v/1e3:.0f}K"
         )
     )
     ax.bar_label(bars,
-                 labels=[f"${v/1e6:.2f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
+                 labels=[f"A${v/1e6:.2f}M" if v >= 1e6 else f"A${v/1e3:.0f}K"
                          for v in data["spend_usd"]],
                  padding=4, fontsize=9, color="white", fontweight="bold")
     ax.set_ylim(0, data["spend_usd"].max() * 1.32)
@@ -808,7 +808,7 @@ def _make_daily_chart_pptx(df_all):
     if _metric == "spend_usd":
         ax.yaxis.set_major_formatter(
             mticker.FuncFormatter(
-                lambda v, _: f"${v/1e6:.1f}M" if v >= 1e6 else f"${v/1e3:.0f}K"
+                lambda v, _: f"A${v/1e6:.1f}M" if v >= 1e6 else f"A${v/1e3:.0f}K"
             )
         )
     ax.set_ylabel(label, fontsize=9, color="#A8B2BC")
@@ -876,7 +876,7 @@ def build_pptx_report(api_key, camp_summary, df_all, sections=None,
                           if "spend_usd" in camp_summary.columns else 0)
             kpi_data = [
                 ("Total Impressions", f"{total_impr:,.0f}"),
-                ("Total Revenue",     f"${total_rev:,.0f}"),
+                ("Total Revenue",     f"A${total_rev:,.0f}"),
                 ("Number of Brands",  str(len(campaigns))),
             ]
             kpi_w, kpi_gap = 3.8, 0.35
@@ -950,7 +950,7 @@ Plain paragraphs only — no headings, no bullets, no extra text.""",
 
                 y_pos = 1.1
                 for m_col, m_lbl, fmt in [
-                    ("spend_usd",   "Spend",       "${:,.0f}"),
+                    ("spend_usd",   "Spend",       "A${:,.0f}"),
                     ("impressions", "Impressions",  "{:,.0f}"),
                     ("clicks",      "Clicks",       "{:,.0f}"),
                 ]:
@@ -1310,11 +1310,11 @@ else:
     with col2:
         st.markdown(metric_card("Total Clicks", f"{total_clicks:,.0f}"), unsafe_allow_html=True)
     with col3:
-        st.markdown(metric_card("Total Spend", f"${total_spend:,.0f}"), unsafe_allow_html=True)
+        st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
     with col4:
         st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}" if avg_ctr is not None else "N/A"), unsafe_allow_html=True)
     with col5:
-        st.markdown(metric_card("Avg CPM", f"${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
+        st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
 
     # ── KPI RAG Status (shown per brand if targets are set) ───────────────────
     if 'campaign' in df_metrics.columns:
@@ -1394,7 +1394,7 @@ else:
             unsafe_allow_html=True,
         )
 
-    def trunc(s, n=32):
+    def trunc(s, n=24):
         """Truncate a string to n characters for axis labels."""
         return s[:n] + "…" if len(str(s)) > n else str(s)
 
@@ -1457,10 +1457,10 @@ else:
         """Format a metric value for chart data labels."""
         if col in ("spend_usd", "cpm"):
             if v >= 1_000_000:
-                return f"${v/1e6:.2f}M"
+                return f"A${v/1e6:.2f}M"
             elif v >= 1_000:
-                return f"${v/1e3:.0f}K"
-            return f"${v:.2f}"
+                return f"A${v/1e3:.0f}K"
+            return f"A${v:.2f}"
         elif col == "ctr":
             return f"{v:.2%}"
         return f"{v:,.0f}"
@@ -1600,11 +1600,13 @@ else:
                     fig = go.Figure(go.Bar(
                         x=agg_df[dim_col].apply(lambda s: trunc(str(s))),
                         y=agg_df[sel_col],
+                        # customdata holds full untruncated names for hover tooltip
+                        customdata=agg_df[dim_col].astype(str).tolist(),
                         marker_color=colors,
                         text=bar_labels,
                         textposition="outside",
                         textfont=dict(size=10, color=SECONDARY),
-                        hovertemplate=f"<b>%{{x}}</b><br>{sel_label}: %{{text}}<extra></extra>",
+                        hovertemplate=f"<b>%{{customdata}}</b><br>{sel_label}: %{{text}}<extra></extra>",
                     ))
 
                     max_v = agg_df[sel_col].max()
@@ -1620,13 +1622,15 @@ else:
                         ),
                     )
                     if sel_col in ("spend_usd", "cpm"):
-                        fig.update_yaxes(tickprefix="$", tickformat=",.0f")
+                        fig.update_yaxes(tickprefix="A$", tickformat=",.0f")
                     elif sel_col == "ctr":
                         fig.update_yaxes(tickformat=".1%")
                     else:
                         fig.update_yaxes(tickformat=",")
 
                     apply_chart_style(fig, yaxis_title=sel_label)
+                    # 30-degree tick angle keeps labels readable without overlap
+                    fig.update_xaxes(tickangle=30)
                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
                                     key=f"chart_{title.replace(' ', '_')}_{sel_col}")
 

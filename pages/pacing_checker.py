@@ -108,8 +108,8 @@ if spend_col and budget_col:
         else: return "🔴 Critical"
 
     summary["Status"] = summary["Pacing %"].apply(pacing_rag)
-    summary[spend_col]  = summary[spend_col].apply(lambda x: f"${x:,.0f}")
-    summary[budget_col] = summary[budget_col].apply(lambda x: f"${x:,.0f}")
+    summary[spend_col]  = summary[spend_col].apply(lambda x: f"A${x:,.0f}")
+    summary[budget_col] = summary[budget_col].apply(lambda x: f"A${x:,.0f}")
     summary["Pacing %"] = summary["Pacing %"].apply(lambda x: f"{x:.1f}%")
 
     st.dataframe(summary, use_container_width=True, hide_index=True)

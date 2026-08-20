@@ -354,7 +354,7 @@ with tab_preflight:
         # ── Allocation table ──────────────────────────────────────────────────
         df_alloc = pd.DataFrame(rows)
         # Format budget column as currency string for display
-        df_alloc["Budget (A$)"] = df_alloc["Budget (A$)"].apply(lambda v: f"${v:,.0f}")
+        df_alloc["Budget (A$)"] = df_alloc["Budget (A$)"].apply(lambda v: f"A${v:,.0f}")
         df_alloc["%"]           = df_alloc["%"].apply(lambda v: f"{v:.1f}%")
         df_alloc.index = range(1, len(df_alloc) + 1)
         st.dataframe(df_alloc, use_container_width=True)

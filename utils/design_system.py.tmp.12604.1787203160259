@@ -466,47 +466,33 @@ def get_css():
     }}
 
     /* ── Segmented control — pill style, navy/orange ─────────────── */
-    /* Label: same uppercase 11px compact style as selectbox labels */
-    [data-testid="stSegmentedControl"] label,
-    [data-testid="stSegmentedControl"] [data-testid="stWidgetLabel"] p {{
+    [data-testid="stSegmentedControl"] label {{
         font-size: 11px !important;
         font-weight: 600 !important;
         color: {SECONDARY} !important;
         text-transform: uppercase !important;
         letter-spacing: 0.04em !important;
-        font-family: "Poppins", system-ui, sans-serif !important;
-        margin-bottom: 2px !important;
     }}
     [data-testid="stSegmentedControl"] [role="group"] {{
-        gap: 3px !important;
-        background: {WHITE} !important;
-        border-radius: 8px !important;
-        padding: 2px !important;
-        border: 0.5px solid rgba(27,42,74,0.15) !important;
-        min-height: 30px !important;
-        height: 30px !important;
-        align-items: center !important;
-        box-sizing: border-box !important;
+        gap: 4px !important;
+        background: rgba(27,42,74,0.05) !important;
+        border-radius: 24px !important;
+        padding: 3px !important;
     }}
-    /* Unselected pill: white bg, subtle navy border */
     [data-testid="stSegmentedControl"] button {{
-        border-radius: 6px !important;
+        border-radius: 20px !important;
         font-family: "Poppins", sans-serif !important;
         font-size: 12px !important;
-        font-weight: 500 !important;
+        font-weight: 600 !important;
         color: {SECONDARY} !important;
-        border: 0.5px solid rgba(27,42,74,0.15) !important;
-        padding: 2px 12px !important;
-        background: {WHITE} !important;
-        min-height: 24px !important;
+        border: none !important;
+        padding: 3px 14px !important;
+        background: transparent !important;
         transition: all 0.15s ease !important;
     }}
-    /* Selected pill: orange bg, navy text, no border */
     [data-testid="stSegmentedControl"] button[aria-checked="true"] {{
         background-color: {PRIMARY} !important;
-        color: {SECONDARY} !important;
-        border-color: {PRIMARY} !important;
-        font-weight: 600 !important;
+        color: {WHITE} !important;
     }}
 
     /* ── Onboarding highlight ────────────────────────────────────── */
