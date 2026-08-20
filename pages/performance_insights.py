@@ -41,25 +41,6 @@ MAGENTA = "#c70099"
 _pi_source_mode = st.session_state.get('_pi_source_mode', 'one-off')
 st.session_state.pop('_pi_source_mode', None)  # reset after reading
 
-# Change 6: API Data mode banner — shown only in 'ongoing' mode
-if _pi_source_mode == 'ongoing':
-    # API Data mode — show live data banner, hide upload controls
-    _last_refreshed = st.session_state.get("api_last_refreshed", "—")
-    col_banner, col_refresh = st.columns([4, 1])
-    with col_banner:
-        st.markdown("""
-        <div style="background:#EEF1F4;border-left:4px solid #1B2A4A;border-radius:8px;
-        padding:10px 16px;margin-bottom:12px;">
-            <strong>📡 Live API Data Mode</strong> — data is loaded from the live API connection.
-        </div>
-        """, unsafe_allow_html=True)
-    with col_refresh:
-        if st.button("🔄 Refresh", key="api_refresh_btn"):
-            from datetime import datetime
-            st.session_state["api_last_refreshed"] = datetime.now().strftime("%H:%M:%S")
-            st.rerun()
-    if _last_refreshed != "—":
-        st.caption(f"Last refreshed: {_last_refreshed}")
 
 # ── Column name normalisation maps ────────────────────────────────────────────
 # COLUMN_MAP: internal dimension name → list of possible source column names.
@@ -425,11 +406,23 @@ def generate_api_mock_data():
         },
     ]
 
+    # DSP assignment — realistic split: DV360 ~55%, TTD ~30%, Amazon ~15%
+    # Each campaign is assigned one DSP; exchange pool varies by DSP
+    _DSP_WEIGHTS = ["DV360", "DV360", "DV360", "TTD", "TTD", "Amazon"]
+    _EXCHANGES = {
+        "DV360":  ["Google AdX", "Magnite", "PubMatic", "Index Exchange", "OpenX"],
+        "TTD":    ["Magnite", "Index Exchange", "PubMatic", "OpenX", "Xandr"],
+        "Amazon": ["Amazon Publisher Services", "Magnite", "Index Exchange", "PubMatic"],
+    }
+    # Assign one DSP per campaign (consistent across all days for realism)
+    _camp_dsp = {camp["campaign"]: rng.choice(_DSP_WEIGHTS) for camp in CAMPAIGNS}
+
     rows = []
     for day_offset in range(30):
         current_date = start + _td(days=day_offset)
 
         for camp in CAMPAIGNS:
+            dsp = _camp_dsp[camp["campaign"]]
             for i, li in enumerate(camp["line_items"]):
                 env = camp["environments"][i]
                 device = camp["devices"][i]
@@ -459,8 +452,8 @@ def generate_api_mock_data():
                     "spend_usd":       spend_usd,
                     "conversions":     conversions,
                     "video_views":     video_views,
-                    "dsp_source":      "DV360",
-                    "exchange":        rng.choice(["Magnite", "PubMatic", "Index Exchange", "OpenX", "Google AdX"]),
+                    "dsp_source":      dsp,
+                    "exchange":        rng.choice(_EXCHANGES[dsp]),
                     "source_file":     "api_mock_data",
                 })
 
@@ -1267,63 +1260,69 @@ else:
     with _fc[0]:
         st.markdown(f'<span style="{_CL}">Advertiser</span>', unsafe_allow_html=True)
         if _adv_col:
-            _adv_opts = ["All"] + sorted(df_all[_adv_col].dropna().unique().tolist())
-            sel_adv = st.selectbox("Advertiser", _adv_opts, key="gf_adv",
-                                   label_visibility="collapsed")
+            _adv_opts = sorted(df_all[_adv_col].dropna().unique().tolist())
+            sel_adv = st.multiselect("Advertiser", _adv_opts, default=[],
+                                     placeholder="All", key="gf_adv",
+                                     label_visibility="collapsed")
         else:
-            sel_adv = "All"
+            sel_adv = []
 
     # ── DSP ───────────────────────────────────────────────────────────────────
     with _fc[1]:
         st.markdown(f'<span style="{_CL}">DSP</span>', unsafe_allow_html=True)
-        _dsp_opts = ["All"] + sorted(df_all["dsp_source"].dropna().unique().tolist())
-        sel_dsp = filter_widget("DSP", _dsp_opts, key="gf_dsp",
-                                label_visibility="collapsed")
+        _dsp_opts = sorted(df_all["dsp_source"].dropna().unique().tolist())
+        sel_dsp = st.multiselect("DSP", _dsp_opts, default=[],
+                                 placeholder="All", key="gf_dsp",
+                                 label_visibility="collapsed")
 
     # Apply advertiser + DSP to get cascading base for Campaign/LI/Creative
+    # Empty list means "All" — no filter applied
     _df_base = df_all.copy()
-    if sel_adv != "All" and _adv_col:
-        _df_base = _df_base[_df_base[_adv_col] == sel_adv]
-    if sel_dsp != "All":
-        _df_base = _df_base[_df_base["dsp_source"] == sel_dsp]
+    if sel_adv and _adv_col:
+        _df_base = _df_base[_df_base[_adv_col].isin(sel_adv)]
+    if sel_dsp:
+        _df_base = _df_base[_df_base["dsp_source"].isin(sel_dsp)]
 
     # ── CAMPAIGN (cascades from advertiser + DSP) ─────────────────────────────
     with _fc[2]:
         st.markdown(f'<span style="{_CL}">Campaign</span>', unsafe_allow_html=True)
         if "campaign" in _df_base.columns:
-            _camp_opts = ["All"] + sorted(_df_base["campaign"].dropna().unique().tolist())
-            sel_campaign = st.selectbox("Campaign", _camp_opts, key="gf_campaign",
-                                        label_visibility="collapsed")
+            _camp_opts = sorted(_df_base["campaign"].dropna().unique().tolist())
+            sel_campaign = st.multiselect("Campaign", _camp_opts, default=[],
+                                          placeholder="All", key="gf_campaign",
+                                          label_visibility="collapsed")
         else:
-            sel_campaign = "All"
+            sel_campaign = []
 
     _df_camp = _df_base.copy()
-    if sel_campaign != "All" and "campaign" in _df_camp.columns:
-        _df_camp = _df_camp[_df_camp["campaign"] == sel_campaign]
+    if sel_campaign and "campaign" in _df_camp.columns:
+        _df_camp = _df_camp[_df_camp["campaign"].isin(sel_campaign)]
 
     # ── LINE ITEM (cascades from campaign) ────────────────────────────────────
     with _fc[3]:
         st.markdown(f'<span style="{_CL}">Line Item</span>', unsafe_allow_html=True)
         if "line_item" in _df_camp.columns:
-            _li_opts = ["All"] + sorted(_df_camp["line_item"].dropna().unique().tolist())
-            sel_line_item = st.selectbox("Line Item", _li_opts, key="gf_line_item",
-                                         label_visibility="collapsed")
+            _li_opts = sorted(_df_camp["line_item"].dropna().unique().tolist())
+            sel_line_item = st.multiselect("Line Item", _li_opts, default=[],
+                                           placeholder="All", key="gf_line_item",
+                                           label_visibility="collapsed")
         else:
-            sel_line_item = "All"
+            sel_line_item = []
 
     _df_li = _df_camp.copy()
-    if sel_line_item != "All" and "line_item" in _df_li.columns:
-        _df_li = _df_li[_df_li["line_item"] == sel_line_item]
+    if sel_line_item and "line_item" in _df_li.columns:
+        _df_li = _df_li[_df_li["line_item"].isin(sel_line_item)]
 
     # ── CREATIVE (cascades from line item) ────────────────────────────────────
     with _fc[4]:
         st.markdown(f'<span style="{_CL}">Creative</span>', unsafe_allow_html=True)
         if "creative" in _df_li.columns:
-            _cr_opts = ["All"] + sorted(_df_li["creative"].dropna().unique().tolist())
-            sel_creative = st.selectbox("Creative", _cr_opts, key="gf_creative",
-                                        label_visibility="collapsed")
+            _cr_opts = sorted(_df_li["creative"].dropna().unique().tolist())
+            sel_creative = st.multiselect("Creative", _cr_opts, default=[],
+                                          placeholder="All", key="gf_creative",
+                                          label_visibility="collapsed")
         else:
-            sel_creative = "All"
+            sel_creative = []
 
     # ── METRIC ────────────────────────────────────────────────────────────────
     with _fc[5]:
@@ -1351,8 +1350,8 @@ else:
 
     # ── Apply all filters to build df_metrics (drives every section below) ────
     df_metrics = _df_li.copy()
-    if sel_creative != "All" and "creative" in df_metrics.columns:
-        df_metrics = df_metrics[df_metrics["creative"] == sel_creative]
+    if sel_creative and "creative" in df_metrics.columns:
+        df_metrics = df_metrics[df_metrics["creative"].isin(sel_creative)]
     if _has_date and isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
         _start, _end = _date_range
         df_metrics = df_metrics[
@@ -1362,8 +1361,8 @@ else:
 
     # Also narrow df_all by date + DSP so sections that still reference df_all
     # (period comparison, AI insights, PPTX) see a consistently filtered dataset
-    if sel_dsp != "All":
-        df_all = df_all[df_all["dsp_source"] == sel_dsp].copy()
+    if sel_dsp:
+        df_all = df_all[df_all["dsp_source"].isin(sel_dsp)].copy()
     if _has_date and isinstance(_date_range, (list, tuple)) and len(_date_range) == 2:
         _start, _end = _date_range
         df_all = df_all[
@@ -1390,6 +1389,9 @@ else:
         st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}" if avg_ctr is not None else "N/A"), unsafe_allow_html=True)
     with col5:
         st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
+
+    # 24px breathing room between the metric cards row and the first chart row
+    st.markdown('<div style="margin-top:24px;"></div>', unsafe_allow_html=True)
 
     # ── KPI RAG Status (shown per brand if targets are set) ───────────────────
     if 'campaign' in df_metrics.columns:
@@ -1473,11 +1475,11 @@ else:
         """Truncate a string to n characters for axis labels."""
         return s[:n] + "…" if len(str(s)) > n else str(s)
 
-    def apply_chart_style(fig, xaxis_title="", yaxis_title="", horizontal=False, height=320):
+    def apply_chart_style(fig, xaxis_title="", yaxis_title="", horizontal=False, height=380):
         """
         Apply the shared Pacebird Plotly template, then bar-chart-specific overrides.
         horizontal=True swaps grid to x-axis for horizontal bar charts.
-        height controls the chart height in pixels (default 320 for compact 2×2 grid).
+        height controls the chart height in pixels (default 380 for bar charts).
         """
         apply_plotly_style(fig, height=height)
         fig.update_layout(
@@ -1502,7 +1504,7 @@ else:
         {"title": "Advertiser",       "dim_col": "advertiser",  "horizontal": False},
         {"title": "Campaign",         "dim_col": "campaign",    "horizontal": True},
         {"title": "Line Item",        "dim_col": "line_item",   "horizontal": True},
-        {"title": "Creative",         "dim_col": "creative",    "horizontal": False},
+        {"title": "Creative",         "dim_col": "creative",    "horizontal": True},
         {"title": "Audience Segment", "dim_col": None,          "horizontal": False},
     ]
 
@@ -1586,8 +1588,7 @@ else:
 
                     if horizontal:
                         # Horizontal bars — category on y-axis
-                        # Used for Campaign and Line Item where names are long
-                        chart_h = max(280, len(agg_df) * 32 + 80)
+                        # Used for Campaign, Line Item, and Creative where names are long
                         fig = go.Figure(go.Bar(
                             y=trunc_names,
                             x=agg_df[sel_col],
@@ -1619,7 +1620,7 @@ else:
                             fig.update_xaxes(tickformat=".1%")
                         else:
                             fig.update_xaxes(tickformat=",")
-                        apply_chart_style(fig, horizontal=True, height=chart_h)
+                        apply_chart_style(fig, horizontal=True, height=380)
                     else:
                         # Vertical bars — category on x-axis
                         # Used for Advertiser and Creative where names are shorter
@@ -1653,7 +1654,7 @@ else:
                             fig.update_yaxes(tickformat=".1%")
                         else:
                             fig.update_yaxes(tickformat=",")
-                        apply_chart_style(fig, height=320)
+                        apply_chart_style(fig, height=380)
                         fig.update_xaxes(tickangle=0)
 
                     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
@@ -1708,13 +1709,15 @@ else:
                     legend=dict(
                         orientation="h",
                         yanchor="top",
-                        y=-0.1,
+                        y=-0.02,
                         xanchor="center",
                         x=0.5,
                         font=dict(size=10, family="Poppins, system-ui, sans-serif"),
+                        tracegroupgap=0,
+                        itemwidth=30,
                     ),
-                    margin=dict(l=10, r=10, t=40, b=60),
-                    height=280,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    height=300,
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
                 )

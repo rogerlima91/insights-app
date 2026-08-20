@@ -434,6 +434,18 @@ def get_css():
         font-family: "Poppins", system-ui, sans-serif !important;
         color: {SECONDARY} !important;
     }}
+    /* Multiselect selected tags — navy background, white text */
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] {{
+        background-color: {SECONDARY} !important;
+        border-radius: 4px !important;
+        padding: 1px 4px !important;
+        margin: 1px 2px !important;
+    }}
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] span,
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] svg {{
+        color: #FFFFFF !important;
+        fill: #FFFFFF !important;
+    }}
     div[data-baseweb="select"] div[data-baseweb="input"],
     div[data-baseweb="select"] [class*="ValueContainer"],
     div[data-baseweb="select"] input {{
