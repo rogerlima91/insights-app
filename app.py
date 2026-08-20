@@ -101,14 +101,14 @@ if "Audiences & Deals Pipeline" in visible_sections:
 # ── Sidebar logo — rendered in normal document flow inside stSidebarUserContent ──
 # ── stSidebarUserContent gets order:-1 via CSS flexbox, moving it above stSidebarNav.
 # ── No absolute positioning: the element stays in flow so its height is reserved.
-_logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
+_logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.jfif")
 with open(_logo_path, "rb") as _lf:
     _LOGO_B64 = base64.b64encode(_lf.read()).decode()
 
 with st.sidebar:
     st.markdown(f'''
     <div class="pacebird-logo">
-        <img src="data:image/png;base64,{_LOGO_B64}" alt="Pacebird" />
+        <img src="data:image/jpeg;base64,{_LOGO_B64}" alt="Pacebird" />
         <p class="pacebird-tagline">Programmatic Intelligence</p>
     </div>
     ''', unsafe_allow_html=True)
