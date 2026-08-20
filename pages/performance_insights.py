@@ -1531,7 +1531,6 @@ else:
     CHART_CONFIGS = [
         {"title": "Advertiser",      "dim_col": "advertiser"},
         {"title": "Campaign",        "dim_col": "campaign"},
-        {"title": "Insertion Order", "dim_col": "insertion_order"},
         {"title": "Line Item",       "dim_col": "line_item"},
         {"title": "Creative",        "dim_col": "creative"},
         {"title": "Audience Segment", "dim_col": None},
