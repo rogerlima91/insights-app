@@ -6,7 +6,6 @@
       ],
       "hidden": [
         "Upload Report",
-        "Sell Side",
         "Audiences & Deals Pipeline"
       ]
     },
@@ -16,7 +15,6 @@
       ],
       "hidden": [
         "API Data",
-        "Sell Side",
         "Audiences & Deals Pipeline"
       ]
     },
@@ -24,20 +22,9 @@
       "visible": [
         "API Data",
         "Upload Report",
-        "Sell Side",
         "Audiences & Deals Pipeline"
       ],
       "hidden": []
-    },
-    "sell_side": {
-      "visible": [
-        "Sell Side",
-        "Audiences & Deals Pipeline"
-      ],
-      "hidden": [
-        "API Data",
-        "Upload Report"
-      ]
     }
   },
   "current_tier": "full_access"

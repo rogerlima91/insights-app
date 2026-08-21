@@ -42,6 +42,7 @@ It processes that data to generate performance charts, AI-written insights, and 
 4. Keep code **simple and readable** — no clever one-liners, no unnecessary abstractions
 5. Column names from DSP exports vary — always check and normalise headers early in any script
 6. After every significant change or completed feature, automatically run `git add .`, `git commit` with a descriptive commit message, and `git push origin master` — do this without asking for confirmation
+7. **Section parity rule:** Any change to a page in the API Data section must be applied to the equivalent page in the Upload Report section, and vice versa, unless explicitly stated otherwise. The two sections differ only in data source (mock vs uploaded), never in logic, layout or features. If a change genuinely cannot apply to both, stop and ask before proceeding. The Audiences & Deals Pipeline section is a separate project and is not covered by this rule.
 
 ## Design System (Pacebird Brand)
 - **Primary:** `#F5A623` warm orange — buttons, accents, active nav, card top borders
@@ -79,34 +80,36 @@ insights-app/
 ├── .streamlit/
 │   └── secrets.toml            ← API keys (never commit)
 ├── pages/
-│   ├── brand_memory.py              ← Brand Memory page (three tabs — see below)
-│   ├── publisher_qbr.py             ← QBR Generator (Sell Side)
-│   ├── publisher_yield.py           ← Yield Dashboard (Sell Side)
-│   └── audience_solutions.py        ← Audience Solutions (Audiences & Deals Pipeline)
+│   ├── ongoing_performance.py       ← API Data: Performance & Insights (loads performance_insights.py)
+│   ├── performance_insights.py      ← Shared: core Performance & Insights logic (API + Upload modes)
+│   ├── live_campaigns.py            ← API Data: Live Campaigns (pacing, diagnostics, optimisation)
+│   ├── pacing_checker.py            ← Upload Report: Live Campaigns (file upload pacing check)
+│   ├── settings.py                  ← API Data: Settings (Brand Memory, Email, Transcript, Scheduled Reports, Alert Settings)
+│   ├── settings_link.py             ← Upload Report: Settings (links to main settings page)
+│   └── audience_solutions.py        ← Audiences & Deals Pipeline: segment matching and stack builder
 ├── data/
 │   ├── audience_segments.json       ← Are Media mock first-party audience taxonomy (36 segments)
 │   └── audience_segments_README.md  ← Schema reference for audience_segments.json
 ├── outputs/                    ← Generated PowerPoint and chart files
 └── utils/
-    └── design_system.py        ← Central design system: colour constants and shared CSS
+    ├── design_system.py        ← Central design system: colour constants and shared CSS
+    └── mock_data.py            ← Shared mock data: generate_api_mock_data(), get_pacing_mock_data()
 ```
 
 ## Navigation Sections (sidebar order)
 ```
 Pacebird logo
-📡 API DATA              — live API-connected workflows
-📁 UPLOAD REPORT         — drag-and-drop DSP CSV analysis
-📈 SELL SIDE             — publisher QBR and yield tools
+📡 API DATA              — live API-connected workflows (Performance & Insights, Live Campaigns, Settings)
+📁 UPLOAD REPORT         — drag-and-drop DSP CSV analysis (Performance & Insights, Live Campaigns, Settings)
 🎯 AUDIENCES & DEALS PIPELINE — audience segment matching and proposal builder
 ```
 
 ### Access tier gating (config.json → current_tier)
 | Tier | Sections visible |
 |------|-----------------|
-| `full_access` | All four sections |
+| `full_access` | All three sections |
 | `api_only` | 📡 API DATA only |
 | `upload_only` | 📁 UPLOAD REPORT only |
-| `sell_side` | 📈 SELL SIDE + 🎯 AUDIENCES & DEALS PIPELINE |
 
 ---
 

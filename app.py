@@ -51,10 +51,9 @@ cfg   = load_config()
 prefs = load_prefs()
 
 TIER_MAP = {
-    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Sell Side", "Audiences & Deals Pipeline"]},
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Audiences & Deals Pipeline"]},
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
     "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
-    "sell_side":    {"label": "📈 Sell Side",    "visible": ["Sell Side", "Audiences & Deals Pipeline"]},
 }
 current_tier     = cfg.get("current_tier", "full_access")
 visible_sections = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["visible"]
@@ -65,23 +64,14 @@ tier_label       = TIER_MAP.get(current_tier, TIER_MAP["full_access"])["label"]
 # All CSS, sidebar content, and page rendering come after this block.
 API_DATA_PAGES = [
     st.Page("pages/ongoing_performance.py",      title="Performance & Insights"),
-    st.Page("pages/portfolio_overview.py",        title="Portfolio Overview"),
     st.Page("pages/live_campaigns.py",            title="Live Campaigns"),
-    st.Page("pages/telco_cross_channel.py",       title="Cross-Channel Dashboard"),
     st.Page("pages/settings.py",                  title="Settings"),
 ]
 
 UPLOAD_REPORT_PAGES = [
-    st.Page("pages/performance_insights.py",         title="Performance & Insights"),
-    st.Page("pages/portfolio_overview_upload.py",    title="Portfolio Overview"),
-    st.Page("pages/pacing_checker.py",               title="Live Campaigns"),
-    st.Page("pages/telco_cross_channel_upload.py",   title="Cross-Channel Dashboard"),
-    st.Page("pages/settings_link.py",                title="Settings"),
-]
-
-SELL_SIDE_PAGES = [
-    st.Page("pages/publisher_qbr.py",      title="QBR Generator"),
-    st.Page("pages/publisher_yield.py",    title="Yield Dashboard"),
+    st.Page("pages/performance_insights.py",      title="Performance & Insights"),
+    st.Page("pages/pacing_checker.py",            title="Live Campaigns"),
+    st.Page("pages/settings_link.py",             title="Settings"),
 ]
 
 AUDIENCE_PIPELINE_PAGES = [
@@ -93,8 +83,6 @@ if "API Data" in visible_sections:
     nav_sections["📡 API DATA"] = API_DATA_PAGES
 if "Upload Report" in visible_sections:
     nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
-if "Sell Side" in visible_sections:
-    nav_sections["📈 SELL SIDE"] = SELL_SIDE_PAGES
 if "Audiences & Deals Pipeline" in visible_sections:
     nav_sections["🎯 AUDIENCES & DEALS PIPELINE"] = AUDIENCE_PIPELINE_PAGES
 
@@ -331,12 +319,14 @@ if not prefs.get("onboarding_complete", False):
             Here's how to navigate Pacebird:
 
             **📡 API Data** — Live API-connected workflows
-            &nbsp;&nbsp;📊 Performance & Insights · 📋 Portfolio Overview · 🎯 Live Campaigns · 📡 Cross-Channel
+            &nbsp;&nbsp;📊 Performance & Insights · 🎯 Live Campaigns · ⚙️ Settings
 
             **📁 Upload Report** — Drag-and-drop file analysis
-            &nbsp;&nbsp;📊 Performance & Insights · 📋 Portfolio Overview · 📋 Live Campaigns · 📡 Cross-Channel
+            &nbsp;&nbsp;📊 Performance & Insights · 📋 Live Campaigns · ⚙️ Settings
 
-            **⚙️ Settings** — Brand memory, KPI targets, alert settings, scheduled reports
+            **🎯 Audiences & Deals Pipeline** — Audience segment matching and proposal builder
+
+            **⚙️ Settings** — Brand memory, alert settings, scheduled reports
 
             *(Navigate to Performance & Insights and click **Generate Insights** to get started.)*
             """)

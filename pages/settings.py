@@ -190,8 +190,8 @@ st.markdown(
 )
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_bm, tab_email, tab_transcript, tab4, tab5, tab6 = st.tabs(
-    ["📋  Brand Memory", "📧  Email Context", "🎙  Meeting Transcription", "🎯 KPI Targets", "📬 Scheduled Reports", "🔔 Alert Settings"]
+tab_bm, tab_email, tab_transcript, tab5, tab6 = st.tabs(
+    ["📋  Brand Memory", "📧  Email Context", "🎙  Meeting Transcription", "📬 Scheduled Reports", "🔔 Alert Settings"]
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -853,94 +853,6 @@ with tab_transcript:
                     )
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — KPI Targets
-# ══════════════════════════════════════════════════════════════════════════════
-# ── Tab 4: KPI Targets ────────────────────────────────────────────────────────
-with tab4:
-    st.markdown("## 🎯 KPI Targets")
-    st.markdown("Set performance targets per brand. These are used to show RAG status cards in Performance & Insights.")
-
-    bm_for_targets = load_brand_memory()
-    brand_names_for_targets = list(bm_for_targets.keys())
-
-    if not brand_names_for_targets:
-        st.info("No brands saved yet. Add brands in the Brand Memory tab first.")
-    else:
-        selected_brand_target = st.selectbox("Select brand", brand_names_for_targets, key="kpi_brand_select")
-
-        if selected_brand_target:
-            existing_targets = bm_for_targets.get(selected_brand_target, {}).get("kpi_targets", {})
-
-            st.markdown(f"### Targets for: {selected_brand_target}")
-
-            with st.form("kpi_targets_form"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    target_ctr = st.number_input(
-                        "Target CTR %",
-                        min_value=0.0, max_value=100.0, step=0.01,
-                        value=float(existing_targets.get("target_ctr", 0.0)),
-                        help="e.g. 0.15 for 0.15%"
-                    )
-                    target_cpa = st.number_input(
-                        "Target CPA (AUD)",
-                        min_value=0.0, step=0.50,
-                        value=float(existing_targets.get("target_cpa", 0.0)),
-                        help="Cost per acquisition in AUD"
-                    )
-                    target_cpm = st.number_input(
-                        "Target CPM (AUD)",
-                        min_value=0.0, step=0.50,
-                        value=float(existing_targets.get("target_cpm", 0.0)),
-                        help="Cost per thousand impressions in AUD"
-                    )
-                with col_b:
-                    target_roas = st.number_input(
-                        "Target ROAS",
-                        min_value=0.0, step=0.1,
-                        value=float(existing_targets.get("target_roas", 0.0)),
-                        help="Return on ad spend (e.g. 3.5 = 3.5x return)"
-                    )
-                    target_vtr = st.number_input(
-                        "Target VTR %",
-                        min_value=0.0, max_value=100.0, step=0.1,
-                        value=float(existing_targets.get("target_vtr", 0.0)),
-                        help="Video through rate percentage"
-                    )
-
-                submitted_targets = st.form_submit_button("💾 Save KPI Targets", type="primary")
-
-                if submitted_targets:
-                    bm_for_targets = load_brand_memory()
-                    if selected_brand_target not in bm_for_targets:
-                        bm_for_targets[selected_brand_target] = {"rationale": "", "entries": []}
-
-                    bm_for_targets[selected_brand_target]["kpi_targets"] = {
-                        "target_ctr": target_ctr if target_ctr > 0 else None,
-                        "target_cpa": target_cpa if target_cpa > 0 else None,
-                        "target_cpm": target_cpm if target_cpm > 0 else None,
-                        "target_roas": target_roas if target_roas > 0 else None,
-                        "target_vtr": target_vtr if target_vtr > 0 else None,
-                    }
-                    save_brand_memory(bm_for_targets)
-                    st.success(f"✅ KPI targets saved for {selected_brand_target}")
-
-            # Show current targets summary
-            if existing_targets:
-                st.markdown("**Current targets:**")
-                target_rows = []
-                labels = {
-                    "target_ctr": "CTR %", "target_cpa": "CPA (AUD)",
-                    "target_cpm": "CPM (AUD)", "target_roas": "ROAS", "target_vtr": "VTR %"
-                }
-                for key, label in labels.items():
-                    val = existing_targets.get(key)
-                    if val:
-                        target_rows.append({"Metric": label, "Target": val})
-                if target_rows:
-                    st.dataframe(pd.DataFrame(target_rows), use_container_width=True, hide_index=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
 # TAB 5 — Scheduled Reports
 # ══════════════════════════════════════════════════════════════════════════════
 # ── Tab 5: Scheduled Reports ──────────────────────────────────────────────────
@@ -1139,12 +1051,11 @@ if _current_tier == "full_access":
             json.dump(c, _f, indent=2)
 
     _cfg = _load_config()
-    _tier_options = ["full_access", "api_only", "upload_only", "sell_side"]
+    _tier_options = ["full_access", "api_only", "upload_only"]
     _tier_labels  = {
-        "full_access":  "✨ Full Access — show API Data, Upload Report and Sell Side",
-        "api_only":     "📡 API Data Only — hide Upload Report and Sell Side",
-        "upload_only":  "📁 Upload Report Only — hide API Data and Sell Side",
-        "sell_side":    "📈 Sell Side Only — hide API Data and Upload Report",
+        "full_access":  "✨ Full Access — show API Data, Upload Report and Audiences & Deals Pipeline",
+        "api_only":     "📡 API Data Only — hide Upload Report",
+        "upload_only":  "📁 Upload Report Only — hide API Data",
     }
     _current_idx = _tier_options.index(_cfg.get("current_tier", "full_access"))
 
