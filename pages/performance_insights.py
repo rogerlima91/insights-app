@@ -1477,6 +1477,334 @@ else:
                                 config=PLOTLY_CONFIG,
                                 key=f"donut_{d_col}_{sel_col}")
 
+    # ── Explore Data pivot table ──────────────────────────────────────────────
+    # Positioned between the donut charts and the Daily Performance chart.
+    # Rate metrics (CTR, CPM, CPC, VTR) are always recalculated from summed
+    # raw counts after grouping — never averaged — to avoid misleading numbers.
+
+    # CSS: style dimension/metric multiselect tags and table filter note
+    st.markdown("""
+    <style>
+    /* Dimension multiselect tags: navy background, white text */
+    [data-testid*="pivot_dims"] span[data-baseweb="tag"] {
+        background-color: #1B2A4A !important;
+        color: #ffffff !important;
+    }
+    [data-testid*="pivot_dims"] span[data-baseweb="tag"] span { color: #ffffff !important; }
+    /* Metric multiselect tags: orange background, navy text */
+    [data-testid*="pivot_metrics"] span[data-baseweb="tag"] {
+        background-color: #F5A623 !important;
+        color: #1B2A4A !important;
+    }
+    [data-testid*="pivot_metrics"] span[data-baseweb="tag"] span { color: #1B2A4A !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown(
+            '<h3 style="font-family:\'Poppins\',system-ui,sans-serif;font-size:18px;'
+            'font-weight:700;color:#1B2A4A;margin:0 0 16px 0;padding:0;">'
+            'Explore Data</h3>',
+            unsafe_allow_html=True,
+        )
+
+        # Dimension columns available in the current filtered data, in display order
+        _PIVOT_DIM_OPTIONS = [
+            ("advertiser",      "Advertiser"),
+            ("campaign",        "Campaign"),
+            ("insertion_order", "Insertion Order"),
+            ("line_item",       "Line Item"),
+            ("creative",        "Creative"),
+            ("device_type",     "Device"),
+            ("environment",     "Environment"),
+            ("buy_type",        "Buy Type"),
+            ("dsp_source",      "DSP"),
+            ("date",            "Date"),
+        ]
+        _pivot_dim_avail = [
+            (col, lbl) for col, lbl in _PIVOT_DIM_OPTIONS
+            if col in df_metrics.columns and df_metrics[col].notna().any()
+        ]
+        _pivot_dim_labels = [lbl for _, lbl in _pivot_dim_avail]
+        _pivot_dim_map    = {lbl: col for col, lbl in _pivot_dim_avail}  # label → col
+
+        # Sets for metric classification
+        _PIVOT_ADDITIVE = {"impressions", "clicks", "spend_usd", "conversions",
+                           "video_starts", "video_completions", "viewable_impressions"}
+        _PIVOT_RATES    = {"ctr", "cpm", "cpc", "vtr", "viewability"}
+
+        # Rate metrics: only offer if the underlying raw columns exist
+        _can_calc_rate = {
+            "ctr":         ("clicks" in df_metrics.columns and "impressions" in df_metrics.columns),
+            "cpm":         ("spend_usd" in df_metrics.columns and "impressions" in df_metrics.columns),
+            "cpc":         ("spend_usd" in df_metrics.columns and "clicks" in df_metrics.columns),
+            "vtr":         ("video_completions" in df_metrics.columns and "video_starts" in df_metrics.columns),
+            "viewability": ("viewable_impressions" in df_metrics.columns and "impressions" in df_metrics.columns),
+        }
+        _PIVOT_METRIC_OPTIONS = [
+            ("impressions",  "Impressions"),
+            ("clicks",       "Clicks"),
+            ("spend_usd",    "Spend"),
+            ("ctr",          "CTR"),
+            ("cpm",          "CPM"),
+            ("cpc",          "CPC"),
+            ("conversions",  "Conversions"),
+            ("viewability",  "Viewability Rate"),
+            ("vtr",          "VTR"),
+        ]
+        _pivot_metric_avail = [
+            (col, lbl) for col, lbl in _PIVOT_METRIC_OPTIONS
+            if (col in df_metrics.columns and col in _PIVOT_ADDITIVE)
+            or _can_calc_rate.get(col, False)
+        ]
+        _pivot_metric_labels = [lbl for _, lbl in _pivot_metric_avail]
+        _pivot_metric_map    = {lbl: col for col, lbl in _pivot_metric_avail}  # label → col
+
+        # Default selections: Campaign + Device for dims; Impressions/Clicks/Spend/CTR for metrics
+        _pivot_dim_defaults    = [lbl for lbl in ["Campaign", "Device"]
+                                  if lbl in _pivot_dim_labels]
+        _pivot_metric_defaults = [lbl for lbl in ["Impressions", "Clicks", "Spend", "CTR"]
+                                  if lbl in _pivot_metric_labels]
+
+        # ── Field pickers row ────────────────────────────────────────────────
+        _PCL = (
+            "font-size:11px;font-weight:600;text-transform:uppercase;"
+            "letter-spacing:0.04em;color:#1B2A4A;margin:0 0 4px 0;"
+            "font-family:'Poppins',system-ui,sans-serif;display:block;"
+        )
+        _fp1, _fp2 = st.columns(2)
+        with _fp1:
+            st.markdown(f'<span style="{_PCL}">Dimensions</span>', unsafe_allow_html=True)
+            sel_pivot_dims = st.multiselect(
+                "pivot_dims", _pivot_dim_labels,
+                default=_pivot_dim_defaults,
+                key="pivot_dims",
+                label_visibility="collapsed",
+            )
+        with _fp2:
+            st.markdown(f'<span style="{_PCL}">Metrics</span>', unsafe_allow_html=True)
+            sel_pivot_metrics = st.multiselect(
+                "pivot_metrics", _pivot_metric_labels,
+                default=_pivot_metric_defaults,
+                key="pivot_metrics",
+                label_visibility="collapsed",
+            )
+
+        if not sel_pivot_metrics:
+            st.info("Select at least one metric to display the table.")
+        else:
+            # Map selected labels back to internal column names
+            sel_dim_cols    = [_pivot_dim_map[lbl]    for lbl in sel_pivot_dims]
+            sel_metric_cols = [_pivot_metric_map[lbl] for lbl in sel_pivot_metrics]
+
+            # Work out which raw additive columns are needed to recalculate rates
+            _raw_needed = set()
+            for _mc in sel_metric_cols:
+                if _mc in _PIVOT_ADDITIVE:
+                    _raw_needed.add(_mc)
+                elif _mc == "ctr":
+                    _raw_needed.update(["clicks", "impressions"])
+                elif _mc == "cpm":
+                    _raw_needed.update(["spend_usd", "impressions"])
+                elif _mc == "cpc":
+                    _raw_needed.update(["spend_usd", "clicks"])
+                elif _mc == "vtr":
+                    _raw_needed.update(["video_completions", "video_starts"])
+                elif _mc == "viewability":
+                    _raw_needed.update(["viewable_impressions", "impressions"])
+            _pull_raws = [c for c in _raw_needed if c in df_metrics.columns]
+
+            # ── Aggregate ────────────────────────────────────────────────────
+            _df_src = df_metrics.copy()
+            if sel_dim_cols:
+                # Group by selected dimensions, summing raw additive columns
+                _agg_spec   = {c: (c, "sum") for c in _pull_raws}
+                _df_grouped = (_df_src.groupby(sel_dim_cols, dropna=False)
+                               .agg(**_agg_spec).reset_index())
+            else:
+                # No dimensions selected — single aggregate row
+                _agg_vals   = {c: _df_src[c].sum() for c in _pull_raws}
+                _df_grouped = pd.DataFrame([_agg_vals])
+
+            # Cap at 5,000 rows before further filtering
+            _pivot_capped = len(_df_grouped) > 5000
+            if _pivot_capped:
+                _df_grouped = _df_grouped.head(5000)
+
+            # Recalculate rate metrics from summed raw counts.
+            # Guard every denominator with .clip(lower=1) and replace inf with 0.
+            if "ctr" in sel_metric_cols and {"clicks", "impressions"}.issubset(_df_grouped.columns):
+                _df_grouped["ctr"] = (
+                    _df_grouped["clicks"] / _df_grouped["impressions"].clip(lower=1)
+                ).replace([float("inf"), float("-inf")], 0)
+            if "cpm" in sel_metric_cols and {"spend_usd", "impressions"}.issubset(_df_grouped.columns):
+                _df_grouped["cpm"] = (
+                    _df_grouped["spend_usd"] / _df_grouped["impressions"].clip(lower=1) * 1000
+                ).replace([float("inf"), float("-inf")], 0)
+            if "cpc" in sel_metric_cols and {"spend_usd", "clicks"}.issubset(_df_grouped.columns):
+                _df_grouped["cpc"] = (
+                    _df_grouped["spend_usd"] / _df_grouped["clicks"].clip(lower=1)
+                ).replace([float("inf"), float("-inf")], 0)
+            if "vtr" in sel_metric_cols and {"video_completions", "video_starts"}.issubset(_df_grouped.columns):
+                _df_grouped["vtr"] = (
+                    _df_grouped["video_completions"] / _df_grouped["video_starts"].clip(lower=1)
+                ).replace([float("inf"), float("-inf")], 0)
+            if "viewability" in sel_metric_cols and {"viewable_impressions", "impressions"}.issubset(_df_grouped.columns):
+                _df_grouped["viewability"] = (
+                    _df_grouped["viewable_impressions"] / _df_grouped["impressions"].clip(lower=1)
+                ).replace([float("inf"), float("-inf")], 0)
+
+            # Keep only the columns the user selected for display
+            _disp_cols  = sel_dim_cols + [c for c in sel_metric_cols if c in _df_grouped.columns]
+            _df_display = _df_grouped[_disp_cols].copy()
+
+            # ── Table-level filters ──────────────────────────────────────────
+            st.markdown(
+                '<p style="font-family:\'Poppins\',system-ui,sans-serif;font-size:11px;'
+                'color:#6B7280;font-style:italic;margin:12px 0 4px 0;">'
+                'Table filters — independent of the page-level filters above</p>',
+                unsafe_allow_html=True,
+            )
+            _tf1, _tf2, _tf3, _tf4 = st.columns([2.5, 1, 1.3, 0.9])
+            with _tf1:
+                _pivot_search = st.text_input(
+                    "Search dimensions", value="", placeholder="Search dimensions…",
+                    key="pivot_search", label_visibility="collapsed",
+                )
+            with _tf2:
+                _pivot_topn = st.selectbox(
+                    "Top N", ["10", "25", "50", "100", "All"],
+                    key="pivot_topn", label_visibility="collapsed",
+                )
+            with _tf3:
+                _pivot_sort_by = (
+                    st.selectbox("Sort by", sel_pivot_metrics,
+                                 key="pivot_sort_by", label_visibility="collapsed")
+                    if sel_pivot_metrics else None
+                )
+            with _tf4:
+                _pivot_asc = st.selectbox(
+                    "Order", ["Descending", "Ascending"],
+                    key="pivot_order", label_visibility="collapsed",
+                )
+
+            # Apply free-text search across selected dimension columns (partial, case-insensitive)
+            if _pivot_search and sel_dim_cols:
+                _mask = pd.Series(False, index=_df_display.index)
+                for _dc in sel_dim_cols:
+                    if _dc in _df_display.columns:
+                        _mask |= (_df_display[_dc].astype(str)
+                                  .str.contains(_pivot_search, case=False, na=False))
+                _df_display = _df_display[_mask].copy()
+
+            # Apply sort by selected metric
+            if _pivot_sort_by and _pivot_sort_by in _pivot_metric_map:
+                _sort_col = _pivot_metric_map[_pivot_sort_by]
+                if _sort_col in _df_display.columns:
+                    _df_display = _df_display.sort_values(
+                        _sort_col, ascending=(_pivot_asc == "Ascending")
+                    )
+
+            # Apply Top N
+            if _pivot_topn != "All":
+                _df_display = _df_display.head(int(_pivot_topn))
+
+            _pivot_row_count = len(_df_display)
+
+            # ── Totals row ───────────────────────────────────────────────────
+            # Rates in the totals row are recalculated from the full grouped
+            # dataset (before search/top-n) so the total reflects all data.
+            if sel_dim_cols:
+                _tot = {_dc: "TOTAL" for _dc in sel_dim_cols}
+                for _mc in sel_metric_cols:
+                    if _mc not in _df_display.columns:
+                        continue
+                    if _mc in _PIVOT_RATES:
+                        # Recalculate rate from full grouped data
+                        if _mc == "ctr" and {"clicks", "impressions"}.issubset(_df_grouped.columns):
+                            _tot[_mc] = (_df_grouped["clicks"].sum()
+                                         / max(_df_grouped["impressions"].sum(), 1))
+                        elif _mc == "cpm" and {"spend_usd", "impressions"}.issubset(_df_grouped.columns):
+                            _tot[_mc] = (_df_grouped["spend_usd"].sum()
+                                         / max(_df_grouped["impressions"].sum(), 1) * 1000)
+                        elif _mc == "cpc" and {"spend_usd", "clicks"}.issubset(_df_grouped.columns):
+                            _tot[_mc] = (_df_grouped["spend_usd"].sum()
+                                         / max(_df_grouped["clicks"].sum(), 1))
+                        elif _mc == "vtr" and {"video_completions", "video_starts"}.issubset(_df_grouped.columns):
+                            _tot[_mc] = (_df_grouped["video_completions"].sum()
+                                         / max(_df_grouped["video_starts"].sum(), 1))
+                        elif _mc == "viewability" and {"viewable_impressions", "impressions"}.issubset(_df_grouped.columns):
+                            _tot[_mc] = (_df_grouped["viewable_impressions"].sum()
+                                         / max(_df_grouped["impressions"].sum(), 1))
+                        else:
+                            _tot[_mc] = None
+                    else:
+                        # Additive: sum the current display slice (respects Top N / search)
+                        _tot[_mc] = _df_display[_mc].sum() if _mc in _df_display.columns else None
+
+                _df_with_totals = pd.concat(
+                    [_df_display, pd.DataFrame([_tot])], ignore_index=True
+                )
+            else:
+                # No dimensions — single aggregate row is already the total
+                _df_with_totals = _df_display.copy()
+
+            # ── Rename columns to friendly display labels ─────────────────────
+            _dim_label_map    = {col: lbl for lbl, col in _pivot_dim_map.items()}
+            _metric_label_map = {col: lbl for lbl, col in _pivot_metric_map.items()}
+            _col_rename       = {**_dim_label_map, **_metric_label_map}
+            _df_with_totals   = _df_with_totals.rename(columns=_col_rename)
+            _df_export        = _df_display.rename(columns=_col_rename)  # CSV: no totals row
+
+            # ── Format spec for metric columns ───────────────────────────────
+            # Dimension columns stay as strings — no format spec needed for them.
+            _pivot_fmt = {}
+            for _lbl in sel_pivot_metrics:
+                _mc = _pivot_metric_map.get(_lbl, "")
+                if _lbl not in _df_with_totals.columns:
+                    continue
+                if _mc in ("spend_usd", "cpm", "cpc"):
+                    _pivot_fmt[_lbl] = "A${:,.2f}"
+                elif _mc in ("ctr", "vtr", "viewability"):
+                    _pivot_fmt[_lbl] = "{:.2%}"
+                else:
+                    _pivot_fmt[_lbl] = "{:,.0f}"
+
+            # ── Bold + highlight the totals row ──────────────────────────────
+            def _style_pivot_totals(_df):
+                """Apply bold + light-grey background to the last row (totals)."""
+                styles = pd.DataFrame("", index=_df.index, columns=_df.columns)
+                if sel_dim_cols:
+                    styles.iloc[-1] = "font-weight: 700; background-color: #F3F4F6;"
+                return styles
+
+            # ── Render table ─────────────────────────────────────────────────
+            st.dataframe(
+                _df_with_totals.style
+                    .format(_pivot_fmt, na_rep="")
+                    .apply(_style_pivot_totals, axis=None),
+                use_container_width=True,
+                height=400,
+            )
+
+            # ── Row count + CSV download ──────────────────────────────────────
+            _rc1, _rc2 = st.columns([3, 1])
+            with _rc1:
+                st.caption(f"{_pivot_row_count:,} row{'s' if _pivot_row_count != 1 else ''}")
+            with _rc2:
+                st.download_button(
+                    "⬇ Download as CSV",
+                    data=_df_export.to_csv(index=False).encode("utf-8"),
+                    file_name="explore_data.csv",
+                    mime="text/csv",
+                    key="pivot_download",
+                )
+
+            if _pivot_capped:
+                st.warning(
+                    "Result capped at 5,000 rows. Use the page-level filters above to narrow the data."
+                )
+
     # ── Daily Performance chart ────────────────────────────────────────────────
     # Shown when the data contains a date column and at least one summable metric.
     if "date" in df_metrics.columns:
