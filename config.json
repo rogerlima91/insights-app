@@ -5,8 +5,7 @@
         "API Data"
       ],
       "hidden": [
-        "Upload Report",
-        "Audiences & Deals Pipeline"
+        "Upload Report"
       ]
     },
     "upload_only": {
@@ -14,15 +13,13 @@
         "Upload Report"
       ],
       "hidden": [
-        "API Data",
-        "Audiences & Deals Pipeline"
+        "API Data"
       ]
     },
     "full_access": {
       "visible": [
         "API Data",
-        "Upload Report",
-        "Audiences & Deals Pipeline"
+        "Upload Report"
       ],
       "hidden": []
     }

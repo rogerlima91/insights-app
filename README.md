@@ -47,7 +47,6 @@ Five tabs covering all configuration and context management:
 |-----|---------|
 | 📋 Brand Memory | Store free-text context (objectives, KPIs, notes) per brand; used to personalise AI insights |
 | 📧 Email Context | Search Gmail for brand-related emails; save selected emails directly into Brand Memory |
-| 🎙 Meeting Transcription | Upload audio/video recordings (mp3, mp4, wav, m4a, webm); transcribed via OpenAI Whisper and saved to Brand Memory |
 | 📬 Scheduled Reports | Configure scheduled report delivery settings |
 | 🔔 Alert Settings | Configure thresholds for automated performance alerts |
 
@@ -109,16 +108,12 @@ insights-app/
 │   ├── pacing_checker.py               # Live Campaigns (Upload Report mode — pacing from CSV)
 │   ├── settings_link.py                # Settings (Upload Report mode — thin wrapper)
 │   │
-│   │   ── 🎯 AUDIENCES & DEALS PIPELINE ──────────────────────────────────
-│   └── audience_solutions.py           # Audience Solutions — segment matching and proposal builder
-│
 ├── utils/
 │   ├── design_system.py            # Central design system: colour constants and shared CSS
 │   └── mock_data.py                # Shared mock data: generate_api_mock_data(), get_pacing_mock_data()
 │
 ├── data/
-│   ├── audience_segments.json      # Are Media mock audience taxonomy (36 segments, fabricated)
-│   └── audience_segments_README.md # Schema reference for audience_segments.json
+│   └── dsp_sample_v2.csv           # Sample DSP CSV for testing uploads
 │
 ├── outputs/                        # Generated PowerPoint files saved here
 │
@@ -168,7 +163,6 @@ OPENAI_API_KEY    = "your-openai-api-key-here"
 | Key | Required | Used for |
 |-----|----------|---------|
 | `ANTHROPIC_API_KEY` | Yes (for AI features) | Claude insights, PPTX slide content, NL querying |
-| `OPENAI_API_KEY` | Optional | Whisper meeting transcription in Settings |
 
 Both keys are also readable from environment variables if you prefer that approach:
 
@@ -261,11 +255,11 @@ If you prefer not to install `make`, equivalent scripts are included:
 
 | Tier | Sidebar sections visible |
 |------|--------------------------|
-| `full_access` | 📡 API Data + 📁 Upload Report + 🎯 Audiences & Deals Pipeline |
+| `full_access` | 📡 API Data + 📁 Upload Report |
 | `api_only` | 📡 API Data only |
 | `upload_only` | 📁 Upload Report only |
 
-Sidebar order is always: logo → API Data → Upload Report → Audiences & Deals Pipeline. Sections not included in the active tier's `visible` list are hidden entirely.
+Sidebar order is always: logo → API Data → Upload Report. Sections not included in the active tier's `visible` list are hidden entirely.
 
 ---
 

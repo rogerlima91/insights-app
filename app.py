@@ -51,7 +51,7 @@ cfg   = load_config()
 prefs = load_prefs()
 
 TIER_MAP = {
-    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Audiences & Deals Pipeline"]},
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report"]},
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
     "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
 }
@@ -74,17 +74,11 @@ UPLOAD_REPORT_PAGES = [
     st.Page("pages/settings_link.py",             title="Settings"),
 ]
 
-AUDIENCE_PIPELINE_PAGES = [
-    st.Page("pages/audience_solutions.py", title="Audience Solutions"),
-]
-
 nav_sections = {}
 if "API Data" in visible_sections:
     nav_sections["📡 API DATA"] = API_DATA_PAGES
 if "Upload Report" in visible_sections:
     nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
-if "Audiences & Deals Pipeline" in visible_sections:
-    nav_sections["🎯 AUDIENCES & DEALS PIPELINE"] = AUDIENCE_PIPELINE_PAGES
 
 # ── Sidebar logo — rendered in normal document flow inside stSidebarUserContent ──
 # ── stSidebarUserContent gets order:-1 via CSS flexbox, moving it above stSidebarNav.
@@ -173,8 +167,7 @@ st.markdown(f"""
         border-radius: 8px !important;
         color: {WHITE} !important;
     }}
-    /* Nav section headers (API DATA / UPLOAD REPORT / AUDIENCES & DEALS PIPELINE labels) */
-    /* white-space: normal allows long headings like "AUDIENCES & DEALS PIPELINE" to wrap */
+    /* Nav section headers (API DATA / UPLOAD REPORT labels) */
     section[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] span,
     section[data-testid="stSidebar"] .st-emotion-cache-1rtdyuf,
     section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] > div > p {{
@@ -324,9 +317,7 @@ if not prefs.get("onboarding_complete", False):
             **📁 Upload Report** — Drag-and-drop file analysis
             &nbsp;&nbsp;📊 Performance & Insights · 📋 Live Campaigns · ⚙️ Settings
 
-            **🎯 Audiences & Deals Pipeline** — Audience segment matching and proposal builder
-
-            **⚙️ Settings** — Brand memory, alert settings, scheduled reports
+            **⚙️ Settings** — Brand memory, email context, alert settings, scheduled reports
 
             *(Navigate to Performance & Insights and click **Generate Insights** to get started.)*
             """)
