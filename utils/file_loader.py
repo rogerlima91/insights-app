@@ -30,6 +30,13 @@ _TOTAL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Pattern that identifies DV360-style footer metadata rows by their first-column prefix.
+# Examples: "Report:", "Filter by: ...", "Group By: ...", "This report covers..."
+_FOOTER_PREFIX = re.compile(
+    r"^\s*(report|group\s+by|filter\s+by|mrc|this\s+report|active\s+view|–|—|-\s)",
+    re.IGNORECASE,
+)
+
 
 # ── Low-level helpers ─────────────────────────────────────────────────────────
 
@@ -186,6 +193,51 @@ def _drop_total_rows(df: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+def _drop_footer_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove trailing footer / metadata rows that DSPs (especially DV360)
+    append below the data block.
+
+    Works upward from the last row.  A row is a footer row when ANY of
+    these conditions hold for its first-column value:
+      1. The string ends with ":" — e.g. "Filter by:", "Report:"
+      2. The string matches known DV360 footer keyword prefixes.
+      3. More than half of the numeric columns in that row are null.
+
+    Scanning stops as soon as a row fails all three tests — that row is
+    treated as the last real data row and everything above it is kept.
+    """
+    if df.empty or len(df.columns) == 0:
+        return df
+
+    first_col = df.columns[0]
+    numeric_cols = df.select_dtypes(include="number").columns.tolist()
+    indices = df.index.tolist()
+
+    drop_set = set()
+    for idx in reversed(indices):
+        val = str(df.at[idx, first_col]).strip()
+
+        ends_colon = val.endswith(":")
+        is_keyword = bool(_FOOTER_PREFIX.match(val))
+
+        if numeric_cols:
+            null_count = sum(1 for nc in numeric_cols if pd.isna(df.at[idx, nc]))
+            sparse = null_count > len(numeric_cols) * 0.5
+        else:
+            sparse = False
+
+        if ends_colon or is_keyword or sparse:
+            drop_set.add(idx)
+        else:
+            break  # found a real data row — stop scanning
+
+    if drop_set:
+        df = df.drop(index=list(drop_set)).reset_index(drop=True)
+
+    return df
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def read_file(uploaded_file) -> tuple:
@@ -232,6 +284,7 @@ def _read_excel(uploaded_file) -> tuple:
         )
 
     df = _drop_total_rows(df)
+    df = _drop_footer_rows(df)
 
     if df.empty:
         return None, (
@@ -314,8 +367,9 @@ def _read_text(uploaded_file) -> tuple:
             "no data rows were found after the header."
         )
 
-    # ── Remove total/summary footer rows ─────────────────────────────────────
+    # ── Remove total/summary footer rows, then DSP metadata footer rows ──────
     df = _drop_total_rows(df)
+    df = _drop_footer_rows(df)
 
     if df.empty:
         return None, (

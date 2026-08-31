@@ -121,7 +121,15 @@ METRIC_MAP = {
     "cpm (aud)":                   "cpm_raw",
     "avg. cpm":                    "cpm_raw",
     "average cpm":                 "cpm_raw",
+    # Unique Reach — per-DSP only, must NEVER be summed across dimensions
+    "unique reach: total reach":       "unique_reach_total",
+    "unique reach: impression reach":  "unique_reach_impression",
 }
+
+# Unique Reach columns are excluded from the metric selector and all
+# aggregated charts because summing them across campaigns or dates gives
+# meaningless numbers (they represent unique users, not additive counts).
+REACH_METRICS = {"unique_reach_total", "unique_reach_impression"}
 
 # ── DSP source detector ───────────────────────────────────────────────────────
 # Identifies which DSP the CSV came from by checking for DSP-specific column names.
@@ -1063,10 +1071,24 @@ else:
         "spend_usd": "Spend", "impressions": "Impressions", "clicks": "Clicks",
         "conversions": "Conversions", "cpm": "CPM", "ctr": "CTR",
     }
-    avail_metrics = {k: v for k, v in _METRIC_LABELS.items() if k in df_all.columns}
+    avail_metrics = {k: v for k, v in _METRIC_LABELS.items()
+                     if k in df_all.columns and k not in REACH_METRICS}
     for _col in df_all.select_dtypes(include="number").columns:
-        if _col not in avail_metrics and _col not in ("source_file",):
+        if (_col not in avail_metrics
+                and _col not in ("source_file",)
+                and _col not in REACH_METRICS):
             avail_metrics[_col] = _col.replace("_", " ").title()
+
+    # Warn the user if Unique Reach columns are present — they are excluded
+    # from charts because they cannot be summed across campaigns or dates.
+    _reach_present = [c for c in REACH_METRICS if c in df_all.columns]
+    if _reach_present:
+        st.info(
+            "**Unique Reach columns detected** — these metrics are per-DSP only "
+            "and cannot be summed across campaigns or dates. They are excluded from "
+            "the metric selector and charts to prevent misleading totals.",
+            icon="ℹ️",
+        )
 
     # Shared label style — identical across every filter widget
     _CL = (
@@ -1193,24 +1215,66 @@ else:
 
     # ── Summary metrics ───────────────────────────────────────────────────────
     try:
-        total_impressions = df_metrics["impressions"].sum()  if "impressions" in df_metrics.columns else 0
-        total_clicks      = df_metrics["clicks"].sum()       if "clicks"      in df_metrics.columns else 0
-        total_spend       = df_metrics["spend_usd"].sum()    if "spend_usd"   in df_metrics.columns else 0
+        _has_impr  = "impressions" in df_metrics.columns
+        _has_click = "clicks"      in df_metrics.columns
+        _has_spend = "spend_usd"   in df_metrics.columns
+        _has_cpm   = "cpm"         in df_metrics.columns
+
+        total_impressions = df_metrics["impressions"].sum() if _has_impr  else None
+        total_clicks      = df_metrics["clicks"].sum()      if _has_click else None
+        total_spend       = df_metrics["spend_usd"].sum()   if _has_spend else None
         # Always recalculate CTR from totals — never average a pre-calculated CTR column
-        avg_ctr           = (total_clicks / total_impressions) if total_impressions > 0 else None
-        avg_cpm           = df_metrics["cpm"].mean()         if "cpm"         in df_metrics.columns else None
+        avg_ctr = (
+            (total_clicks / total_impressions)
+            if (total_impressions is not None and total_impressions > 0
+                and total_clicks is not None)
+            else None
+        )
+        avg_cpm = df_metrics["cpm"].mean() if _has_cpm else None
+
+        def _absent_card(label):
+            """KPI card shown when a column is not present in this report."""
+            return (
+                "<div style='background:#FFFFFF;border:none;border-radius:16px;"
+                "padding:24px;box-shadow:0 2px 12px rgba(0,0,0,0.06);"
+                "border-top:4px solid #E5E7EB;'>"
+                f"<div style='font-size:12px;font-weight:600;color:#6B7280;"
+                f"text-transform:uppercase;letter-spacing:0.04em;"
+                f"margin-bottom:8px;'>{label}</div>"
+                "<div style='font-size:13px;color:#9CA3AF;font-style:italic;'>"
+                "Not in this report</div></div>"
+            )
 
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.markdown(metric_card("Total Impressions", f"{total_impressions:,.0f}"), unsafe_allow_html=True)
+            if total_impressions is not None:
+                st.markdown(metric_card("Total Impressions", f"{total_impressions:,.0f}"), unsafe_allow_html=True)
+            else:
+                st.markdown(_absent_card("Total Impressions"), unsafe_allow_html=True)
         with col2:
-            st.markdown(metric_card("Total Clicks", f"{total_clicks:,.0f}"), unsafe_allow_html=True)
+            if total_clicks is not None:
+                st.markdown(metric_card("Total Clicks", f"{total_clicks:,.0f}"), unsafe_allow_html=True)
+            else:
+                st.markdown(_absent_card("Total Clicks"), unsafe_allow_html=True)
         with col3:
-            st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
+            if total_spend is not None:
+                st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
+            else:
+                st.markdown(_absent_card("Total Spend"), unsafe_allow_html=True)
         with col4:
-            st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}" if avg_ctr is not None else "N/A"), unsafe_allow_html=True)
+            if avg_ctr is not None:
+                st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}"), unsafe_allow_html=True)
+            elif _has_impr and _has_click:
+                st.markdown(metric_card("Avg CTR", "N/A"), unsafe_allow_html=True)
+            else:
+                st.markdown(_absent_card("Avg CTR"), unsafe_allow_html=True)
         with col5:
-            st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
+            if avg_cpm is not None:
+                st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}"), unsafe_allow_html=True)
+            elif _has_impr and _has_spend:
+                st.markdown(metric_card("Avg CPM", "N/A"), unsafe_allow_html=True)
+            else:
+                st.markdown(_absent_card("Avg CPM"), unsafe_allow_html=True)
     except Exception as _e:
         section_error("Summary Metrics", _e)
 
@@ -1357,19 +1421,26 @@ else:
                         title      = cfg["title"]
                         horizontal = cfg.get("horizontal", False)
 
-                        # Sort ascending for horizontal so top bar = highest value
+                        # Always sort descending (highest value first), take the top 15,
+                        # then reverse the slice for horizontal charts so the top-ranked
+                        # entry appears at the top of the y-axis (Plotly draws upward).
                         agg_df = (get_agg(df_chart_base, dim_col, sel_col)
-                                  .sort_values(sel_col, ascending=horizontal)
+                                  .sort_values(sel_col, ascending=False)
                                   .head(15))
+                        if horizontal:
+                            agg_df = agg_df.iloc[::-1].reset_index(drop=True)
 
-                        if agg_df.empty or agg_df[sel_col].sum() == 0:
+                        if (agg_df.empty
+                                or agg_df[sel_col].dropna().empty
+                                or agg_df[sel_col].sum() == 0):
                             no_data_msg(f"No {sel_label} data for {title}.")
                             continue
 
                         bar_labels  = [fmt_val(v, sel_col) for v in agg_df[sel_col]]
                         colors      = [PALETTE[k % len(PALETTE)] for k in range(len(agg_df))]
                         full_names  = agg_df[dim_col].astype(str).tolist()
-                        trunc_names = [trunc(s) for s in full_names]
+                        # Use wider truncation for horizontal charts (long campaign/LI names)
+                        trunc_names = [trunc(s, n=35 if horizontal else 20) for s in full_names]
 
                         if horizontal:
                             # Horizontal bars — category on y-axis
