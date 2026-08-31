@@ -124,12 +124,55 @@ METRIC_MAP = {
     # Unique Reach — per-DSP only, must NEVER be summed across dimensions
     "unique reach: total reach":       "unique_reach_total",
     "unique reach: impression reach":  "unique_reach_impression",
+    # Additional CTR variants from DV360/YouTube exports — pre-calculated, dropped after load
+    "click rate":                          "ctr_raw",
+    "click rate (ctr)":                    "ctr_raw",
+    # CPC/CPA/CPV — pre-calculated, dropped after load
+    "cpc":                                 "cpc_raw",
+    "cost per click":                      "cpc_raw",
+    "avg. cpc":                            "cpc_raw",
+    "cpa":                                 "cpa_raw",
+    "cost per action":                     "cpa_raw",
+    "cost per conversion":                 "cpa_raw",
+    "cpv":                                 "cpv_raw",
+    "cost per view":                       "cpv_raw",
+    "avg. cpv":                            "cpv_raw",
+    # Completion/view-through rate — pre-calculated, dropped after load
+    "completion rate":                     "completion_rate_raw",
+    "completion rate (video)":             "completion_rate_raw",
+    "video completion rate":               "completion_rate_raw",
+    "view-through rate":                   "vtr_raw",
+    "view through rate":                   "vtr_raw",
+    # Viewability rate — pre-calculated, dropped after load
+    "viewability (%)":                     "viewability_raw",
+    "% viewable impressions":              "viewability_raw",
+    "active view: % viewable impressions": "viewability_raw",
+    # Video count metrics — additive (safe to sum)
+    "starts (video)":                      "video_starts",
+    "video starts":                        "video_starts",
+    "skips (video)":                       "video_skips",
+    "video skips":                         "video_skips",
+    "first quartile views":                "video_first_q",
+    "midpoint views":                      "video_midpoint",
+    "third quartile views":                "video_third_q",
+    "complete views":                      "video_completions",
+    "video completions":                   "video_completions",
+    "views":                               "video_views",
+    "viewable impressions":                "viewable_impressions",
+    "active view: viewable impressions":   "viewable_impressions",
 }
 
 # Unique Reach columns are excluded from the metric selector and all
 # aggregated charts because summing them across campaigns or dates gives
 # meaningless numbers (they represent unique users, not additive counts).
 REACH_METRICS = {"unique_reach_total", "unique_reach_impression"}
+
+# Safety-net pattern: catches any rate/ratio column that was not captured by
+# METRIC_MAP and must not appear in the metric selector or be summed in charts.
+_RATE_COL_RE = re.compile(
+    r"\b(rate|ratio|viewab)\b|^(ctr|cpm|cpc|cpa|cpv|vtr)(_raw)?$",
+    re.IGNORECASE,
+)
 
 # ── DSP source detector ───────────────────────────────────────────────────────
 # Identifies which DSP the CSV came from by checking for DSP-specific column names.
@@ -224,21 +267,37 @@ def load_and_normalise(uploaded_file):
     # Multiple source columns can map to the same standard name — keep first occurrence
     df = df.loc[:, ~df.columns.duplicated(keep="first")]
 
+    # Drop all DSP-provided rate columns (renamed to *_raw by METRIC_MAP).
+    # We recalculate every rate from raw counts to guarantee correctness.
+    _raw_cols = [c for c in df.columns if c.endswith("_raw")]
+    if _raw_cols:
+        df = df.drop(columns=_raw_cols)
+
     # Convert numeric columns — DSP exports often include commas or $ signs
-    for col in ["impressions", "clicks", "spend_usd", "conversions"]:
+    _numeric_cols = [
+        "impressions", "clicks", "spend_usd", "conversions",
+        "video_starts", "video_completions", "video_first_q",
+        "video_midpoint", "video_third_q", "video_skips",
+        "video_views", "viewable_impressions",
+    ]
+    for col in _numeric_cols:
         if col in df.columns:
             df[col] = (
                 df[col].astype(str)
-                .str.replace(r"[$,]", "", regex=True)   # strip $ and commas
+                .str.replace(r"[$,%]", "", regex=True)  # strip $, commas, %
                 .str.strip()
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Calculate CTR and CPM from raw numbers (more reliable than DSP-provided values)
+    # Calculate rate metrics from raw counts (never from DSP-provided pre-calculated values)
     if "impressions" in df.columns and "clicks" in df.columns:
-        df["ctr"] = df["clicks"] / df["impressions"]
+        df["ctr"] = df["clicks"] / df["impressions"].clip(lower=1)
     if "impressions" in df.columns and "spend_usd" in df.columns:
-        df["cpm"] = df["spend_usd"] / df["impressions"] * 1000
+        df["cpm"] = df["spend_usd"] / df["impressions"].clip(lower=1) * 1000
+    if "video_starts" in df.columns and "video_completions" in df.columns:
+        df["vtr"] = df["video_completions"] / df["video_starts"].clip(lower=1)
+    if "viewable_impressions" in df.columns and "impressions" in df.columns:
+        df["viewability"] = df["viewable_impressions"] / df["impressions"].clip(lower=1)
 
     # Tag each row with where it came from
     df["source_file"] = uploaded_file.name
@@ -1068,15 +1127,32 @@ else:
 
     # Build metric options before the filter bar so the Metric selectbox can use them
     _METRIC_LABELS = {
-        "spend_usd": "Spend", "impressions": "Impressions", "clicks": "Clicks",
-        "conversions": "Conversions", "cpm": "CPM", "ctr": "CTR",
+        "impressions":          "Impressions",
+        "clicks":               "Clicks",
+        "spend_usd":            "Spend",
+        "conversions":          "Conversions",
+        "cpm":                  "CPM",
+        "ctr":                  "CTR",
+        "vtr":                  "VTR",
+        "viewability":          "Viewability",
+        "video_starts":         "Video Starts",
+        "video_completions":    "Video Completions",
+        "video_first_q":        "First Quartile Views",
+        "video_midpoint":       "Midpoint Views",
+        "video_third_q":        "Third Quartile Views",
+        "video_skips":          "Video Skips",
+        "video_views":          "Video Views",
+        "viewable_impressions": "Viewable Impressions",
     }
     avail_metrics = {k: v for k, v in _METRIC_LABELS.items()
                      if k in df_all.columns and k not in REACH_METRICS}
+    # Also pick up any additional numeric columns not already covered,
+    # but exclude rate-like columns that must not be summed across groups.
     for _col in df_all.select_dtypes(include="number").columns:
         if (_col not in avail_metrics
                 and _col not in ("source_file",)
-                and _col not in REACH_METRICS):
+                and _col not in REACH_METRICS
+                and not _RATE_COL_RE.search(_col)):
             avail_metrics[_col] = _col.replace("_", " ").title()
 
     # Warn the user if Unique Reach columns are present — they are excluded
@@ -1372,55 +1448,87 @@ else:
             elif v >= 1_000:
                 return f"A${v/1e3:.0f}K"
             return f"A${v:.2f}"
-        elif col == "ctr":
+        elif col in ("ctr", "vtr", "viewability"):
             return f"{v:.2%}"
         return f"{v:,.0f}"
 
     def get_agg(df, dim_col, metric_col):
         """
         Aggregate df by dim_col for the chosen metric.
-        CPM and CTR are recalculated from raw totals — never summed or
-        averaged directly, which would give wrong results for rate metrics.
+        Rate metrics (CPM, CTR, VTR, Viewability) are always recalculated
+        from summed raw counts — never summed or averaged directly.
+        Guard every denominator with .clip(lower=1) and replace inf with 0.
         """
         if metric_col == "cpm" and "spend_usd" in df.columns and "impressions" in df.columns:
             grp = (df.groupby(dim_col)
                      .agg(spend_usd=("spend_usd", "sum"),
                           impressions=("impressions", "sum"))
                      .reset_index())
-            grp["cpm"] = grp["spend_usd"] / grp["impressions"].clip(lower=1) * 1000
+            grp["cpm"] = (grp["spend_usd"] / grp["impressions"].clip(lower=1) * 1000
+                          ).replace([float("inf"), float("-inf")], 0)
             return grp[[dim_col, "cpm"]]
         elif metric_col == "ctr" and "clicks" in df.columns and "impressions" in df.columns:
             grp = (df.groupby(dim_col)
                      .agg(clicks=("clicks", "sum"),
                           impressions=("impressions", "sum"))
                      .reset_index())
-            grp["ctr"] = grp["clicks"] / grp["impressions"].clip(lower=1)
+            grp["ctr"] = (grp["clicks"] / grp["impressions"].clip(lower=1)
+                          ).replace([float("inf"), float("-inf")], 0)
             return grp[[dim_col, "ctr"]]
+        elif metric_col == "vtr" and "video_completions" in df.columns and "video_starts" in df.columns:
+            grp = (df.groupby(dim_col)
+                     .agg(video_completions=("video_completions", "sum"),
+                          video_starts=("video_starts", "sum"))
+                     .reset_index())
+            grp["vtr"] = (grp["video_completions"] / grp["video_starts"].clip(lower=1)
+                          ).replace([float("inf"), float("-inf")], 0)
+            return grp[[dim_col, "vtr"]]
+        elif metric_col == "viewability" and "viewable_impressions" in df.columns and "impressions" in df.columns:
+            grp = (df.groupby(dim_col)
+                     .agg(viewable_impressions=("viewable_impressions", "sum"),
+                          impressions=("impressions", "sum"))
+                     .reset_index())
+            grp["viewability"] = (grp["viewable_impressions"] / grp["impressions"].clip(lower=1)
+                                  ).replace([float("inf"), float("-inf")], 0)
+            return grp[[dim_col, "viewability"]]
         else:
             return df.groupby(dim_col)[metric_col].sum().reset_index()
 
-    # Only render charts whose dimension column was detected in the data
-    visible_charts = [
-        cfg for cfg in CHART_CONFIGS
-        if cfg["dim_col"] and cfg["dim_col"] in df_metrics.columns
-    ]
+    # ── Placeholder helper for absent dimensions/metrics ──────────────────────
+    def no_chart_placeholder(label, height=380):
+        """Greyed placeholder card shown when a dimension column is absent."""
+        st.markdown(
+            f"<div style='height:{height}px;display:flex;align-items:center;"
+            f"justify-content:center;background:#F9FAFB;border-radius:12px;"
+            f"border:1px dashed #E5E7EB;'>"
+            f"<span style='color:#9CA3AF;font-size:14px;font-style:italic;'>"
+            f"{label} not available in this report</span></div>",
+            unsafe_allow_html=True,
+        )
 
-    if not visible_charts or not avail_metrics:
-        no_data_msg("No chartable dimensions or metrics found in the uploaded data.")
+    # Render all chart configs in 2-column rows; absent dim_col → placeholder.
+    _all_chart_cfgs = [cfg for cfg in CHART_CONFIGS if cfg["dim_col"] is not None]
+
+    if not avail_metrics:
+        no_data_msg("No chartable metrics found in the uploaded data.")
     else:
-        # df_metrics from the global filter bar drives all charts
         df_chart_base = df_metrics.copy()
 
-        # ── 2×2 chart grid — no per-chart filter widgets ─────────────────────────
-        for _i in range(0, len(visible_charts), 2):
+        # ── 2-column chart grid ───────────────────────────────────────────────
+        for _i in range(0, len(_all_chart_cfgs), 2):
             _row_cols = st.columns(2)
-            for _j, cfg in enumerate(visible_charts[_i:_i+2]):
+            for _j, cfg in enumerate(_all_chart_cfgs[_i:_i+2]):
                 with _row_cols[_j]:
-                    try:
-                        dim_col    = cfg["dim_col"]
-                        title      = cfg["title"]
-                        horizontal = cfg.get("horizontal", False)
+                    dim_col    = cfg["dim_col"]
+                    title      = cfg["title"]
+                    horizontal = cfg.get("horizontal", False)
 
+                    # Absent dimension column: show a "not in this report" placeholder
+                    if dim_col not in df_metrics.columns:
+                        no_chart_placeholder(title)
+                        continue
+
+                    try:
                         # Always sort descending (highest value first), take the top 15,
                         # then reverse the slice for horizontal charts so the top-ranked
                         # entry appears at the top of the y-axis (Plotly draws upward).
@@ -1472,7 +1580,7 @@ else:
                             )
                             if sel_col in ("spend_usd", "cpm"):
                                 fig.update_xaxes(tickprefix="A$", tickformat=",.0f")
-                            elif sel_col == "ctr":
+                            elif sel_col in ("ctr", "vtr", "viewability"):
                                 fig.update_xaxes(tickformat=".1%")
                             else:
                                 fig.update_xaxes(tickformat=",")
@@ -1506,7 +1614,7 @@ else:
                             )
                             if sel_col in ("spend_usd", "cpm"):
                                 fig.update_yaxes(tickprefix="A$", tickformat=",.0f")
-                            elif sel_col == "ctr":
+                            elif sel_col in ("ctr", "vtr", "viewability"):
                                 fig.update_yaxes(tickformat=".1%")
                             else:
                                 fig.update_yaxes(tickformat=",")
@@ -1516,11 +1624,12 @@ else:
                         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
                                         key=f"chart_{title.replace(' ', '_')}_{sel_col}")
                     except Exception as _chart_e:
-                        no_data_msg(f"Chart '{cfg.get('title', '')}' could not render: {_chart_e}")
+                        no_data_msg(f"Chart '{title}' could not render: {_chart_e}")
 
-    # ── Breakdown donut charts — DSP / Device / Environment / Exchange ─────────
-    # 4-column row; each chart shows share of the selected metric by that dimension.
-    # A chart is hidden when its column is absent from the data.
+    # ── Breakdown donut charts — DSP / Device / Environment / Buy Type ─────────
+    # Always shows all 4 slots; absent dimension columns show a placeholder.
+    # Segments are ALWAYS sized by impressions regardless of selected metric.
+    # When a rate metric is selected, segment labels show the rate per segment.
     _DONUT_PALETTE = ["#1B2A4A", "#F5A623", "#3D5A80", "#F7C566", "#6B85A8",
                       "#2C4A7A", "#E8951A", "#4A7AB5"]
     _DONUT_DIMS = [
@@ -1529,62 +1638,101 @@ else:
         ("environment", "Environment"),
         ("buy_type",    "Buy Type"),
     ]
-    _donut_visible = [(col, lbl) for col, lbl in _DONUT_DIMS
-                      if col in df_metrics.columns and df_metrics[col].notna().any()]
+    _donut_is_rate = sel_col in ("ctr", "cpm", "vtr", "viewability")
+    _donut_has_chart = False
 
-    if _donut_visible and sel_col in df_metrics.columns:
-        _donut_cols = st.columns(len(_donut_visible))
-        for _di, (d_col, d_lbl) in enumerate(_donut_visible):
-            with _donut_cols[_di]:
-                try:
-                    _d_agg = (
-                        df_metrics.groupby(d_col)[sel_col].sum()
-                        .reset_index()
-                        .sort_values(sel_col, ascending=False)
+    _donut_cols = st.columns(len(_DONUT_DIMS))
+    for _di, (d_col, d_lbl) in enumerate(_DONUT_DIMS):
+        with _donut_cols[_di]:
+            try:
+                # Absent dimension: placeholder
+                if d_col not in df_metrics.columns or not df_metrics[d_col].notna().any():
+                    no_chart_placeholder(d_lbl, height=300)
+                    continue
+
+                # Need impressions to size segments
+                if "impressions" not in df_metrics.columns:
+                    no_chart_placeholder(d_lbl, height=300)
+                    continue
+
+                # Size segments always by impressions
+                _d_size = (df_metrics.groupby(d_col)["impressions"]
+                           .sum().reset_index()
+                           .rename(columns={"impressions": "_size"}))
+                _d_size = _d_size.sort_values("_size", ascending=False)
+
+                if _d_size["_size"].sum() == 0:
+                    no_chart_placeholder(d_lbl, height=300)
+                    continue
+
+                # Per-segment metric value for labels and hover
+                if _donut_is_rate:
+                    _d_rate = get_agg(df_metrics, d_col, sel_col)
+                    _d_agg  = _d_size.merge(_d_rate, on=d_col, how="left")
+                    _seg_labels = [fmt_val(v, sel_col) for v in _d_agg[sel_col]]
+                    _hover_tmpl = (
+                        f"<b>%{{label}}</b><br>Impressions: %{{value:,.0f}}<br>"
+                        f"{sel_label}: %{{customdata}}<extra></extra>"
                     )
-                    # Skip if all values are zero
-                    if _d_agg[sel_col].sum() == 0:
-                        continue
-                    _d_fig = go.Figure(go.Pie(
-                        labels=_d_agg[d_col].astype(str),
-                        values=_d_agg[sel_col],
-                        hole=0.5,
-                        marker=dict(colors=_DONUT_PALETTE[:len(_d_agg)]),
-                        textinfo="percent",
-                        textfont=dict(size=11, family="Poppins, system-ui, sans-serif"),
-                        hovertemplate=(
-                            f"<b>%{{label}}</b><br>{sel_label}: "
-                            f"%{{value:,.0f}} (%{{percent}})<extra></extra>"
-                        ),
-                    ))
-                    _d_fig.update_layout(
-                        title=dict(
-                            text=d_lbl,
-                            font=dict(size=14, color=SECONDARY,
-                                      family="Poppins, system-ui, sans-serif"),
-                            x=0.5, xanchor="center",
-                        ),
-                        showlegend=True,
-                        legend=dict(
-                            orientation="h",
-                            yanchor="top",
-                            y=-0.02,
-                            xanchor="center",
-                            x=0.5,
-                            font=dict(size=10, family="Poppins, system-ui, sans-serif"),
-                            tracegroupgap=0,
-                            itemwidth=30,
-                        ),
-                        margin=dict(l=10, r=10, t=30, b=10),
-                        height=300,
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
+                elif sel_col in df_metrics.columns:
+                    _d_val = (df_metrics.groupby(d_col)[sel_col]
+                              .sum().reset_index())
+                    _d_agg = _d_size.merge(_d_val, on=d_col, how="left")
+                    _seg_labels = [fmt_val(v, sel_col) for v in _d_agg[sel_col]]
+                    _hover_tmpl = (
+                        f"<b>%{{label}}</b><br>{sel_label}: "
+                        f"%{{customdata}} (%{{percent}})<extra></extra>"
                     )
-                    st.plotly_chart(_d_fig, use_container_width=True,
-                                    config=PLOTLY_CONFIG,
-                                    key=f"donut_{d_col}_{sel_col}")
-                except Exception as _donut_e:
-                    no_data_msg(f"{d_lbl} chart could not render: {_donut_e}")
+                else:
+                    _d_agg = _d_size.copy()
+                    _seg_labels = [f"{v:,.0f}" for v in _d_agg["_size"]]
+                    _hover_tmpl = (
+                        f"<b>%{{label}}</b><br>Impressions: "
+                        f"%{{value:,.0f}} (%{{percent}})<extra></extra>"
+                    )
+
+                _d_fig = go.Figure(go.Pie(
+                    labels=_d_agg[d_col].astype(str),
+                    values=_d_agg["_size"],
+                    customdata=_seg_labels,
+                    hole=0.5,
+                    marker=dict(colors=_DONUT_PALETTE[:len(_d_agg)]),
+                    textinfo="percent",
+                    textfont=dict(size=11, family="Poppins, system-ui, sans-serif"),
+                    hovertemplate=_hover_tmpl,
+                ))
+                _d_fig.update_layout(
+                    title=dict(
+                        text=d_lbl,
+                        font=dict(size=14, color=SECONDARY,
+                                  family="Poppins, system-ui, sans-serif"),
+                        x=0.5, xanchor="center",
+                    ),
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="top",
+                        y=-0.02,
+                        xanchor="center",
+                        x=0.5,
+                        font=dict(size=10, family="Poppins, system-ui, sans-serif"),
+                        tracegroupgap=0,
+                        itemwidth=30,
+                    ),
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    height=300,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(_d_fig, use_container_width=True,
+                                config=PLOTLY_CONFIG,
+                                key=f"donut_{d_col}_{sel_col}")
+                _donut_has_chart = True
+            except Exception as _donut_e:
+                no_data_msg(f"{d_lbl} chart could not render: {_donut_e}")
+
+    if _donut_is_rate and _donut_has_chart:
+        st.caption("Segments sized by impressions.")
 
     # ── Explore Data pivot table ──────────────────────────────────────────────
     # Positioned between the donut charts and the Daily Performance chart.
@@ -1634,12 +1782,25 @@ else:
             (col, lbl) for col, lbl in _PIVOT_DIM_OPTIONS
             if col in df_metrics.columns and df_metrics[col].notna().any()
         ]
+        # Also add any non-numeric columns not already covered by the fixed list
+        _pivot_dim_seen = {col for col, _ in _pivot_dim_avail}
+        _SKIP_DIMS = {"source_file", "dsp_source"}
+        for _pd_col in df_metrics.select_dtypes(exclude="number").columns:
+            if _pd_col not in _pivot_dim_seen and _pd_col not in _SKIP_DIMS:
+                _lbl = _pd_col.replace("_", " ").title()
+                _pivot_dim_avail.append((_pd_col, _lbl))
+                _pivot_dim_seen.add(_pd_col)
+
         _pivot_dim_labels = [lbl for _, lbl in _pivot_dim_avail]
         _pivot_dim_map    = {lbl: col for col, lbl in _pivot_dim_avail}  # label → col
 
         # Sets for metric classification
-        _PIVOT_ADDITIVE = {"impressions", "clicks", "spend_usd", "conversions",
-                           "video_starts", "video_completions", "viewable_impressions"}
+        _PIVOT_ADDITIVE = {
+            "impressions", "clicks", "spend_usd", "conversions",
+            "video_starts", "video_completions", "video_first_q",
+            "video_midpoint", "video_third_q", "video_skips",
+            "video_views", "viewable_impressions",
+        }
         _PIVOT_RATES    = {"ctr", "cpm", "cpc", "vtr", "viewability"}
 
         # Rate metrics: only offer if the underlying raw columns exist
@@ -1651,21 +1812,47 @@ else:
             "viewability": ("viewable_impressions" in df_metrics.columns and "impressions" in df_metrics.columns),
         }
         _PIVOT_METRIC_OPTIONS = [
-            ("impressions",  "Impressions"),
-            ("clicks",       "Clicks"),
-            ("spend_usd",    "Spend"),
-            ("ctr",          "CTR"),
-            ("cpm",          "CPM"),
-            ("cpc",          "CPC"),
-            ("conversions",  "Conversions"),
-            ("viewability",  "Viewability Rate"),
-            ("vtr",          "VTR"),
+            ("impressions",          "Impressions"),
+            ("clicks",               "Clicks"),
+            ("spend_usd",            "Spend"),
+            ("conversions",          "Conversions"),
+            ("viewable_impressions", "Viewable Impressions"),
+            ("video_starts",         "Video Starts"),
+            ("video_completions",    "Video Completions"),
+            ("video_first_q",        "First Quartile Views"),
+            ("video_midpoint",       "Midpoint Views"),
+            ("video_third_q",        "Third Quartile Views"),
+            ("video_skips",          "Video Skips"),
+            ("video_views",          "Video Views"),
+            # Calculated rate metrics — shown only when raw inputs are present
+            ("ctr",                  "CTR"),
+            ("cpm",                  "CPM"),
+            ("cpc",                  "CPC"),
+            ("vtr",                  "VTR"),
+            ("viewability",          "Viewability Rate"),
+            # Unique Reach — non-summable, shown per-row only
+            ("unique_reach_total",      "Unique Reach: Total ⚠"),
+            ("unique_reach_impression", "Unique Reach: Impressions ⚠"),
         ]
+        # Mark reach metrics so we can skip them in the TOTAL row
+        _PIVOT_REACH = {"unique_reach_total", "unique_reach_impression"}
+
         _pivot_metric_avail = [
             (col, lbl) for col, lbl in _PIVOT_METRIC_OPTIONS
-            if (col in df_metrics.columns and col in _PIVOT_ADDITIVE)
+            if (col in df_metrics.columns and (col in _PIVOT_ADDITIVE or col in _PIVOT_REACH))
             or _can_calc_rate.get(col, False)
         ]
+        # Also add any numeric columns from df_metrics not already in the fixed list,
+        # excluding rate-like columns (they need denominators, not raw sums).
+        _pivot_known_cols = {col for col, _ in _pivot_metric_avail}
+        for _pm_col in df_metrics.select_dtypes(include="number").columns:
+            if (_pm_col not in _pivot_known_cols
+                    and _pm_col not in ("source_file",)
+                    and not _RATE_COL_RE.search(_pm_col)):
+                _lbl = _pm_col.replace("_", " ").title()
+                _pivot_metric_avail.append((_pm_col, _lbl))
+                _PIVOT_ADDITIVE.add(_pm_col)
+                _pivot_known_cols.add(_pm_col)
         _pivot_metric_labels = [lbl for _, lbl in _pivot_metric_avail]
         _pivot_metric_map    = {lbl: col for col, lbl in _pivot_metric_avail}  # label → col
 
@@ -1721,6 +1908,9 @@ else:
                     _raw_needed.update(["video_completions", "video_starts"])
                 elif _mc == "viewability":
                     _raw_needed.update(["viewable_impressions", "impressions"])
+                elif _mc in _PIVOT_REACH:
+                    # Reach columns are pulled as-is (not aggregated — each row has its own value)
+                    _raw_needed.add(_mc)
             _pull_raws = [c for c in _raw_needed if c in df_metrics.columns]
 
             # ── Aggregate ────────────────────────────────────────────────────
@@ -1847,6 +2037,9 @@ else:
                                          / max(_df_grouped["impressions"].sum(), 1))
                         else:
                             _tot[_mc] = None
+                    elif _mc in _PIVOT_REACH:
+                        # Non-summable: blank in the TOTAL row
+                        _tot[_mc] = None
                     else:
                         # Additive: sum the current display slice (respects Top N / search)
                         _tot[_mc] = _df_display[_mc].sum() if _mc in _df_display.columns else None
@@ -1917,20 +2110,29 @@ else:
                 except Exception:
                     pass  # download is non-critical; skip silently if it fails
 
+            # Note if non-summable Unique Reach columns are selected
+            _reach_selected = [lbl for lbl in sel_pivot_metrics
+                               if _pivot_metric_map.get(lbl, "") in _PIVOT_REACH]
+            if _reach_selected:
+                st.caption(
+                    "⚠ Unique Reach columns are non-summable — they are shown per row "
+                    "only and excluded from the TOTAL row."
+                )
+
             if _pivot_capped:
                 st.warning(
                     "Result capped at 5,000 rows. Use the page-level filters above to narrow the data."
                 )
 
     # ── Daily Performance chart ────────────────────────────────────────────────
-    # Shown when the data contains a date column and at least one summable metric.
-    if "date" in df_metrics.columns:
-        st.subheader("Daily Performance")
-
-        # Only include summable metrics — CPM and CTR need to be recalculated from
-        # daily raw totals, not summed, so we exclude them from this chart for simplicity.
+    st.subheader("Daily Performance")
+    if "date" not in df_metrics.columns:
+        no_chart_placeholder("Date", height=300)
+    else:
+        # Rate metrics require recalculation per day — exclude from simple sum list.
+        _DAILY_RATE_COLS = {"cpm", "ctr", "vtr", "viewability", "cpm_raw", "ctr_raw"}
         daily_summable = {k: v for k, v in avail_metrics.items()
-                          if k not in ("cpm", "ctr", "cpm_raw", "ctr_raw")}
+                          if k not in _DAILY_RATE_COLS}
 
         if not daily_summable:
             no_data_msg("No summable metrics found for the daily chart.")
