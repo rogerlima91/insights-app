@@ -153,13 +153,22 @@ METRIC_MAP = {
     "skips (video)":                       "video_skips",
     "video skips":                         "video_skips",
     "first quartile views":                "video_first_q",
+    "first quartile views (video)":        "video_first_q",   # DV360 YouTube variant
     "midpoint views":                      "video_midpoint",
+    "midpoint views (video)":              "video_midpoint",
+    "second quartile views (video)":       "video_midpoint",
     "third quartile views":                "video_third_q",
+    "third quartile views (video)":        "video_third_q",
     "complete views":                      "video_completions",
+    "complete views (video)":              "video_completions",
     "video completions":                   "video_completions",
     "views":                               "video_views",
     "viewable impressions":                "viewable_impressions",
     "active view: viewable impressions":   "viewable_impressions",
+    # Active View average time — impression-weighted average, never summed
+    "active view: average viewable time (seconds)": "active_view_avg_time",
+    # Frequency — non-summable (cannot aggregate across groups; same rule as Unique Reach)
+    "frequency":                           "frequency",
 }
 
 # Unique Reach columns are excluded from the metric selector and all
@@ -288,6 +297,30 @@ def load_and_normalise(uploaded_file):
                 .str.strip()
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Broad numeric coercion: DV360 writes "-" in cells where data is unavailable
+    # (privacy thresholds, e.g. Unique Reach). This causes pandas to read those
+    # columns as object dtype, which makes sum() concatenate strings instead of add.
+    # Coerce all remaining object columns that look like they contain numbers.
+    # Dimension columns (advertiser, campaign name, etc.) have <50% numeric values
+    # so they are safely skipped by the threshold check.
+    _known_text_cols = {"source_file", "dsp_source", "date"}
+    for _col in list(df.select_dtypes(include="object").columns):
+        if _col in _known_text_cols:
+            continue
+        _cleaned = (
+            df[_col].astype(str)
+            .str.replace(r"[$,]", "", regex=True)   # strip currency and commas
+            .str.rstrip("%")                         # strip trailing percent signs
+            .str.strip()
+            .str.replace(r"^-$", "", regex=True)    # standalone dash → empty → NaN
+        )
+        _as_num = pd.to_numeric(_cleaned, errors="coerce")
+        _non_null = int(df[_col].notna().sum())
+        _parsed   = int(_as_num.notna().sum())
+        # Convert only when >= 60 % of non-null values successfully parsed as numbers
+        if _non_null == 0 or _parsed / _non_null >= 0.6:
+            df[_col] = _as_num
 
     # Calculate rate metrics from raw counts (never from DSP-provided pre-calculated values)
     if "impressions" in df.columns and "clicks" in df.columns:
@@ -1802,6 +1835,11 @@ else:
             "video_views", "viewable_impressions",
         }
         _PIVOT_RATES    = {"ctr", "cpm", "cpc", "vtr", "viewability"}
+        # Non-aggregatable: cannot be summed across groups — show value only when the
+        # group maps to exactly one source row, otherwise display "—".
+        _PIVOT_NOAGG    = {"unique_reach_total", "unique_reach_impression", "frequency"}
+        # Impression-weighted averages: computed as sum(col * impressions) / sum(impressions)
+        _PIVOT_WEIGHTED_AVG = {"active_view_avg_time"}
 
         # Rate metrics: only offer if the underlying raw columns exist
         _can_calc_rate = {
@@ -1830,16 +1868,21 @@ else:
             ("cpc",                  "CPC"),
             ("vtr",                  "VTR"),
             ("viewability",          "Viewability Rate"),
-            # Unique Reach — non-summable, shown per-row only
+            # Impression-weighted average — requires impressions column
+            ("active_view_avg_time", "Avg Viewable Time (s)"),
+            # Non-aggregatable — shown per-row only; "—" when multiple rows contribute
             ("unique_reach_total",      "Unique Reach: Total ⚠"),
             ("unique_reach_impression", "Unique Reach: Impressions ⚠"),
+            ("frequency",               "Frequency ⚠"),
         ]
-        # Mark reach metrics so we can skip them in the TOTAL row
-        _PIVOT_REACH = {"unique_reach_total", "unique_reach_impression"}
 
         _pivot_metric_avail = [
             (col, lbl) for col, lbl in _PIVOT_METRIC_OPTIONS
-            if (col in df_metrics.columns and (col in _PIVOT_ADDITIVE or col in _PIVOT_REACH))
+            if (col in df_metrics.columns and (
+                col in _PIVOT_ADDITIVE
+                or col in _PIVOT_NOAGG
+                or col in _PIVOT_WEIGHTED_AVG
+            ))
             or _can_calc_rate.get(col, False)
         ]
         # Also add any numeric columns from df_metrics not already in the fixed list,
@@ -1851,7 +1894,9 @@ else:
                     and not _RATE_COL_RE.search(_pm_col)):
                 _lbl = _pm_col.replace("_", " ").title()
                 _pivot_metric_avail.append((_pm_col, _lbl))
-                _PIVOT_ADDITIVE.add(_pm_col)
+                # Only add to ADDITIVE if not a non-aggregatable or weighted-avg column
+                if _pm_col not in _PIVOT_NOAGG and _pm_col not in _PIVOT_WEIGHTED_AVG:
+                    _PIVOT_ADDITIVE.add(_pm_col)
                 _pivot_known_cols.add(_pm_col)
         _pivot_metric_labels = [lbl for _, lbl in _pivot_metric_avail]
         _pivot_metric_map    = {lbl: col for col, lbl in _pivot_metric_avail}  # label → col
@@ -1908,21 +1953,78 @@ else:
                     _raw_needed.update(["video_completions", "video_starts"])
                 elif _mc == "viewability":
                     _raw_needed.update(["viewable_impressions", "impressions"])
-                elif _mc in _PIVOT_REACH:
-                    # Reach columns are pulled as-is (not aggregated — each row has its own value)
+                elif _mc in _PIVOT_NOAGG:
+                    # Non-aggregatable: pulled as-is, shown only when exactly 1 source row
                     _raw_needed.add(_mc)
+                elif _mc in _PIVOT_WEIGHTED_AVG:
+                    # Impression-weighted average: also need impressions for the denominator
+                    _raw_needed.add(_mc)
+                    if "impressions" in df_metrics.columns:
+                        _raw_needed.add("impressions")
             _pull_raws = [c for c in _raw_needed if c in df_metrics.columns]
 
             # ── Aggregate ────────────────────────────────────────────────────
+            def _single_val_or_nan(series):
+                """Return value only when exactly one non-NaN source row, else NaN.
+                Used for Unique Reach and Frequency which can't be summed."""
+                vals = series.dropna()
+                return vals.iloc[0] if len(vals) == 1 else float("nan")
+
             _df_src = df_metrics.copy()
+
+            # Pre-compute weighted numerators for impression-weighted average columns
+            _wnum_cols = {}  # maps: metric_col → temp numerator column name
+            for _wac in _PIVOT_WEIGHTED_AVG:
+                if (_wac in sel_metric_cols and _wac in _df_src.columns
+                        and "impressions" in _df_src.columns):
+                    _wnum = f"_wnum_{_wac}"
+                    _df_src[_wnum] = (
+                        _df_src[_wac].fillna(0) * _df_src["impressions"].fillna(0)
+                    )
+                    _wnum_cols[_wac] = _wnum
+
             if sel_dim_cols:
-                # Group by selected dimensions, summing raw additive columns
-                _agg_spec   = {c: (c, "sum") for c in _pull_raws}
+                # Build agg spec: NOAGG columns use single_val_or_nan; others sum
+                _agg_spec = {}
+                for _col in _pull_raws:
+                    if _col in _PIVOT_NOAGG:
+                        _agg_spec[_col] = (_col, _single_val_or_nan)
+                    else:
+                        _agg_spec[_col] = (_col, "sum")
+                # Add weighted numerator columns to spec
+                for _wac, _wnum in _wnum_cols.items():
+                    _agg_spec[_wnum] = (_wnum, "sum")
+                    if "impressions" not in _agg_spec and "impressions" in _df_src.columns:
+                        _agg_spec["impressions"] = ("impressions", "sum")
+
                 _df_grouped = (_df_src.groupby(sel_dim_cols, dropna=False)
                                .agg(**_agg_spec).reset_index())
+
+                # Compute impression-weighted averages from their numerators
+                for _wac, _wnum in _wnum_cols.items():
+                    if _wnum in _df_grouped.columns and "impressions" in _df_grouped.columns:
+                        _df_grouped[_wac] = (
+                            _df_grouped[_wnum] / _df_grouped["impressions"].clip(lower=1)
+                        )
+                        _df_grouped = _df_grouped.drop(columns=[_wnum])
             else:
                 # No dimensions selected — single aggregate row
-                _agg_vals   = {c: _df_src[c].sum() for c in _pull_raws}
+                _agg_vals = {}
+                for _col in _pull_raws:
+                    if _col not in _df_src.columns:
+                        continue
+                    if _col in _PIVOT_NOAGG:
+                        vals = _df_src[_col].dropna()
+                        _agg_vals[_col] = vals.iloc[0] if len(vals) == 1 else float("nan")
+                    else:
+                        _agg_vals[_col] = _df_src[_col].sum()
+                # Compute weighted averages for the single-row case
+                for _wac, _wnum in _wnum_cols.items():
+                    if "impressions" in _df_src.columns:
+                        _agg_vals[_wac] = (
+                            (_df_src[_wac].fillna(0) * _df_src["impressions"].fillna(0)).sum()
+                            / max(_df_src["impressions"].sum(), 1)
+                        )
                 _df_grouped = pd.DataFrame([_agg_vals])
 
             # Cap at 5,000 rows before further filtering
@@ -2037,9 +2139,20 @@ else:
                                          / max(_df_grouped["impressions"].sum(), 1))
                         else:
                             _tot[_mc] = None
-                    elif _mc in _PIVOT_REACH:
-                        # Non-summable: blank in the TOTAL row
+                    elif _mc in _PIVOT_NOAGG:
+                        # Non-aggregatable (Unique Reach, Frequency): blank in TOTAL row
                         _tot[_mc] = None
+                    elif _mc in _PIVOT_WEIGHTED_AVG:
+                        # Impression-weighted average: recompute from full grouped data
+                        if (_mc in _df_grouped.columns
+                                and "impressions" in _df_grouped.columns):
+                            _tot[_mc] = (
+                                (_df_grouped[_mc].fillna(0)
+                                 * _df_grouped["impressions"].fillna(0)).sum()
+                                / max(_df_grouped["impressions"].sum(), 1)
+                            )
+                        else:
+                            _tot[_mc] = None
                     else:
                         # Additive: sum the current display slice (respects Top N / search)
                         _tot[_mc] = _df_display[_mc].sum() if _mc in _df_display.columns else None
@@ -2069,6 +2182,10 @@ else:
                     _pivot_fmt[_lbl] = "A${:,.2f}"
                 elif _mc in ("ctr", "vtr", "viewability"):
                     _pivot_fmt[_lbl] = "{:.2%}"
+                elif _mc == "active_view_avg_time":
+                    _pivot_fmt[_lbl] = "{:,.1f}"
+                elif _mc == "frequency":
+                    _pivot_fmt[_lbl] = "{:,.2f}"
                 else:
                     _pivot_fmt[_lbl] = "{:,.0f}"
 
@@ -2080,18 +2197,29 @@ else:
                     styles.iloc[-1] = "font-weight: 700; background-color: #F3F4F6;"
                 return styles
 
+            # ── Column config: give dimension columns generous width ──────────
+            _col_config = {}
+            for _dlbl in sel_pivot_dims:
+                _col_config[_dlbl] = st.column_config.TextColumn(label=_dlbl, width=300)
+
             # ── Render table ─────────────────────────────────────────────────
             try:
                 st.dataframe(
                     _df_with_totals.style
-                        .format(_pivot_fmt, na_rep="")
+                        .format(_pivot_fmt, na_rep="—")
                         .apply(_style_pivot_totals, axis=None),
                     use_container_width=True,
                     height=400,
+                    column_config=_col_config,
                 )
             except Exception as _tbl_e:
                 # Styler failed (e.g. mixed types) — fall back to plain table
-                st.dataframe(_df_with_totals, use_container_width=True, height=400)
+                st.dataframe(
+                    _df_with_totals,
+                    use_container_width=True,
+                    height=400,
+                    column_config=_col_config,
+                )
                 st.caption(f"⚠️ Formatting could not be applied: {_tbl_e}")
 
             # ── Row count + CSV download ──────────────────────────────────────
@@ -2110,13 +2238,13 @@ else:
                 except Exception:
                     pass  # download is non-critical; skip silently if it fails
 
-            # Note if non-summable Unique Reach columns are selected
-            _reach_selected = [lbl for lbl in sel_pivot_metrics
-                               if _pivot_metric_map.get(lbl, "") in _PIVOT_REACH]
-            if _reach_selected:
+            # Note if non-aggregatable columns (Unique Reach, Frequency) are selected
+            _noagg_selected = [lbl for lbl in sel_pivot_metrics
+                               if _pivot_metric_map.get(lbl, "") in _PIVOT_NOAGG]
+            if _noagg_selected:
                 st.caption(
-                    "⚠ Unique Reach columns are non-summable — they are shown per row "
-                    "only and excluded from the TOTAL row."
+                    "⚠ Unique Reach and Frequency columns are non-aggregatable — "
+                    "values are shown per row only and excluded from the TOTAL row."
                 )
 
             if _pivot_capped:
