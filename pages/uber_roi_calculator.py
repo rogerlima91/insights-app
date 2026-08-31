@@ -10,6 +10,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.design_system import PLOTLY_CONFIG
+from utils.file_loader import read_file
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
@@ -246,12 +247,8 @@ def parse_campaign_file(uploaded_file):
         detected   — dict {metric: summed_float} for each column found
         col_found  — dict {metric: matched_column_name} for the preview label
     """
-    try:
-        if uploaded_file.name.lower().endswith(".xlsx"):
-            df = pd.read_excel(uploaded_file)
-        else:
-            df = pd.read_csv(uploaded_file)
-    except Exception:
+    df, _err = read_file(uploaded_file)
+    if _err or df is None:
         return {}, {}
 
     if df.empty:

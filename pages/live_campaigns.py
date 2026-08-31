@@ -1,9 +1,12 @@
 import os
+import sys
 import json
 import pandas as pd
 import streamlit as st
 from datetime import date, timedelta, datetime
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from utils.mock_data import get_pacing_mock_data, MOCK_TODAY
+from utils.file_loader import read_file
 
 # ── Global CSS (identical to app.py — STYLE LOCK) ─────────────────────────────
 # STYLE LOCK: Pacebird design system — primary #F5A623 orange, secondary #1B2A4A navy, font Poppins. Do not revert to purple (#7C3AED) or blue (#2563EB).
@@ -372,7 +375,10 @@ if _lc_source_mode == 'one-off':
         if uploaded_files:
             dfs = []
             for f in uploaded_files:
-                df_raw = pd.read_csv(f)
+                df_raw, _lc_err = read_file(f)
+                if _lc_err:
+                    st.error(f"**Could not load '{f.name}':** {_lc_err}")
+                    continue
                 # Tag each row with the filename-detected DSP before mapping.
                 df_raw["_dsp_hint"] = detect_dsp_from_filename(f.name)
                 # Map columns per-file so DSP-specific headers (e.g. Amazon uses
@@ -383,14 +389,16 @@ if _lc_source_mode == 'one-off':
                 dfs.append(df_mapped)
 
             # Concatenate already-mapped files — columns are now standardised.
-            merged_df = pd.concat(dfs, ignore_index=True)
+            # Guard against all files failing to load by producing an empty DataFrame.
+            merged_df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
             # Use the filename-detected DSP wherever the data has no DSP value.
-            if "dsp" not in merged_df.columns:
-                merged_df["dsp"] = merged_df["_dsp_hint"]
-            else:
-                merged_df["dsp"] = merged_df["dsp"].fillna(merged_df["_dsp_hint"])
-            merged_df = merged_df.drop(columns=["_dsp_hint"])
+            if "_dsp_hint" in merged_df.columns:
+                if "dsp" not in merged_df.columns:
+                    merged_df["dsp"] = merged_df["_dsp_hint"]
+                else:
+                    merged_df["dsp"] = merged_df["dsp"].fillna(merged_df["_dsp_hint"])
+                merged_df = merged_df.drop(columns=["_dsp_hint"])
 
             # Upload summary line
             num_rows = len(merged_df)

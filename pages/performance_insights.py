@@ -13,6 +13,7 @@ from utils.design_system import (
     PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_PRI, TEXT_SEC,
 )
 from utils.mock_data import generate_api_mock_data
+from utils.file_loader import read_file
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import plotly.graph_objects as go
@@ -173,16 +174,18 @@ def save_brand_memory(memory):
 # ── File loader and normaliser ────────────────────────────────────────────────
 def load_and_normalise(uploaded_file):
     """
-    Reads a CSV, TSV, or Excel file, normalises column names to our standard
-    format, and adds a 'source_file' and 'dsp_source' column for traceability.
+    Reads a CSV, TSV, or Excel file using the robust file_loader, normalises
+    column names to our standard format, and adds 'source_file' and
+    'dsp_source' columns for traceability.
+
+    Returns (df, dsp) on success, or raises RuntimeError with a specific
+    message on failure so the caller can surface it in the UI.
     """
-    name = uploaded_file.name.lower()
-    if name.endswith(".xlsx") or name.endswith(".xls"):
-        df = pd.read_excel(uploaded_file)
-    elif name.endswith(".tsv"):
-        df = pd.read_csv(uploaded_file, sep="\t")
-    else:
-        df = pd.read_csv(uploaded_file)
+    df, err = read_file(uploaded_file)
+    if err:
+        raise RuntimeError(err)
+    if df is None:
+        raise RuntimeError(f"No data loaded from '{uploaded_file.name}'.")
 
     # Detect DSP before renaming columns
     dsp = detect_source(df.columns.tolist())
@@ -1010,12 +1013,27 @@ else:
         # ── File Upload mode: load and stack all uploaded files ───────────────
         frames = []
         file_info = []
+        load_errors = []
 
         with st.spinner("Reading and normalising files…"):
             for f in (uploaded_files or []):
-                df_file, dsp = load_and_normalise(f)
-                frames.append(df_file)
-                file_info.append({"name": f.name, "rows": len(df_file), "dsp": dsp})
+                try:
+                    df_file, dsp = load_and_normalise(f)
+                    frames.append(df_file)
+                    file_info.append({"name": f.name, "rows": len(df_file), "dsp": dsp})
+                except RuntimeError as _load_err:
+                    load_errors.append({"name": f.name, "error": str(_load_err)})
+
+        # Surface per-file load errors — one message per failed file
+        for _le in load_errors:
+            st.error(f"**Could not load '{_le['name']}':** {_le['error']}")
+
+        if not frames:
+            st.error(
+                "No files could be loaded. Check that your uploads are valid "
+                "CSV, TSV, or Excel files exported from a DSP."
+            )
+            st.stop()
 
         # Combine all files into a single DataFrame
         df_all = pd.concat(frames, ignore_index=True)
@@ -1174,24 +1192,27 @@ else:
         ].copy()
 
     # ── Summary metrics ───────────────────────────────────────────────────────
-    total_impressions = df_metrics["impressions"].sum()  if "impressions" in df_metrics.columns else 0
-    total_clicks      = df_metrics["clicks"].sum()       if "clicks"      in df_metrics.columns else 0
-    total_spend       = df_metrics["spend_usd"].sum()    if "spend_usd"   in df_metrics.columns else 0
-    # Always recalculate CTR from totals — never average a pre-calculated CTR column
-    avg_ctr           = (total_clicks / total_impressions) if total_impressions > 0 else None
-    avg_cpm           = df_metrics["cpm"].mean()         if "cpm"         in df_metrics.columns else None
+    try:
+        total_impressions = df_metrics["impressions"].sum()  if "impressions" in df_metrics.columns else 0
+        total_clicks      = df_metrics["clicks"].sum()       if "clicks"      in df_metrics.columns else 0
+        total_spend       = df_metrics["spend_usd"].sum()    if "spend_usd"   in df_metrics.columns else 0
+        # Always recalculate CTR from totals — never average a pre-calculated CTR column
+        avg_ctr           = (total_clicks / total_impressions) if total_impressions > 0 else None
+        avg_cpm           = df_metrics["cpm"].mean()         if "cpm"         in df_metrics.columns else None
 
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.markdown(metric_card("Total Impressions", f"{total_impressions:,.0f}"), unsafe_allow_html=True)
-    with col2:
-        st.markdown(metric_card("Total Clicks", f"{total_clicks:,.0f}"), unsafe_allow_html=True)
-    with col3:
-        st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
-    with col4:
-        st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}" if avg_ctr is not None else "N/A"), unsafe_allow_html=True)
-    with col5:
-        st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.markdown(metric_card("Total Impressions", f"{total_impressions:,.0f}"), unsafe_allow_html=True)
+        with col2:
+            st.markdown(metric_card("Total Clicks", f"{total_clicks:,.0f}"), unsafe_allow_html=True)
+        with col3:
+            st.markdown(metric_card("Total Spend", f"A${total_spend:,.0f}"), unsafe_allow_html=True)
+        with col4:
+            st.markdown(metric_card("Avg CTR", f"{avg_ctr:.2%}" if avg_ctr is not None else "N/A"), unsafe_allow_html=True)
+        with col5:
+            st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}" if avg_cpm is not None else "N/A"), unsafe_allow_html=True)
+    except Exception as _e:
+        section_error("Summary Metrics", _e)
 
     # 24px breathing room between the metric cards row and the first chart row
     st.markdown('<div style="margin-top:24px;"></div>', unsafe_allow_html=True)
@@ -1221,6 +1242,17 @@ else:
             f"<div style='text-align:center;padding:40px;color:#9ca3af;"
             f"border:1px dashed #e5e7eb;border-radius:8px;font-size:13px;'>{msg}</div>",
             unsafe_allow_html=True,
+        )
+
+    def section_error(section_name, exc):
+        """
+        Show a contained error for one page section without crashing the page.
+        The rest of the page continues to render below this message.
+        """
+        st.warning(
+            f"⚠️ **{section_name}** could not render due to an unexpected error: "
+            f"`{exc}` — the rest of the page is unaffected.",
+            icon=None,
         )
 
     def trunc(s, n=20):
@@ -1320,97 +1352,100 @@ else:
             _row_cols = st.columns(2)
             for _j, cfg in enumerate(visible_charts[_i:_i+2]):
                 with _row_cols[_j]:
-                    dim_col    = cfg["dim_col"]
-                    title      = cfg["title"]
-                    horizontal = cfg.get("horizontal", False)
+                    try:
+                        dim_col    = cfg["dim_col"]
+                        title      = cfg["title"]
+                        horizontal = cfg.get("horizontal", False)
 
-                    # Sort ascending for horizontal so top bar = highest value
-                    agg_df = (get_agg(df_chart_base, dim_col, sel_col)
-                              .sort_values(sel_col, ascending=horizontal)
-                              .head(15))
+                        # Sort ascending for horizontal so top bar = highest value
+                        agg_df = (get_agg(df_chart_base, dim_col, sel_col)
+                                  .sort_values(sel_col, ascending=horizontal)
+                                  .head(15))
 
-                    if agg_df.empty or agg_df[sel_col].sum() == 0:
-                        no_data_msg(f"No {sel_label} data for {title}.")
-                        continue
+                        if agg_df.empty or agg_df[sel_col].sum() == 0:
+                            no_data_msg(f"No {sel_label} data for {title}.")
+                            continue
 
-                    bar_labels  = [fmt_val(v, sel_col) for v in agg_df[sel_col]]
-                    colors      = [PALETTE[k % len(PALETTE)] for k in range(len(agg_df))]
-                    full_names  = agg_df[dim_col].astype(str).tolist()
-                    trunc_names = [trunc(s) for s in full_names]
+                        bar_labels  = [fmt_val(v, sel_col) for v in agg_df[sel_col]]
+                        colors      = [PALETTE[k % len(PALETTE)] for k in range(len(agg_df))]
+                        full_names  = agg_df[dim_col].astype(str).tolist()
+                        trunc_names = [trunc(s) for s in full_names]
 
-                    if horizontal:
-                        # Horizontal bars — category on y-axis
-                        # Used for Campaign, Line Item, and Creative where names are long
-                        fig = go.Figure(go.Bar(
-                            y=trunc_names,
-                            x=agg_df[sel_col],
-                            customdata=full_names,
-                            orientation="h",
-                            marker_color=colors,
-                            text=bar_labels,
-                            textposition="outside",
-                            textfont=dict(size=10, color=SECONDARY),
-                            hovertemplate=(
-                                f"<b>%{{customdata}}</b><br>"
-                                f"{sel_label}: %{{text}}<extra></extra>"
-                            ),
-                        ))
-                        max_v = agg_df[sel_col].max()
-                        fig.update_layout(
-                            bargap=0.35,
-                            xaxis_range=[0, max_v * 1.35] if max_v > 0 else [0, 1],
-                            title=dict(
-                                text=title,
-                                font=dict(size=15, color=SECONDARY,
-                                          family="Poppins, system-ui, sans-serif"),
-                                x=0.02, xanchor="left",
-                            ),
-                        )
-                        if sel_col in ("spend_usd", "cpm"):
-                            fig.update_xaxes(tickprefix="A$", tickformat=",.0f")
-                        elif sel_col == "ctr":
-                            fig.update_xaxes(tickformat=".1%")
+                        if horizontal:
+                            # Horizontal bars — category on y-axis
+                            # Used for Campaign, Line Item, and Creative where names are long
+                            fig = go.Figure(go.Bar(
+                                y=trunc_names,
+                                x=agg_df[sel_col],
+                                customdata=full_names,
+                                orientation="h",
+                                marker_color=colors,
+                                text=bar_labels,
+                                textposition="outside",
+                                textfont=dict(size=10, color=SECONDARY),
+                                hovertemplate=(
+                                    f"<b>%{{customdata}}</b><br>"
+                                    f"{sel_label}: %{{text}}<extra></extra>"
+                                ),
+                            ))
+                            max_v = agg_df[sel_col].max()
+                            fig.update_layout(
+                                bargap=0.35,
+                                xaxis_range=[0, max_v * 1.35] if max_v > 0 else [0, 1],
+                                title=dict(
+                                    text=title,
+                                    font=dict(size=15, color=SECONDARY,
+                                              family="Poppins, system-ui, sans-serif"),
+                                    x=0.02, xanchor="left",
+                                ),
+                            )
+                            if sel_col in ("spend_usd", "cpm"):
+                                fig.update_xaxes(tickprefix="A$", tickformat=",.0f")
+                            elif sel_col == "ctr":
+                                fig.update_xaxes(tickformat=".1%")
+                            else:
+                                fig.update_xaxes(tickformat=",")
+                            apply_chart_style(fig, horizontal=True, height=380)
                         else:
-                            fig.update_xaxes(tickformat=",")
-                        apply_chart_style(fig, horizontal=True, height=380)
-                    else:
-                        # Vertical bars — category on x-axis
-                        # Used for Advertiser and Creative where names are shorter
-                        fig = go.Figure(go.Bar(
-                            x=trunc_names,
-                            y=agg_df[sel_col],
-                            customdata=full_names,
-                            marker_color=colors,
-                            text=bar_labels,
-                            textposition="outside",
-                            textfont=dict(size=10, color=SECONDARY),
-                            hovertemplate=(
-                                f"<b>%{{customdata}}</b><br>"
-                                f"{sel_label}: %{{text}}<extra></extra>"
-                            ),
-                        ))
-                        max_v = agg_df[sel_col].max()
-                        fig.update_layout(
-                            bargap=0.45,
-                            yaxis_range=[0, max_v * 1.3] if max_v > 0 else [0, 1],
-                            title=dict(
-                                text=title,
-                                font=dict(size=15, color=SECONDARY,
-                                          family="Poppins, system-ui, sans-serif"),
-                                x=0.02, xanchor="left",
-                            ),
-                        )
-                        if sel_col in ("spend_usd", "cpm"):
-                            fig.update_yaxes(tickprefix="A$", tickformat=",.0f")
-                        elif sel_col == "ctr":
-                            fig.update_yaxes(tickformat=".1%")
-                        else:
-                            fig.update_yaxes(tickformat=",")
-                        apply_chart_style(fig, height=380)
-                        fig.update_xaxes(tickangle=0)
+                            # Vertical bars — category on x-axis
+                            # Used for Advertiser and Creative where names are shorter
+                            fig = go.Figure(go.Bar(
+                                x=trunc_names,
+                                y=agg_df[sel_col],
+                                customdata=full_names,
+                                marker_color=colors,
+                                text=bar_labels,
+                                textposition="outside",
+                                textfont=dict(size=10, color=SECONDARY),
+                                hovertemplate=(
+                                    f"<b>%{{customdata}}</b><br>"
+                                    f"{sel_label}: %{{text}}<extra></extra>"
+                                ),
+                            ))
+                            max_v = agg_df[sel_col].max()
+                            fig.update_layout(
+                                bargap=0.45,
+                                yaxis_range=[0, max_v * 1.3] if max_v > 0 else [0, 1],
+                                title=dict(
+                                    text=title,
+                                    font=dict(size=15, color=SECONDARY,
+                                              family="Poppins, system-ui, sans-serif"),
+                                    x=0.02, xanchor="left",
+                                ),
+                            )
+                            if sel_col in ("spend_usd", "cpm"):
+                                fig.update_yaxes(tickprefix="A$", tickformat=",.0f")
+                            elif sel_col == "ctr":
+                                fig.update_yaxes(tickformat=".1%")
+                            else:
+                                fig.update_yaxes(tickformat=",")
+                            apply_chart_style(fig, height=380)
+                            fig.update_xaxes(tickangle=0)
 
-                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
-                                    key=f"chart_{title.replace(' ', '_')}_{sel_col}")
+                        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG,
+                                        key=f"chart_{title.replace(' ', '_')}_{sel_col}")
+                    except Exception as _chart_e:
+                        no_data_msg(f"Chart '{cfg.get('title', '')}' could not render: {_chart_e}")
 
     # ── Breakdown donut charts — DSP / Device / Environment / Exchange ─────────
     # 4-column row; each chart shows share of the selected metric by that dimension.
@@ -1430,52 +1465,55 @@ else:
         _donut_cols = st.columns(len(_donut_visible))
         for _di, (d_col, d_lbl) in enumerate(_donut_visible):
             with _donut_cols[_di]:
-                _d_agg = (
-                    df_metrics.groupby(d_col)[sel_col].sum()
-                    .reset_index()
-                    .sort_values(sel_col, ascending=False)
-                )
-                # Skip if all values are zero
-                if _d_agg[sel_col].sum() == 0:
-                    continue
-                _d_fig = go.Figure(go.Pie(
-                    labels=_d_agg[d_col].astype(str),
-                    values=_d_agg[sel_col],
-                    hole=0.5,
-                    marker=dict(colors=_DONUT_PALETTE[:len(_d_agg)]),
-                    textinfo="percent",
-                    textfont=dict(size=11, family="Poppins, system-ui, sans-serif"),
-                    hovertemplate=(
-                        f"<b>%{{label}}</b><br>{sel_label}: "
-                        f"%{{value:,.0f}} (%{{percent}})<extra></extra>"
-                    ),
-                ))
-                _d_fig.update_layout(
-                    title=dict(
-                        text=d_lbl,
-                        font=dict(size=14, color=SECONDARY,
-                                  family="Poppins, system-ui, sans-serif"),
-                        x=0.5, xanchor="center",
-                    ),
-                    showlegend=True,
-                    legend=dict(
-                        orientation="h",
-                        yanchor="top",
-                        y=-0.02,
-                        xanchor="center",
-                        x=0.5,
-                        font=dict(size=10, family="Poppins, system-ui, sans-serif"),
-                        tracegroupgap=0,
-                        itemwidth=30,
-                    ),
-                    margin=dict(l=10, r=10, t=30, b=10),
-                    height=300,
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                )
-                st.plotly_chart(_d_fig, use_container_width=True,
-                                config=PLOTLY_CONFIG,
-                                key=f"donut_{d_col}_{sel_col}")
+                try:
+                    _d_agg = (
+                        df_metrics.groupby(d_col)[sel_col].sum()
+                        .reset_index()
+                        .sort_values(sel_col, ascending=False)
+                    )
+                    # Skip if all values are zero
+                    if _d_agg[sel_col].sum() == 0:
+                        continue
+                    _d_fig = go.Figure(go.Pie(
+                        labels=_d_agg[d_col].astype(str),
+                        values=_d_agg[sel_col],
+                        hole=0.5,
+                        marker=dict(colors=_DONUT_PALETTE[:len(_d_agg)]),
+                        textinfo="percent",
+                        textfont=dict(size=11, family="Poppins, system-ui, sans-serif"),
+                        hovertemplate=(
+                            f"<b>%{{label}}</b><br>{sel_label}: "
+                            f"%{{value:,.0f}} (%{{percent}})<extra></extra>"
+                        ),
+                    ))
+                    _d_fig.update_layout(
+                        title=dict(
+                            text=d_lbl,
+                            font=dict(size=14, color=SECONDARY,
+                                      family="Poppins, system-ui, sans-serif"),
+                            x=0.5, xanchor="center",
+                        ),
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="top",
+                            y=-0.02,
+                            xanchor="center",
+                            x=0.5,
+                            font=dict(size=10, family="Poppins, system-ui, sans-serif"),
+                            tracegroupgap=0,
+                            itemwidth=30,
+                        ),
+                        margin=dict(l=10, r=10, t=30, b=10),
+                        height=300,
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(_d_fig, use_container_width=True,
+                                    config=PLOTLY_CONFIG,
+                                    key=f"donut_{d_col}_{sel_col}")
+                except Exception as _donut_e:
+                    no_data_msg(f"{d_lbl} chart could not render: {_donut_e}")
 
     # ── Explore Data pivot table ──────────────────────────────────────────────
     # Positioned between the donut charts and the Daily Performance chart.
@@ -1779,26 +1817,34 @@ else:
                 return styles
 
             # ── Render table ─────────────────────────────────────────────────
-            st.dataframe(
-                _df_with_totals.style
-                    .format(_pivot_fmt, na_rep="")
-                    .apply(_style_pivot_totals, axis=None),
-                use_container_width=True,
-                height=400,
-            )
+            try:
+                st.dataframe(
+                    _df_with_totals.style
+                        .format(_pivot_fmt, na_rep="")
+                        .apply(_style_pivot_totals, axis=None),
+                    use_container_width=True,
+                    height=400,
+                )
+            except Exception as _tbl_e:
+                # Styler failed (e.g. mixed types) — fall back to plain table
+                st.dataframe(_df_with_totals, use_container_width=True, height=400)
+                st.caption(f"⚠️ Formatting could not be applied: {_tbl_e}")
 
             # ── Row count + CSV download ──────────────────────────────────────
             _rc1, _rc2 = st.columns([3, 1])
             with _rc1:
                 st.caption(f"{_pivot_row_count:,} row{'s' if _pivot_row_count != 1 else ''}")
             with _rc2:
-                st.download_button(
-                    "⬇ Download as CSV",
-                    data=_df_export.to_csv(index=False).encode("utf-8"),
-                    file_name="explore_data.csv",
-                    mime="text/csv",
-                    key="pivot_download",
-                )
+                try:
+                    st.download_button(
+                        "⬇ Download as CSV",
+                        data=_df_export.to_csv(index=False).encode("utf-8"),
+                        file_name="explore_data.csv",
+                        mime="text/csv",
+                        key="pivot_download",
+                    )
+                except Exception:
+                    pass  # download is non-critical; skip silently if it fails
 
             if _pivot_capped:
                 st.warning(
@@ -1926,9 +1972,12 @@ else:
             )
             fig_daily.update_xaxes(gridcolor="#F3F4F6")
 
-            st.plotly_chart(fig_daily, use_container_width=True,
-                            config=PLOTLY_CONFIG,
-                            key="chart_daily_performance")
+            try:
+                st.plotly_chart(fig_daily, use_container_width=True,
+                                config=PLOTLY_CONFIG,
+                                key="chart_daily_performance")
+            except Exception as _dp_e:
+                no_data_msg(f"Daily Performance chart could not render: {_dp_e}")
 
     # ─────────────────────────────────────────────────────────────────────────
     # PERIOD COMPARISON — Week-on-Week / Month-on-Month

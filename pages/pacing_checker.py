@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from utils.file_loader import read_file
 
 # ── Global CSS (STYLE LOCK) ───────────────────────────────────────────────────
 st.markdown("""
@@ -73,13 +76,9 @@ if uploaded_file is None:
     st.stop()
 
 # ── Parse uploaded file ────────────────────────────────────────────────────────
-try:
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
-except Exception as e:
-    st.error(f"Could not read file: {e}")
+df, _load_err = read_file(uploaded_file)
+if _load_err:
+    st.error(f"**Could not load '{uploaded_file.name}':** {_load_err}")
     st.stop()
 
 st.success(f"✅ Loaded {len(df):,} rows from **{uploaded_file.name}**")
