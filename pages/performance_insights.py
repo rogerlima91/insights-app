@@ -179,7 +179,13 @@ REACH_METRICS = {"unique_reach_total", "unique_reach_impression"}
 # Safety-net pattern: catches any rate/ratio column that was not captured by
 # METRIC_MAP and must not appear in the metric selector or be summed in charts.
 _RATE_COL_RE = re.compile(
-    r"\b(rate|ratio|viewab)\b|^(ctr|cpm|cpc|cpa|cpv|vtr)(_raw)?$",
+    # Match any column that represents a rate/percentage and must not be summed.
+    # \b word boundaries catch "rate" inside names like "click rate (ctr)".
+    # \b(ctr|cpm|...) catches "CTR (%)", "CPM (AUD)", etc. that ^ anchors would miss.
+    # % catches "Active View: % Play Time Audible and Visible" and similar DV360 columns.
+    r"\b(rate|ratio|viewab|percent)\b"
+    r"|\b(ctr|cpm|cpc|cpa|cpv|vtr)\b"
+    r"|%",
     re.IGNORECASE,
 )
 
@@ -328,7 +334,10 @@ def load_and_normalise(uploaded_file):
     if "impressions" in df.columns and "spend_usd" in df.columns:
         df["cpm"] = df["spend_usd"] / df["impressions"].clip(lower=1) * 1000
     if "video_starts" in df.columns and "video_completions" in df.columns:
-        df["vtr"] = df["video_completions"] / df["video_starts"].clip(lower=1)
+        # Use NaN where starts == 0 — avoids inflated 100% VTR on rows with no video starts.
+        # clip(lower=1) would give completions/1 = 100% for zero-start rows, which is wrong.
+        _vtr_denom = df["video_starts"].where(df["video_starts"] > 0)
+        df["vtr"] = df["video_completions"] / _vtr_denom
     if "viewable_impressions" in df.columns and "impressions" in df.columns:
         df["viewability"] = df["viewable_impressions"] / df["impressions"].clip(lower=1)
 
@@ -1154,8 +1163,8 @@ else:
     # Order: ADVERTISER | DSP | CAMPAIGN | LINE ITEM | CREATIVE | METRIC | DATE RANGE
     # Cascading: advertiser selection narrows campaign options, campaign narrows
     # line item, line item narrows creative.
-    _adv_col  = "advertiser" if "advertiser" in df_all.columns else (
-                "campaign"   if "campaign"   in df_all.columns else None)
+    # Never fall back to another column: if "advertiser" is absent, the filter is disabled.
+    _adv_col  = "advertiser" if "advertiser" in df_all.columns else None
     _has_date = "date" in df_all.columns
 
     # Build metric options before the filter bar so the Metric selectbox can use them
@@ -1217,6 +1226,12 @@ else:
                                      placeholder="All", key="gf_adv",
                                      label_visibility="collapsed")
         else:
+            # Column absent from this report — show a clear disabled state.
+            # Never fall back to the campaign column: that would fill Advertiser
+            # with campaign names and confuse both filters.
+            st.selectbox("Advertiser", ["Not in this report"],
+                         disabled=True, key="gf_adv",
+                         label_visibility="collapsed")
             sel_adv = []
 
     # ── DSP ───────────────────────────────────────────────────────────────────
@@ -1327,7 +1342,9 @@ else:
         _has_impr  = "impressions" in df_metrics.columns
         _has_click = "clicks"      in df_metrics.columns
         _has_spend = "spend_usd"   in df_metrics.columns
-        _has_cpm   = "cpm"         in df_metrics.columns
+        # CPM requires both spend and impressions to recalculate correctly from totals.
+        # Never use .mean() on row-level CPM — it is impression-weighted, not count-equal.
+        _has_cpm   = "spend_usd" in df_metrics.columns and "impressions" in df_metrics.columns
 
         total_impressions = df_metrics["impressions"].sum() if _has_impr  else None
         total_clicks      = df_metrics["clicks"].sum()      if _has_click else None
@@ -1339,7 +1356,13 @@ else:
                 and total_clicks is not None)
             else None
         )
-        avg_cpm = df_metrics["cpm"].mean() if _has_cpm else None
+        # Recalculate CPM from total spend / total impressions — not a mean of row-level CPMs
+        avg_cpm = (
+            (total_spend / total_impressions * 1000)
+            if (_has_cpm and total_impressions is not None and total_impressions > 0
+                and total_spend is not None)
+            else None
+        )
 
         def _absent_card(label):
             """KPI card shown when a column is not present in this report."""
@@ -1380,7 +1403,7 @@ else:
         with col5:
             if avg_cpm is not None:
                 st.markdown(metric_card("Avg CPM", f"A${avg_cpm:,.2f}"), unsafe_allow_html=True)
-            elif _has_impr and _has_spend:
+            elif _has_cpm:
                 st.markdown(metric_card("Avg CPM", "N/A"), unsafe_allow_html=True)
             else:
                 st.markdown(_absent_card("Avg CPM"), unsafe_allow_html=True)
@@ -1525,6 +1548,12 @@ else:
                                   ).replace([float("inf"), float("-inf")], 0)
             return grp[[dim_col, "viewability"]]
         else:
+            # Safety: if this is a rate/percentage column that reached the fallthrough,
+            # we cannot safely sum it. Return NaN for every group instead of wrong totals.
+            if _RATE_COL_RE.search(str(metric_col)):
+                _grp_keys = df.groupby(dim_col).size().reset_index()[[dim_col]]
+                _grp_keys[metric_col] = float("nan")
+                return _grp_keys
             return df.groupby(dim_col)[metric_col].sum().reset_index()
 
     # ── Placeholder helper for absent dimensions/metrics ──────────────────────
@@ -1787,6 +1816,13 @@ else:
         color: #1B2A4A !important;
     }
     [data-testid*="pivot_metrics"] span[data-baseweb="tag"] span { color: #1B2A4A !important; }
+
+    /* Widen dropdown popup for the page-level Metric selectbox and pivot metric picker
+       so long names like "Active View: % Play Time Audible and Visible" don't get
+       truncated to just "Active View: %" in the list. */
+    div[data-baseweb="popover"] ul[role="listbox"] {
+        min-width: 420px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -2197,10 +2233,28 @@ else:
                     styles.iloc[-1] = "font-weight: 700; background-color: #F3F4F6;"
                 return styles
 
-            # ── Column config: give dimension columns generous width ──────────
+            # ── Column config: generous initial width for dimension columns ─────
+            # width="large" sets an initial width but columns remain user-resizable
+            # by dragging the header edge — pixel values (width=300) work the same way.
+            # Using the semantic "large" keeps columns proportional to the viewport.
             _col_config = {}
             for _dlbl in sel_pivot_dims:
-                _col_config[_dlbl] = st.column_config.TextColumn(label=_dlbl, width=300)
+                _col_config[_dlbl] = st.column_config.TextColumn(label=_dlbl, width="large")
+
+            # Unique Reach and Frequency columns show "—" when multiple rows contribute
+            # (they cannot be aggregated). Add a ? tooltip to the column header explaining why.
+            _noagg_tooltip = (
+                "Unique reach/frequency cannot be combined across rows — "
+                "it represents distinct users, not additive counts. "
+                "Values are shown only when a single source row contributes to the group. "
+                "Blank cells were suppressed by the platform for privacy reasons."
+            )
+            for _lbl in sel_pivot_metrics:
+                _mc = _pivot_metric_map.get(_lbl, "")
+                if _mc in _PIVOT_NOAGG:
+                    _col_config[_lbl] = st.column_config.NumberColumn(
+                        label=_lbl, help=_noagg_tooltip
+                    )
 
             # ── Render table ─────────────────────────────────────────────────
             try:
