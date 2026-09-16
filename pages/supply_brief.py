@@ -11,9 +11,11 @@
 #  4. Trends 2×2 (Revenue / Fill Rate / eCPM / Unfilled — with prior-4-week avg dotted line)
 #  5. Breakdown donuts — Revenue by Format | Device | Demand Source | Buyer
 #  6. Yield Opportunities — rules-based, ranked by revenue impact
+#  6b. Publisher Commentary — AI-written narrative (on-demand, cached in session state)
 #  7. Explore Data — pivot table with dynamic dims / metrics
-#  8. Generate Brief — dialog + PPTX export + optional AI commentary
+#  8. Generate Brief — dialog + PPTX export (reuses cached commentary)
 
+import html as _html
 import io
 import json
 import os
@@ -720,6 +722,50 @@ def _compute_yield_findings(df_week, df_prior):
     return findings
 
 
+# ── Shared commentary generator ───────────────────────────────────────────────
+
+def _generate_commentary(api_key, week_label, cur, yield_findings):
+    """
+    Call Claude to write a publisher-facing weekly supply commentary.
+
+    This is the single source of truth for the prompt — both the page's
+    Publisher Commentary section and the PPTX export dialog call this
+    function so they always produce identical text.
+
+    Returns the commentary string. Raises on API failure so callers can
+    handle the error appropriately.
+    """
+    import anthropic as _ant
+
+    prompt = (
+        f"You are writing a publisher-facing weekly supply "
+        f"performance commentary for {week_label}.\n\n"
+        f"Key metrics this week:\n"
+        f"  Revenue: A${cur.get('revenue_aud', 0):,.0f}\n"
+        f"  Fill Rate: {cur.get('fill_rate', 0):.1%}\n"
+        f"  eCPM: A${cur.get('ecpm', 0):.2f}\n"
+        f"  Completion Rate: {cur.get('completion_rate', 0):.1%}\n\n"
+        "Top findings:\n"
+        + "\n".join(
+            f"- {f['title']}: {f['detail']}"
+            for f in yield_findings[:5]
+        )
+        + "\n\nWrite 3 concise paragraphs: (1) overall performance "
+        "summary, (2) key issues and their context, "
+        "(3) recommended actions. Use sell-side vocabulary "
+        "(eCPM, fill rate, demand sources, inventory). "
+        "Be specific and data-driven."
+    )
+
+    client = _ant.Anthropic(api_key=api_key)
+    resp = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=600,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return resp.content[0].text
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE RENDER
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1024,6 +1070,107 @@ if yield_findings:
 else:
     st.info("No yield issues detected for the selected filters and week. "
             "Try viewing week 10 or 11 to see the deliberate anomalies.")
+
+# ── 6b. PUBLISHER COMMENTARY ─────────────────────────────────────────────────
+section_header("Publisher Commentary")
+
+# Fallback so the dialog (which closes over this variable) always finds it
+# even if the try block below raises before reaching the assignment.
+_current_ctx = f"week ending {sel_week_label}"
+
+try:
+    # Build a short label describing the active filter state.
+    # Shown alongside the commentary so it is obvious if filters have changed
+    # since the text was generated.
+    _ctx_parts = [p for p in [
+        sel_pub  if sel_pub  != "All" else None,
+        sel_prop if sel_prop != "All" else None,
+        sel_fmt  if sel_fmt  != "All" else None,
+        sel_dev  if sel_dev  != "All" else None,
+        sel_dem  if sel_dem  != "All" else None,
+        f"week ending {sel_week_label}",
+    ] if p]
+    _current_ctx = " · ".join(_ctx_parts)
+
+    _existing_text = st.session_state.get("supply_commentary", "")
+    _existing_ctx  = st.session_state.get("supply_commentary_context", "")
+
+    with st.container():
+        st.caption("AI-written narrative for the weekly publisher brief.")
+
+        if _existing_text:
+            # Show which filter state the text was generated under.
+            # A mismatch with _current_ctx signals the user that a refresh
+            # may be needed — but we do not auto-regenerate.
+            if _existing_ctx:
+                _ctx_color = TEXT_SEC if _existing_ctx == _current_ctx else "#F59E0B"
+                st.markdown(
+                    f'<p style="font-family:Poppins,system-ui,sans-serif;'
+                    f'font-size:11px;color:{_ctx_color};margin:0 0 12px 0;">'
+                    f'Generated for: {_html.escape(_existing_ctx)}</p>',
+                    unsafe_allow_html=True,
+                )
+
+            # Render as readable prose inside a styled card.
+            # Dollar signs are HTML-escaped so currency values (A$50,000)
+            # never trigger Streamlit's LaTeX math renderer.
+            _safe = (
+                _html.escape(_existing_text)
+                .replace("\n\n", "</p><p style='margin:10px 0;'>")
+                .replace("\n", "<br>")
+            )
+            st.markdown(
+                f'<div style="background:{WHITE};border:0.5px solid rgba(27,42,74,0.12);'
+                f'border-radius:16px;padding:22px 26px;">'
+                f'<div style="font-family:Poppins,system-ui,sans-serif;font-size:14px;'
+                f'color:#374151;line-height:1.75;">'
+                f'<p style="margin:0 0 10px 0;">{_safe}</p>'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
+
+            # Regenerate button — clears session state and reruns so the
+            # placeholder + generate button appear again.
+            st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
+            if st.button("🔄 Regenerate", key="commentary_regen_btn"):
+                st.session_state.pop("supply_commentary", None)
+                st.session_state.pop("supply_commentary_context", None)
+                st.rerun()
+
+        else:
+            # Placeholder card shown before first generation
+            st.markdown(
+                f'<div style="background:{WHITE};border:0.5px solid rgba(27,42,74,0.12);'
+                f'border-radius:16px;padding:22px 26px;">'
+                f'<p style="font-family:Poppins,system-ui,sans-serif;font-size:14px;'
+                f'color:{TEXT_SEC};font-style:italic;margin:0;">'
+                f'Click "Generate commentary" to produce an AI-written narrative '
+                f'based on the current week\'s metrics and yield findings.</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
+
+            if _ai_avail:
+                _gcol1, _gcol2 = st.columns([2, 5])
+                with _gcol1:
+                    if st.button("Generate commentary", key="commentary_gen_btn",
+                                 type="primary"):
+                        with st.spinner("Writing commentary…"):
+                            _text = _generate_commentary(
+                                _brief_api_key, sel_week_label, cur, yield_findings
+                            )
+                            st.session_state["supply_commentary"] = _text
+                            st.session_state["supply_commentary_context"] = _current_ctx
+                        st.rerun()
+                with _gcol2:
+                    st.caption("Uses AI credits.")
+            else:
+                st.caption("⚠ Requires ANTHROPIC_API_KEY in Streamlit secrets to generate commentary.")
+
+except Exception as _comm_err:
+    st.error(f"Publisher Commentary section error: {_comm_err}")
 
 # ── 7. EXPLORE DATA ───────────────────────────────────────────────────────────
 section_header("Explore Data")
@@ -1417,40 +1564,25 @@ def _show_brief_dialog():
                 st.warning("Select at least one section.")
                 return
 
-            # Optional AI commentary
+            # Optional AI commentary — reuse page-section text if already
+            # generated; only calls the API when nothing is cached.
             ai_narrative = ""
             if s_ai and _ai_avail:
-                with st.spinner("Generating AI commentary…"):
-                    try:
-                        import anthropic as _ant
-                        _client = _ant.Anthropic(api_key=_brief_api_key)
-                        _prompt = (
-                            f"You are writing a publisher-facing weekly supply "
-                            f"performance commentary for {sel_week_label}.\n\n"
-                            f"Key metrics this week:\n"
-                            f"  Revenue: A${cur.get('revenue_aud', 0):,.0f}\n"
-                            f"  Fill Rate: {cur.get('fill_rate', 0):.1%}\n"
-                            f"  eCPM: A${cur.get('ecpm', 0):.2f}\n"
-                            f"  Completion Rate: {cur.get('completion_rate', 0):.1%}\n\n"
-                            f"Top findings:\n"
-                            + "\n".join(
-                                f"- {f['title']}: {f['detail']}"
-                                for f in yield_findings[:5]
+                cached = st.session_state.get("supply_commentary", "")
+                if cached:
+                    # Reuse existing text — no additional API call needed
+                    ai_narrative = cached
+                else:
+                    with st.spinner("Generating AI commentary…"):
+                        try:
+                            ai_narrative = _generate_commentary(
+                                _brief_api_key, sel_week_label, cur, yield_findings
                             )
-                            + "\n\nWrite 3 concise paragraphs: (1) overall performance "
-                            "summary, (2) key issues and their context, "
-                            "(3) recommended actions. Use sell-side vocabulary "
-                            "(eCPM, fill rate, demand sources, inventory). "
-                            "Be specific and data-driven."
-                        )
-                        _resp = _client.messages.create(
-                            model="claude-sonnet-4-6",
-                            max_tokens=600,
-                            messages=[{"role": "user", "content": _prompt}],
-                        )
-                        ai_narrative = _resp.content[0].text
-                    except Exception as _ae:
-                        st.warning(f"AI commentary could not be generated: {_ae}")
+                            # Store so the page section can display the same text
+                            st.session_state["supply_commentary"] = ai_narrative
+                            st.session_state["supply_commentary_context"] = _current_ctx
+                        except Exception as _ae:
+                            st.warning(f"AI commentary could not be generated: {_ae}")
 
             # Build the PPTX
             with st.spinner("Building PowerPoint…"):
