@@ -192,23 +192,31 @@ def calc_rates(df):
     timeout_rate    = timeout_count / ad_requests
     """
     df = df.copy()
-    clip = {"lower": 1}
+    cols = set(df.columns)
 
-    df["fill_rate"] = (
-        df["ad_impressions"] / df["ad_requests"].clip(**clip)
-    ).replace([float("inf"), float("-inf")], 0)
+    # Each rate is only computed when BOTH required raw columns are present.
+    # If either is missing the rate column is simply omitted — the UI shows
+    # "—" (or the absent_placeholder) via the existing pattern.
 
-    df["ecpm"] = (
-        df["revenue_aud"] / df["ad_impressions"].clip(**clip) * 1_000
-    ).replace([float("inf"), float("-inf")], 0)
+    if {"ad_impressions", "ad_requests"}.issubset(cols):
+        df["fill_rate"] = (
+            df["ad_impressions"] / df["ad_requests"].clip(lower=1)
+        ).replace([float("inf"), float("-inf")], 0)
 
-    df["completion_rate"] = (
-        df["completed_views"] / df["ad_impressions"].clip(**clip)
-    ).replace([float("inf"), float("-inf")], 0)
+    if {"revenue_aud", "ad_impressions"}.issubset(cols):
+        df["ecpm"] = (
+            df["revenue_aud"] / df["ad_impressions"].clip(lower=1) * 1_000
+        ).replace([float("inf"), float("-inf")], 0)
 
-    df["timeout_rate"] = (
-        df["timeout_count"] / df["ad_requests"].clip(**clip)
-    ).replace([float("inf"), float("-inf")], 0)
+    if {"completed_views", "ad_impressions"}.issubset(cols):
+        df["completion_rate"] = (
+            df["completed_views"] / df["ad_impressions"].clip(lower=1)
+        ).replace([float("inf"), float("-inf")], 0)
+
+    if {"timeout_count", "ad_requests"}.issubset(cols):
+        df["timeout_rate"] = (
+            df["timeout_count"] / df["ad_requests"].clip(lower=1)
+        ).replace([float("inf"), float("-inf")], 0)
 
     return df
 
@@ -519,6 +527,199 @@ def build_supply_pptx(df_week, yield_findings, sections, sel_week_label, cur, ai
     return buf
 
 
+# ── Yield opportunity computation ─────────────────────────────────────────────
+
+def _compute_yield_findings(df_week, df_prior):
+    """
+    Apply five rules-based checks comparing the current week to the prior week.
+    Returns a list of finding dicts sorted by revenue impact (descending).
+
+    Every groupby in this function sums ALL raw count columns before calling
+    calc_rates(), so rates are always derived from raw totals — never averaged
+    or summed. calc_rates() is defensive and skips any rate whose required
+    columns are absent from the DataFrame.
+    """
+    findings = []
+
+    if df_week.empty:
+        return findings
+
+    # ── Per-ad-unit aggregation (Rules 1, 4) ─────────────────────────────────
+    # All raw count columns included so calc_rates() can compute every rate.
+    _AGG = {
+        "publisher":       ("publisher",       "first"),
+        "property":        ("property",        "first"),
+        "format":          ("format",          "first"),
+        "device":          ("device",          "first"),
+        "demand_source":   ("demand_source",   "first"),
+        "ad_requests":     ("ad_requests",     "sum"),
+        "ad_impressions":  ("ad_impressions",  "sum"),
+        "revenue_aud":     ("revenue_aud",     "sum"),
+        "completed_views": ("completed_views", "sum"),
+        "timeout_count":   ("timeout_count",   "sum"),
+        "error_count":     ("error_count",     "sum"),
+    }
+    cur_unit = df_week.groupby("ad_unit").agg(**_AGG).reset_index()
+    cur_unit = calc_rates(cur_unit)
+
+    prv_unit = (
+        df_prior.groupby("ad_unit")
+        .agg(
+            ad_requests    =("ad_requests",    "sum"),
+            ad_impressions =("ad_impressions", "sum"),
+            revenue_aud    =("revenue_aud",    "sum"),
+            completed_views=("completed_views","sum"),
+            timeout_count  =("timeout_count",  "sum"),
+        )
+        .reset_index()
+    )
+    prv_unit = calc_rates(prv_unit)
+
+    # ── Rule 1: Fill rate < 70% on high-request ad units ─────────────────────
+    if "fill_rate" in cur_unit.columns and "ad_requests" in cur_unit.columns:
+        high_req_thresh = cur_unit["ad_requests"].quantile(0.5)
+        low_fill = cur_unit[
+            (cur_unit["fill_rate"] < 0.70) &
+            (cur_unit["ad_requests"] >= high_req_thresh)
+        ]
+        for _, row in low_fill.iterrows():
+            ecpm_val = row.get("ecpm", 0) or 0
+            missed = max(
+                row["ad_requests"] * 0.70 / 1_000 * ecpm_val - row["revenue_aud"], 0
+            )
+            findings.append({
+                "title":      (f"Low fill rate — {row['publisher']} / {row['property']} / "
+                               f"{row['format']} / {row['device']}"),
+                "detail":     (f"Fill rate {row['fill_rate']:.1%} across "
+                               f"{row['ad_requests']:,.0f} requests. "
+                               f"Review floor price or demand partner mix."),
+                "impact":     f"A${missed:,.0f} potential upside vs 70% floor",
+                "impact_val": missed,
+                "type":       "fill_rate",
+            })
+
+    # ── Rule 2: eCPM declined >10% WoW for any format ────────────────────────
+    # Sum all raw count cols first — calc_rates() derives eCPM from the totals.
+    _fmt_cur = df_week.groupby("format").agg(
+        ad_requests    =("ad_requests",    "sum"),
+        ad_impressions =("ad_impressions", "sum"),
+        revenue_aud    =("revenue_aud",    "sum"),
+        completed_views=("completed_views","sum"),
+        timeout_count  =("timeout_count",  "sum"),
+    ).reset_index()
+    _fmt_cur = calc_rates(_fmt_cur)
+
+    _fmt_prv = df_prior.groupby("format").agg(
+        ad_requests    =("ad_requests",    "sum"),
+        ad_impressions =("ad_impressions", "sum"),
+        revenue_aud    =("revenue_aud",    "sum"),
+        completed_views=("completed_views","sum"),
+        timeout_count  =("timeout_count",  "sum"),
+    ).reset_index()
+    _fmt_prv = calc_rates(_fmt_prv)
+
+    if "ecpm" in _fmt_cur.columns and "ecpm" in _fmt_prv.columns:
+        _fmt_m = _fmt_cur.merge(_fmt_prv, on="format", suffixes=("", "_prv"), how="inner")
+        for _, row in _fmt_m.iterrows():
+            prv_ecpm = row.get("ecpm_prv", 0) or 0
+            if prv_ecpm > 0:
+                drop = (row["ecpm"] - prv_ecpm) / prv_ecpm
+                if drop < -0.10:
+                    impact = abs(drop) * row["revenue_aud"]
+                    findings.append({
+                        "title":      f"eCPM decline — {row['format']} ({drop:.1%} WoW)",
+                        "detail":     (f"eCPM fell from A${prv_ecpm:.2f} to "
+                                       f"A${row['ecpm']:.2f}. "
+                                       f"Check demand source bid trends and floor settings."),
+                        "impact":     f"A${impact:,.0f} revenue impact",
+                        "impact_val": impact,
+                        "type":       "ecpm_drop",
+                    })
+
+    # ── Rule 3: Unfilled impressions rose >15% WoW by property ───────────────
+    # Sum all raw count cols first so calc_rates() can compute eCPM for the
+    # revenue-impact estimate.
+    _prop_cur = df_week.groupby("property").agg(
+        ad_requests    =("ad_requests",    "sum"),
+        ad_impressions =("ad_impressions", "sum"),
+        revenue_aud    =("revenue_aud",    "sum"),
+        completed_views=("completed_views","sum"),
+        timeout_count  =("timeout_count",  "sum"),
+    ).reset_index()
+    _prop_cur["unfilled"] = _prop_cur["ad_requests"] - _prop_cur["ad_impressions"]
+    _prop_cur = calc_rates(_prop_cur)
+
+    _prop_prv = df_prior.groupby("property").agg(
+        ad_requests   =("ad_requests",    "sum"),
+        ad_impressions=("ad_impressions", "sum"),
+    ).reset_index()
+    _prop_prv["unfilled"] = _prop_prv["ad_requests"] - _prop_prv["ad_impressions"]
+
+    _prop_m = _prop_cur.merge(_prop_prv, on="property", suffixes=("", "_prv"), how="inner")
+    for _, row in _prop_m.iterrows():
+        prv_uf = row.get("unfilled_prv", 0) or 0
+        if prv_uf > 0:
+            rise = (row["unfilled"] - prv_uf) / prv_uf
+            if rise > 0.15:
+                ecpm_val = row.get("ecpm", 0) or 0
+                missed = (row["unfilled"] - prv_uf) / 1_000 * ecpm_val
+                findings.append({
+                    "title":      f"Rising unfilled — {row['property']} (+{rise:.1%} WoW)",
+                    "detail":     (f"Unfilled impressions rose from {int(prv_uf):,.0f} to "
+                                   f"{int(row['unfilled']):,.0f}. "
+                                   f"Investigate demand partner health and bid landscape."),
+                    "impact":     f"A${max(missed, 0):,.0f} revenue at risk",
+                    "impact_val": max(missed, 0),
+                    "type":       "unfilled_rise",
+                })
+
+    # ── Rule 4: Timeout rate > 5% on any ad unit ─────────────────────────────
+    if "timeout_rate" in cur_unit.columns and "ecpm" in cur_unit.columns:
+        high_timeout = cur_unit[cur_unit["timeout_rate"] > 0.05]
+        for _, row in high_timeout.iterrows():
+            ecpm_val = row.get("ecpm", 0) or 0
+            lost = row["timeout_count"] / 1_000 * ecpm_val
+            findings.append({
+                "title":      (f"High timeout rate — {row['ad_unit']} "
+                               f"({row['timeout_rate']:.1%})"),
+                "detail":     (f"{int(row['timeout_count']):,.0f} timeouts from "
+                               f"{int(row['ad_requests']):,.0f} requests. "
+                               f"Review ad server latency and creative load time."),
+                "impact":     f"A${lost:,.0f} estimated lost revenue",
+                "impact_val": lost,
+                "type":       "timeout",
+            })
+
+    # ── Rule 5: Demand source revenue share fell >15% WoW ────────────────────
+    _dem_cur = df_week.groupby("demand_source")["revenue_aud"].sum().reset_index()
+    _dem_prv = df_prior.groupby("demand_source")["revenue_aud"].sum().reset_index()
+    _dem_cur["share"] = _dem_cur["revenue_aud"] / max(_dem_cur["revenue_aud"].sum(), 1)
+    _dem_prv["share"] = _dem_prv["revenue_aud"] / max(_dem_prv["revenue_aud"].sum(), 1)
+
+    _dem_m = _dem_cur.merge(
+        _dem_prv, on="demand_source", suffixes=("", "_prv"), how="inner"
+    )
+    for _, row in _dem_m.iterrows():
+        prv_share = row.get("share_prv", 0) or 0
+        if prv_share > 0:
+            share_drop = (row["share"] - prv_share) / prv_share
+            if share_drop < -0.15:
+                impact = abs(row.get("revenue_aud_prv", 0) - row["revenue_aud"])
+                findings.append({
+                    "title":      (f"Demand source revenue share fell — "
+                                   f"{row['demand_source']} ({share_drop:.1%} WoW)"),
+                    "detail":     (f"Revenue share: {prv_share:.1%} → {row['share']:.1%}. "
+                                   f"Review buyer activity and deal health for this source."),
+                    "impact":     f"A${impact:,.0f} revenue shift",
+                    "impact_val": impact,
+                    "type":       "demand_share",
+                })
+
+    # Sort by revenue impact descending
+    findings.sort(key=lambda x: x.get("impact_val", 0), reverse=True)
+    return findings
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE RENDER
 # ══════════════════════════════════════════════════════════════════════════════
@@ -784,168 +985,14 @@ section_header("Yield Opportunities")
 
 # Rules applied to the selected week vs the prior week.
 # Findings are sorted by revenue impact (descending).
+# The entire block is wrapped in try/except so a computation failure shows a
+# contained error message rather than blanking the rest of the page.
 
 yield_findings = []
-
-if not df_week.empty:
-
-    # Aggregate the current and prior week by ad_unit for per-unit rules
-    _AGG = {
-        "publisher":      ("publisher",      "first"),
-        "property":       ("property",       "first"),
-        "format":         ("format",         "first"),
-        "device":         ("device",         "first"),
-        "demand_source":  ("demand_source",  "first"),
-        "ad_requests":    ("ad_requests",    "sum"),
-        "ad_impressions": ("ad_impressions", "sum"),
-        "revenue_aud":    ("revenue_aud",    "sum"),
-        "completed_views":("completed_views","sum"),
-        "timeout_count":  ("timeout_count",  "sum"),
-        "error_count":    ("error_count",    "sum"),
-    }
-    cur_unit = df_week.groupby("ad_unit").agg(**_AGG).reset_index()
-    cur_unit = calc_rates(cur_unit)
-
-    prv_unit = (
-        df_prior.groupby("ad_unit")
-        .agg(
-            ad_requests    =("ad_requests",    "sum"),
-            ad_impressions =("ad_impressions", "sum"),
-            revenue_aud    =("revenue_aud",    "sum"),
-            completed_views=("completed_views","sum"),
-            timeout_count  =("timeout_count",  "sum"),
-        )
-        .reset_index()
-    )
-    prv_unit = calc_rates(prv_unit)
-    merged_unit = cur_unit.merge(prv_unit, on="ad_unit", suffixes=("", "_prv"), how="left")
-
-    # ── Rule 1: Fill rate < 70% on high-request ad units ─────────────────────
-    high_req_thresh = cur_unit["ad_requests"].quantile(0.5)
-    low_fill = cur_unit[
-        (cur_unit["fill_rate"] < 0.70) &
-        (cur_unit["ad_requests"] >= high_req_thresh)
-    ]
-    for _, row in low_fill.iterrows():
-        # Revenue impact: revenue missed compared to 70% fill rate baseline
-        missed = max(
-            row["ad_requests"] * 0.70 / 1_000 * row["ecpm"] - row["revenue_aud"], 0
-        )
-        yield_findings.append({
-            "title":      (f"Low fill rate — {row['publisher']} / {row['property']} / "
-                           f"{row['format']} / {row['device']}"),
-            "detail":     (f"Fill rate {row['fill_rate']:.1%} across "
-                           f"{row['ad_requests']:,.0f} requests. "
-                           f"Review floor price or demand partner mix."),
-            "impact":     f"A${missed:,.0f} potential upside vs 70% floor",
-            "impact_val": missed,
-            "type":       "fill_rate",
-        })
-
-    # ── Rule 2: eCPM declined >10% WoW for any format ─────────────────────────
-    _fmt_cur = df_week.groupby("format").agg(
-        ad_impressions=("ad_impressions", "sum"),
-        revenue_aud   =("revenue_aud",    "sum"),
-    ).reset_index()
-    _fmt_cur = calc_rates(_fmt_cur)
-
-    _fmt_prv = df_prior.groupby("format").agg(
-        ad_impressions=("ad_impressions", "sum"),
-        revenue_aud   =("revenue_aud",    "sum"),
-    ).reset_index()
-    _fmt_prv = calc_rates(_fmt_prv)
-
-    _fmt_m = _fmt_cur.merge(_fmt_prv, on="format", suffixes=("", "_prv"), how="inner")
-    for _, row in _fmt_m.iterrows():
-        prv_ecpm = row.get("ecpm_prv", 0)
-        if prv_ecpm > 0:
-            drop = (row["ecpm"] - prv_ecpm) / prv_ecpm
-            if drop < -0.10:
-                impact = abs(drop) * row["revenue_aud"]
-                yield_findings.append({
-                    "title":      f"eCPM decline — {row['format']} ({drop:.1%} WoW)",
-                    "detail":     (f"eCPM fell from A${prv_ecpm:.2f} to "
-                                   f"A${row['ecpm']:.2f}. "
-                                   f"Check demand source bid trends and floor settings."),
-                    "impact":     f"A${impact:,.0f} revenue impact",
-                    "impact_val": impact,
-                    "type":       "ecpm_drop",
-                })
-
-    # ── Rule 3: Unfilled impressions rose >15% WoW by property ───────────────
-    _prop_cur = df_week.groupby("property").agg(
-        ad_requests   =("ad_requests",    "sum"),
-        ad_impressions=("ad_impressions", "sum"),
-        revenue_aud   =("revenue_aud",    "sum"),
-    ).reset_index()
-    _prop_cur["unfilled"] = _prop_cur["ad_requests"] - _prop_cur["ad_impressions"]
-    _prop_cur = calc_rates(_prop_cur)
-
-    _prop_prv = df_prior.groupby("property").agg(
-        ad_requests   =("ad_requests",    "sum"),
-        ad_impressions=("ad_impressions", "sum"),
-    ).reset_index()
-    _prop_prv["unfilled"] = _prop_prv["ad_requests"] - _prop_prv["ad_impressions"]
-
-    _prop_m = _prop_cur.merge(_prop_prv, on="property", suffixes=("", "_prv"), how="inner")
-    for _, row in _prop_m.iterrows():
-        prv_uf = row.get("unfilled_prv", 0)
-        if prv_uf > 0:
-            rise = (row["unfilled"] - prv_uf) / prv_uf
-            if rise > 0.15:
-                missed = (row["unfilled"] - prv_uf) / 1_000 * row["ecpm"]
-                yield_findings.append({
-                    "title":      f"Rising unfilled — {row['property']} (+{rise:.1%} WoW)",
-                    "detail":     (f"Unfilled impressions rose from {int(prv_uf):,.0f} to "
-                                   f"{int(row['unfilled']):,.0f}. "
-                                   f"Investigate demand partner health and bid landscape."),
-                    "impact":     f"A${max(missed, 0):,.0f} revenue at risk",
-                    "impact_val": max(missed, 0),
-                    "type":       "unfilled_rise",
-                })
-
-    # ── Rule 4: Timeout rate > 5% on any ad unit ─────────────────────────────
-    high_timeout = cur_unit[cur_unit["timeout_rate"] > 0.05]
-    for _, row in high_timeout.iterrows():
-        lost = row["timeout_count"] / 1_000 * row["ecpm"]
-        yield_findings.append({
-            "title":      (f"High timeout rate — {row['ad_unit']} "
-                           f"({row['timeout_rate']:.1%})"),
-            "detail":     (f"{int(row['timeout_count']):,.0f} timeouts from "
-                           f"{int(row['ad_requests']):,.0f} requests. "
-                           f"Review ad server latency and creative load time."),
-            "impact":     f"A${lost:,.0f} estimated lost revenue",
-            "impact_val": lost,
-            "type":       "timeout",
-        })
-
-    # ── Rule 5: Demand source revenue share fell >15% WoW ────────────────────
-    _dem_cur = df_week.groupby("demand_source")["revenue_aud"].sum().reset_index()
-    _dem_prv = df_prior.groupby("demand_source")["revenue_aud"].sum().reset_index()
-    _dem_cur["share"] = _dem_cur["revenue_aud"] / max(_dem_cur["revenue_aud"].sum(), 1)
-    _dem_prv["share"] = _dem_prv["revenue_aud"] / max(_dem_prv["revenue_aud"].sum(), 1)
-
-    _dem_m = _dem_cur.merge(
-        _dem_prv, on="demand_source", suffixes=("", "_prv"), how="inner"
-    )
-    for _, row in _dem_m.iterrows():
-        prv_share = row.get("share_prv", 0)
-        if prv_share > 0:
-            share_drop = (row["share"] - prv_share) / prv_share
-            if share_drop < -0.15:
-                impact = abs(row.get("revenue_aud_prv", 0) - row["revenue_aud"])
-                yield_findings.append({
-                    "title":      (f"Demand source revenue share fell — "
-                                   f"{row['demand_source']} ({share_drop:.1%} WoW)"),
-                    "detail":     (f"Revenue share: {prv_share:.1%} → {row['share']:.1%}. "
-                                   f"Review buyer activity and deal health for this source."),
-                    "impact":     f"A${impact:,.0f} revenue shift",
-                    "impact_val": impact,
-                    "type":       "demand_share",
-                })
-
-    # Sort by revenue impact descending
-    yield_findings.sort(key=lambda x: x.get("impact_val", 0), reverse=True)
+try:
+    yield_findings = _compute_yield_findings(df_week, df_prior)
+except Exception as _yield_err:
+    st.error(f"Yield opportunity analysis encountered an error: {_yield_err}")
 
 # Render findings
 _type_border = {
