@@ -5,7 +5,8 @@
         "API Data"
       ],
       "hidden": [
-        "Upload Report"
+        "Upload Report",
+        "Supply"
       ]
     },
     "upload_only": {
@@ -13,15 +14,26 @@
         "Upload Report"
       ],
       "hidden": [
-        "API Data"
+        "API Data",
+        "Supply"
       ]
     },
     "full_access": {
       "visible": [
         "API Data",
-        "Upload Report"
+        "Upload Report",
+        "Supply"
       ],
       "hidden": []
+    },
+    "supply_only": {
+      "visible": [
+        "Supply"
+      ],
+      "hidden": [
+        "API Data",
+        "Upload Report"
+      ]
     }
   },
   "current_tier": "full_access"
