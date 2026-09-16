@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.design_system import (
     CHART_PALETTE, PLOTLY_CONFIG, PRIMARY, SECONDARY, SUCCESS,
     WARNING, DANGER, WHITE, TEXT_SEC, apply_plotly_style, metric_card,
+    get_anthropic_api_key,
 )
 
 # STYLE LOCK: Pacebird design system — #F5A623 orange, #1B2A4A navy, Poppins.
@@ -773,6 +774,10 @@ def _generate_commentary(api_key, week_label, cur, yield_findings):
 st.title("Weekly Supply Brief")
 st.caption("Demo using fabricated data. Not real publisher inventory.")
 
+# ── API key — resolved once, used by commentary section and Generate Brief ────
+_brief_api_key = get_anthropic_api_key()
+_ai_avail      = bool(_brief_api_key)
+
 # ── Load data ─────────────────────────────────────────────────────────────────
 df_all = load_supply_data()
 
@@ -1484,16 +1489,9 @@ else:
         )
 
 # ── 8. GENERATE BRIEF ────────────────────────────────────────────────────────
+# _brief_api_key and _ai_avail are resolved once near the top of the page render
+# (after load_supply_data) — no re-definition needed here.
 section_header("Generate Weekly Brief")
-
-# Check for Anthropic API key (needed for optional AI commentary)
-try:
-    _brief_api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
-except Exception:
-    _brief_api_key = ""
-if not _brief_api_key:
-    _brief_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-_ai_avail = bool(_brief_api_key)
 
 
 @st.dialog("Generate Weekly Brief")

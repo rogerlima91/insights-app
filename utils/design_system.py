@@ -534,3 +534,26 @@ def get_css():
     }}
 </style>
 """
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# get_anthropic_api_key — single canonical API-key resolver
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_anthropic_api_key():
+    """
+    Return the Anthropic API key, checking Streamlit secrets first then the
+    ANTHROPIC_API_KEY environment variable.  Returns an empty string when
+    neither is configured so callers can do a simple bool() check.
+
+    This is the single authoritative implementation.  Import and call it
+    rather than duplicating the secrets/env logic on each page.
+    """
+    import os
+    try:
+        key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    except Exception:
+        key = ""
+    if not key:
+        key = os.environ.get("ANTHROPIC_API_KEY", "")
+    return key
