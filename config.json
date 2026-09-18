@@ -6,12 +6,14 @@
       ],
       "hidden": [
         "Upload Report",
-        "Supply"
+        "Supply",
+        "Audience"
       ]
     },
     "upload_only": {
       "visible": [
-        "Upload Report"
+        "Upload Report",
+        "Audience"
       ],
       "hidden": [
         "API Data",
@@ -22,7 +24,8 @@
       "visible": [
         "API Data",
         "Upload Report",
-        "Supply"
+        "Supply",
+        "Audience"
       ],
       "hidden": []
     },
@@ -32,7 +35,8 @@
       ],
       "hidden": [
         "API Data",
-        "Upload Report"
+        "Upload Report",
+        "Audience"
       ]
     }
   },

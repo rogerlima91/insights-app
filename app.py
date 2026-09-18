@@ -51,9 +51,9 @@ cfg   = load_config()
 prefs = load_prefs()
 
 TIER_MAP = {
-    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Supply"]},
+    "full_access":  {"label": "✨ Full Access",  "visible": ["API Data", "Upload Report", "Supply", "Audience"]},
     "api_only":     {"label": "📡 API Mode",     "visible": ["API Data"]},
-    "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report"]},
+    "upload_only":  {"label": "📁 Upload Mode",  "visible": ["Upload Report", "Audience"]},
     "supply_only":  {"label": "📡 Supply Mode",  "visible": ["Supply"]},
 }
 current_tier     = cfg.get("current_tier", "full_access")
@@ -79,6 +79,10 @@ SUPPLY_PAGES = [
     st.Page("pages/supply_brief.py",              title="Weekly Supply Brief"),
 ]
 
+AUDIENCE_PAGES = [
+    st.Page("pages/audience_solutions.py",        title="Audience Solutions"),
+]
+
 nav_sections = {}
 if "API Data" in visible_sections:
     nav_sections["📡 API DATA"] = API_DATA_PAGES
@@ -86,6 +90,8 @@ if "Upload Report" in visible_sections:
     nav_sections["📁 UPLOAD REPORT"] = UPLOAD_REPORT_PAGES
 if "Supply" in visible_sections:
     nav_sections["📡 SUPPLY"] = SUPPLY_PAGES
+if "Audience" in visible_sections:
+    nav_sections["🎯 AUDIENCE"] = AUDIENCE_PAGES
 
 # ── Sidebar logo — rendered in normal document flow inside stSidebarUserContent ──
 # ── stSidebarUserContent gets order:-1 via CSS flexbox, moving it above stSidebarNav.
