@@ -27,7 +27,8 @@
       "Bash(xxd)",
       "Bash(git mv:*)",
       "Bash(make --version)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(find C:/projects/insights-app -name *.pptx)"
     ]
   }
 }

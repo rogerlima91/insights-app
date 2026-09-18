@@ -12,6 +12,13 @@ from utils.design_system import (
     metric_card, apply_plotly_style, filter_widget, PLOTLY_CONFIG,
     PRIMARY, SECONDARY, SUCCESS, WARNING, DANGER, WHITE, TEXT_PRI, TEXT_SEC,
 )
+from utils.prompts import (
+    SYSTEM_PROGRAMMATIC_ANALYST, SYSTEM_PPTX_ANALYST,
+    brand_insight_prompt, overall_summary_prompt,
+    pptx_exec_summary_prompt, pptx_brand_breakdown_prompt,
+    pptx_brand_recommendations_prompt, pptx_budget_shift_prompt,
+    pptx_ai_driven_prompt, chart_recommendations_prompt, nl_query_prompt,
+)
 from utils.mock_data import generate_api_mock_data
 from utils.file_loader import read_file
 import matplotlib.pyplot as plt
@@ -599,12 +606,7 @@ def _ai_pptx(api_key, prompt, max_tokens=400):
     msg = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=max_tokens,
-        system=(
-            "You are a senior programmatic advertising analyst. "
-            "Write clear, concise, data-driven commentary for ad tech professionals. "
-            "Be specific — always reference actual numbers from the data. "
-            "Follow formatting instructions exactly — no deviations."
-        ),
+        system=SYSTEM_PPTX_ANALYST,
         messages=[{"role": "user", "content": prompt}],
     )
     return msg.content[0].text.strip()
@@ -802,14 +804,7 @@ def build_pptx_report(api_key, camp_summary, df_all, sections=None,
         # AI best/worst insight — always shown on the executive summary slide
         exec_text = _ai_pptx(
             api_key,
-            f"""Campaign performance data:
-{data_text}
-
-Write two short insight paragraphs for an executive summary slide:
-1. Start "Best performer: [Brand] —" then 1-2 sentences on WHY, citing key metrics (CPM, CTR, or CPV).
-2. Start "Worst performer: [Brand] —" then 1-2 sentences on WHY, citing key metrics.
-
-Plain paragraphs only — no headings, no bullets, no extra text.""",
+            pptx_exec_summary_prompt(data_text),
             max_tokens=200,
         )
         _tb(s1, 8.5, 2.32, 4.5, 0.28, "KEY INSIGHTS", 8, bold=True, color=_PPT_BLUE)
@@ -889,29 +884,7 @@ Plain paragraphs only — no headings, no bullets, no extra text.""",
 
             breakdown = _ai_pptx(
                 api_key,
-                f"""Campaign performance data:
-{data_text}
-
-Write a performance breakdown for brand: "{brand}"
-
-Use EXACTLY this format — only include sections where data exists for this brand:
-
-DISPLAY:
-• [CPM, CPC, CTR focus — cite best/worst line item, max 15 words]
-• [second point]
-• [third point — max 3 bullets]
-
-VIDEO:
-• [CPV, VTR focus — cite best/worst line item, max 15 words]
-• [second point]
-• [third point — max 3 bullets]
-
-YOUTUBE:
-• [CPV, VTR focus — cite best/worst creative, max 15 words]
-• [second point]
-• [third point — max 3 bullets]
-
-Only include DISPLAY / VIDEO / YOUTUBE headings that have real data for this brand.""",
+                pptx_brand_breakdown_prompt(data_text, brand),
                 max_tokens=350,
             )
 
@@ -940,16 +913,7 @@ Only include DISPLAY / VIDEO / YOUTUBE headings that have real data for this bra
 
             recs_raw = _ai_pptx(
                 api_key,
-                f"""Campaign performance data:
-{data_text}
-
-Write exactly 5 optimisation recommendations for brand: "{brand}"
-
-Rules:
-- Each must start with an action verb: Increase / Reduce / Pause / Test / Shift / Reallocate
-- Reference specific line items, creatives, or metrics from the data
-- Max 18 words per line
-- Return only the 5 lines — no bullet symbols, no numbering, no extra text""",
+                pptx_brand_recommendations_prompt(data_text, brand),
                 max_tokens=250,
             )
             bullets = [ln.strip().lstrip("•-–—●0123456789.) ").strip()
@@ -969,18 +933,7 @@ Rules:
 
         budget_raw = _ai_pptx(
             api_key,
-            f"""Campaign performance data:
-{data_text}
-
-For each brand, provide one budget reallocation recommendation.
-Format EXACTLY as pipe-separated lines — one line per brand, no header row:
-Brand Name | Best Performing IO | One-sentence recommendation starting with an action verb
-
-Example:
-Nike Summer 2024 | Display | Increase Display budget by 20% — lowest CPM at $3.20
-Coke Q3 | YouTube | Shift 15% from Display to YouTube — VTR of 68% outperforms
-
-Only include brands from the data. Cite actual numbers. No extra text.""",
+            pptx_budget_shift_prompt(data_text),
             max_tokens=350,
         )
         _add_budget_table(s_last, budget_raw, x=0.4, y=1.08, w=12.5, h=5.9)
@@ -1002,16 +955,7 @@ Only include brands from the data. Cite actual numbers. No extra text.""",
             # No cached result — generate brief text via AI
             ai_driven_raw = _ai_pptx(
                 api_key,
-                f"""Campaign performance data:
-{data_text}
-
-Provide a brief AI analysis in two parts:
-1. SUMMARY: One paragraph on the most important patterns in this dataset.
-2. TOP FINDING: The single most important anomaly or insight.
-
-Format exactly as:
-SUMMARY: [text]
-TOP FINDING: [text]""",
+                pptx_ai_driven_prompt(data_text),
                 max_tokens=300,
             )
             summary_txt = ""
