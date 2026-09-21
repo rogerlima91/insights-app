@@ -2,7 +2,6 @@ import io
 import json
 import os
 import re
-import random
 from datetime import date
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,7 +16,7 @@ from utils.prompts import (
     brand_insight_prompt, overall_summary_prompt,
     pptx_exec_summary_prompt, pptx_brand_breakdown_prompt,
     pptx_brand_recommendations_prompt, pptx_budget_shift_prompt,
-    pptx_ai_driven_prompt, chart_recommendations_prompt, nl_query_prompt,
+    nl_query_prompt,
 )
 from utils.mock_data import generate_api_mock_data
 from utils.file_loader import read_file
@@ -740,8 +739,7 @@ def _make_daily_chart_pptx(df_all):
     return buf
 
 
-def build_pptx_report(api_key, camp_summary, df_all, sections=None,
-                      ai_analysis_cache=None):
+def build_pptx_report(api_key, camp_summary, df_all, sections=None):
     """
     Build and return the full PowerPoint report as a BytesIO buffer.
 
@@ -750,16 +748,14 @@ def build_pptx_report(api_key, camp_summary, df_all, sections=None,
         performance_charts     — Slide 1 revenue chart
         daily_performance      — Daily trend chart slide
         period_comparison      — Period-over-period comparison slide
-        ai_advertiser_insights — Per-brand breakdown + recommendations + budget shift slides
-        ai_driven_analysis     — AI-driven analysis summary slide
+        ai_insights            — Per-brand breakdown + recommendations + budget shift slides
 
     Passing sections=None (default) includes all slide types.
-    ai_analysis_cache: the ai_analysis_result dict from session state (reused if present).
     """
     if sections is None:
         sections = {k: True for k in (
             "summary_metrics", "performance_charts", "daily_performance",
-            "period_comparison", "ai_advertiser_insights", "ai_driven_analysis",
+            "period_comparison", "ai_insights",
         )}
 
     prs              = Presentation()
@@ -872,8 +868,8 @@ def build_pptx_report(api_key, camp_summary, df_all, sections=None,
         except Exception:
             pass  # Skip period comparison slide if date parsing fails
 
-    # ── Per-brand slides — AI Advertiser Insights ─────────────────────────────
-    if sections.get("ai_advertiser_insights"):
+    # ── Per-brand slides — AI Insights ────────────────────────────────────────
+    if sections.get("ai_insights"):
         for brand in campaigns:
 
             # ── Performance Breakdown ─────────────────────────────────────────
@@ -925,7 +921,7 @@ def build_pptx_report(api_key, camp_summary, df_all, sections=None,
             _slide_footer(s3, slide_num)
             slide_num += 1
 
-        # ── Budget Shift Recommendations — part of AI Advertiser Insights ─────
+        # ── Budget Shift Recommendations — part of AI Insights ───────────────
         s_last = _new_blank_slide(prs)
         _tb(s_last, 0.4, 0.17, 12.5, 0.65,
             "Budget Shift Recommendations", 20, bold=True)
@@ -939,61 +935,6 @@ def build_pptx_report(api_key, camp_summary, df_all, sections=None,
         _add_budget_table(s_last, budget_raw, x=0.4, y=1.08, w=12.5, h=5.9)
 
         _slide_footer(s_last, slide_num)
-        slide_num += 1
-
-    # ── AI-Driven Analysis slide ──────────────────────────────────────────────
-    if sections.get("ai_driven_analysis"):
-        s_ai = _new_blank_slide(prs)
-        _tb(s_ai, 0.4, 0.17, 12.5, 0.65, "AI-Driven Analysis", 20, bold=True)
-        _box(s_ai, 0.4, 0.86, 12.5, 0.04, _PPT_BLUE)
-
-        if ai_analysis_cache and isinstance(ai_analysis_cache, dict):
-            # Reuse cached result from session state — no extra API call needed
-            summary_txt   = ai_analysis_cache.get("summary", "")
-            anomaly_txt   = ai_analysis_cache.get("top_anomaly", "")
-        else:
-            # No cached result — generate brief text via AI
-            ai_driven_raw = _ai_pptx(
-                api_key,
-                pptx_ai_driven_prompt(data_text),
-                max_tokens=300,
-            )
-            summary_txt = ""
-            anomaly_txt = ""
-            for _line in ai_driven_raw.split("\n"):
-                if _line.startswith("SUMMARY:"):
-                    summary_txt = _line.replace("SUMMARY:", "").strip()
-                elif _line.startswith("TOP FINDING:"):
-                    anomaly_txt = _line.replace("TOP FINDING:", "").strip()
-
-        y_pos = 1.1
-        if summary_txt:
-            _tb(s_ai, 0.5, y_pos, 12.0, 0.28, "SUMMARY", 10, bold=True, color=_PPT_BLUE)
-            y_pos += 0.35
-            txb_s = s_ai.shapes.add_textbox(Inches(0.5), Inches(y_pos),
-                                            Inches(12.0), Inches(1.5))
-            tf_s        = txb_s.text_frame
-            tf_s.word_wrap = True
-            run_s       = tf_s.paragraphs[0].add_run()
-            run_s.text  = summary_txt
-            run_s.font.name      = "Calibri"
-            run_s.font.size      = Pt(11)
-            run_s.font.color.rgb = _PPT_WHITE
-            y_pos += 1.7
-        if anomaly_txt:
-            _tb(s_ai, 0.5, y_pos, 12.0, 0.28, "TOP FINDING", 10, bold=True, color=_PPT_BLUE)
-            y_pos += 0.35
-            txb_a = s_ai.shapes.add_textbox(Inches(0.5), Inches(y_pos),
-                                            Inches(12.0), Inches(1.2))
-            tf_a        = txb_a.text_frame
-            tf_a.word_wrap = True
-            run_a       = tf_a.paragraphs[0].add_run()
-            run_a.text  = anomaly_txt
-            run_a.font.name      = "Calibri"
-            run_a.font.size      = Pt(11)
-            run_a.font.color.rgb = _PPT_WHITE
-
-        _slide_footer(s_ai, slide_num)
         slide_num += 1
 
     # Serialise to buffer and return
@@ -2507,7 +2448,7 @@ else:
             if "impressions" in camp_summary.columns and "spend_usd" in camp_summary.columns:
                 camp_summary["cpm"] = camp_summary["spend_usd"] / camp_summary["impressions"] * 1000
 
-    st.subheader(f"AI {group_label} Insights" if group_label else "AI Insights")
+    st.subheader("AI Insights")
 
     # Get the Anthropic API key — check Streamlit secrets first, then env var
     api_key = (
@@ -2729,190 +2670,6 @@ else:
                 st.session_state["insights_overall"] = accumulated
 
     # ─────────────────────────────────────────────────────────────────────────
-    # AI-DRIVEN DYNAMIC ANALYSIS
-    # Sends column headers + 50 sample rows to Claude to recommend 3 charts
-    # ─────────────────────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("## 🤖 AI-Driven Analysis")
-
-    # Load brand context for the AI analysis prompt
-    def get_brand_context_for_ai(df):
-        try:
-            with open("brand_memory.json", "r") as f:
-                bm = json.load(f)
-            contexts = []
-            if 'campaign' in df.columns:
-                for brand in df['campaign'].dropna().unique()[:3]:
-                    for key, val in bm.items():
-                        if key.lower() in str(brand).lower() or str(brand).lower() in key.lower():
-                            rationale = val.get("rationale", "")
-                            if rationale:
-                                contexts.append(f"{brand}: {rationale[:200]}")
-            return "\n".join(contexts)
-        except Exception:
-            return ""
-
-    # Button row: Run triggers the API call; Refresh clears the cached result
-    _ai_btn_cols = st.columns([2, 1])
-    with _ai_btn_cols[0]:
-        _run_ai_btn = st.button("🤖 Run AI Analysis", type="primary", key="run_ai_analysis")
-    with _ai_btn_cols[1]:
-        if st.session_state.get("ai_analysis_result") and st.button("🔄 Refresh", key="refresh_ai_analysis"):
-            st.session_state.pop("ai_analysis_result", None)
-            st.rerun()
-
-    # Only call the Claude API when the Run button is clicked
-    if _run_ai_btn:
-        st.session_state.pop("ai_analysis_result", None)
-
-        columns_list = list(df_all.columns)
-        sample_rows  = df_all.head(50).to_string(index=False, max_cols=20)
-        brand_ctx    = get_brand_context_for_ai(df_all)
-
-        brand_ctx_injection = ""
-        if brand_ctx:
-            brand_ctx_injection = (
-                f"\n\nBrand context to consider: {brand_ctx}\n"
-                "Weight your chart recommendations toward metrics relevant to this brand's objectives."
-            )
-
-        seed_val = random.randint(1, 9999)
-
-        prompt = chart_recommendations_prompt(columns_list, sample_rows, brand_ctx_injection, seed_val)
-
-        try:
-            _ai_key = (
-                st.secrets.get("ANTHROPIC_API_KEY")
-                if "ANTHROPIC_API_KEY" in st.secrets
-                else os.environ.get("ANTHROPIC_API_KEY", "")
-            )
-            client_driven = anthropic.Anthropic(api_key=_ai_key)
-
-            with st.spinner("Running AI analysis…"):
-                response = client_driven.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=2000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-
-            raw = response.content[0].text.strip()
-            # Strip markdown code fences if Claude wraps the JSON in them
-            if raw.startswith("```"):
-                raw = re.sub(r'^```[a-z]*\n?', '', raw)
-                raw = re.sub(r'\n?```$', '', raw)
-
-            result = json.loads(raw)
-            st.session_state["ai_analysis_result"] = result
-
-        except Exception as e:
-            st.warning(f"AI analysis unavailable: {e}")
-            st.session_state["ai_analysis_result"] = None
-
-    # Show placeholder when no analysis has been run yet
-    if "ai_analysis_result" not in st.session_state:
-        st.markdown("""
-        <div style="text-align:center;padding:32px 20px;background:#FFFFFF;
-        border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);margin:12px 0;">
-            <div style="font-size:32px;margin-bottom:10px;">🤖</div>
-            <div style="font-size:15px;font-weight:600;color:#111827;margin-bottom:6px;">
-                AI-Driven Chart Analysis
-            </div>
-            <div style="font-size:13px;color:#6B7280;">
-                Click <strong>🤖 Run AI Analysis</strong> above to generate
-                AI-recommended chart insights for this dataset.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Display AI analysis results (only when a result is cached in session state)
-    ai_result = st.session_state.get("ai_analysis_result")
-    if ai_result:
-        # Summary card
-        summary = ai_result.get("summary", "")
-        top_anomaly = ai_result.get("top_anomaly", "")
-
-        if summary:
-            st.markdown(f"""
-            <div style="background:#EEF1F4;border-left:4px solid #1B2A4A;border-radius:8px;padding:16px;margin-bottom:12px;">
-                <div style="font-weight:700;color:#1B2A4A;margin-bottom:6px;">📊 Dataset Summary</div>
-                <div style="color:#374151;">{summary}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        if top_anomaly:
-            st.markdown(f"""
-            <div style="background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;padding:16px;margin-bottom:20px;">
-                <div style="font-weight:700;color:#92400E;margin-bottom:6px;">⚠️ Top Finding</div>
-                <div style="color:#374151;">{top_anomaly}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Render AI-recommended charts
-        insights = ai_result.get("insights", [])
-        if insights:
-            ai_chart_cols = st.columns(min(len(insights), 3))
-            for i, insight in enumerate(insights[:3]):
-                with ai_chart_cols[i % 3]:
-                    title = insight.get("title", f"Chart {i+1}")
-                    chart_type = insight.get("chart_type", "bar")
-                    x_col = insight.get("x_axis", "")
-                    y_col = insight.get("y_axis", "")
-                    rationale = insight.get("rationale", "")
-                    anomaly = insight.get("anomaly")
-
-                    try:
-                        # Only render if both columns exist in the dataframe
-                        if x_col in df_all.columns and y_col in df_all.columns:
-                            plot_df = df_all[[x_col, y_col]].dropna()
-
-                            # Aggregate text/category x-axis columns by summing y
-                            if plot_df[x_col].dtype == object or pd.api.types.is_categorical_dtype(plot_df[x_col]):
-                                plot_df = plot_df.groupby(x_col)[y_col].sum().reset_index()
-
-                            if chart_type == "bar":
-                                fig = px.bar(plot_df, x=x_col, y=y_col, title=title,
-                                            color_discrete_sequence=["#1B2A4A"])
-                            elif chart_type == "line":
-                                fig = px.line(plot_df, x=x_col, y=y_col, title=title,
-                                             color_discrete_sequence=["#1B2A4A"])
-                            elif chart_type == "scatter":
-                                fig = px.scatter(plot_df, x=x_col, y=y_col, title=title,
-                                               color_discrete_sequence=["#1B2A4A"])
-                            elif chart_type == "pie":
-                                fig = px.pie(plot_df, names=x_col, values=y_col, title=title)
-                            else:
-                                fig = px.bar(plot_df, x=x_col, y=y_col, title=title,
-                                            color_discrete_sequence=["#1B2A4A"])
-
-                            fig.update_layout(
-                                paper_bgcolor="rgba(0,0,0,0)",
-                                plot_bgcolor="rgba(0,0,0,0)",
-                                font_family="Poppins, sans-serif",
-                                height=300,
-                                margin=dict(l=20, r=20, t=40, b=20),
-                            )
-                            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG, key=f"ai_chart_{i}")
-
-                            # Label showing this was AI-selected
-                            st.markdown(f"""
-                            <div style="font-size:11px;color:#6B7280;background:#F9FAFB;border-radius:4px;padding:6px 10px;margin-top:-8px;">
-                                🤖 <em>AI selected · {rationale}</em>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                            if anomaly:
-                                st.markdown(f"""
-                                <div style="font-size:11px;color:#92400E;background:#FEF3C7;border-radius:4px;padding:4px 8px;margin-top:4px;">
-                                    ⚠️ {anomaly}
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.info(f"Column '{x_col}' or '{y_col}' not found in data")
-
-                    except Exception as chart_err:
-                        st.warning(f"Could not render chart: {chart_err}")
-
-    # ─────────────────────────────────────────────────────────────────────────
     # NATURAL LANGUAGE QUERYING
     # User can ask plain English questions about their data
     # ─────────────────────────────────────────────────────────────────────────
@@ -3007,12 +2764,11 @@ else:
 
         # Restore previous checkbox selections from session state
         _defs = st.session_state.get("_rpt_section_defaults", {
-            "summary_metrics":        True,
-            "performance_charts":     True,
-            "daily_performance":      True,
-            "period_comparison":      True,
-            "ai_advertiser_insights": False,
-            "ai_driven_analysis":     False,
+            "summary_metrics":    True,
+            "performance_charts": True,
+            "daily_performance":  True,
+            "period_comparison":  True,
+            "ai_insights":        False,
         })
 
         # Select all / Deselect all buttons
@@ -3052,18 +2808,13 @@ else:
             help="Requires 14+ days of date data." if not _period_comp_available else None,
         )
         s_ai_ins = st.checkbox(
-            "AI Advertiser Insights",
-            value=_defs.get("ai_advertiser_insights", False),
+            "AI Insights",
+            value=_defs.get("ai_insights", False),
             disabled=not _ai_ins_avail,
             key="rpt_cb_ai_ins",
             help="Requires a grouping column and API key." if not _ai_ins_avail else None,
         )
-        s_ai_drv = st.checkbox(
-            "AI-Driven Analysis",
-            value=_defs.get("ai_driven_analysis", False),
-            key="rpt_cb_ai_drv",
-        )
-        st.caption("☝ AI sections use AI credits (API calls made at export time if not already cached).")
+        st.caption("☝ AI Insights uses AI credits (API calls made at export time).")
 
         st.markdown("")
 
@@ -3073,12 +2824,11 @@ else:
             if st.button("Generate PowerPoint", type="primary", key="rpt_gen_btn"):
                 # Persist selections for next time the dialog is opened
                 st.session_state["_rpt_section_defaults"] = {
-                    "summary_metrics":        s_summary,
-                    "performance_charts":     s_charts,
-                    "daily_performance":      s_daily,
-                    "period_comparison":      s_period,
-                    "ai_advertiser_insights": s_ai_ins,
-                    "ai_driven_analysis":     s_ai_drv,
+                    "summary_metrics":    s_summary,
+                    "performance_charts": s_charts,
+                    "daily_performance":  s_daily,
+                    "period_comparison":  s_period,
+                    "ai_insights":        s_ai_ins,
                 }
                 _sections = st.session_state["_rpt_section_defaults"]
                 if not any(_sections.values()):
@@ -3095,7 +2845,6 @@ else:
                                 camp_summary,
                                 df_all,
                                 sections=_sections,
-                                ai_analysis_cache=st.session_state.get("ai_analysis_result"),
                             )
                             st.session_state["pptx_report"] = pptx_buf
                         except Exception as _e:
@@ -3105,11 +2854,8 @@ else:
             if st.button("Cancel", key="rpt_cancel_btn"):
                 st.rerun()
 
-    # Centre the Generate Report button
-    _, _rpt_col, _ = st.columns([2, 2, 2])
-    with _rpt_col:
-        if st.button("📊 Generate Report", type="primary", key="open_report_dialog_btn"):
-            _show_report_dialog()
+    if st.button("Download Content", type="primary", key="open_report_dialog_btn"):
+        _show_report_dialog()
 
     # Show download button and success message after a report has been generated
     if st.session_state.get("pptx_report"):

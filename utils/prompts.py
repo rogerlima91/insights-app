@@ -249,60 +249,6 @@ def pptx_budget_shift_prompt(data_text: str) -> str:
     )
 
 
-def pptx_ai_driven_prompt(data_text: str) -> str:
-    """AI-Driven Analysis slide: SUMMARY paragraph + TOP FINDING."""
-    return (
-        f"{SHARED_CONTEXT}\n\n"
-        f"Campaign performance data:\n{data_text}\n\n"
-        f"Provide a brief AI analysis in two parts:\n"
-        f"1. SUMMARY: One paragraph on the most important patterns in this dataset.\n"
-        f"2. TOP FINDING: The single most important anomaly or insight.\n\n"
-        f"Format exactly as:\n"
-        f"SUMMARY: [text]\n"
-        f"TOP FINDING: [text]"
-    )
-
-
-# ── AI-Driven chart recommendations ────────────────────────────────────────
-# Used by the AI-Driven Analysis section of performance_insights.py.
-# Returns JSON — must have no markdown fences in output.
-
-def chart_recommendations_prompt(columns_list, sample_rows: str,
-                                  brand_ctx_injection: str, seed_val: int) -> str:
-    """
-    JSON-returning prompt for AI-driven chart recommendations.
-    Returns exactly 3 chart suggestions with title, chart_type, x/y axes,
-    rationale, and anomaly fields. No markdown fences in output.
-    """
-    return (
-        f"{SHARED_CONTEXT}\n\n"
-        f"You are an expert data analyst reviewing a programmatic advertising "
-        f"dataset. Here are the columns available: {columns_list}. "
-        f"Here is a sample of the data:\n\n"
-        f"{sample_rows}"
-        f"{brand_ctx_injection}\n\n"
-        f"Return only valid JSON — no markdown fences, no extra text — "
-        f"with this exact structure:\n"
-        "{{\n"
-        "  \"insights\": [\n"
-        "    {{\n"
-        "      \"title\": \"Chart title\",\n"
-        "      \"chart_type\": \"bar|line|scatter|pie\",\n"
-        "      \"x_axis\": \"column name\",\n"
-        "      \"y_axis\": \"column name\",\n"
-        "      \"rationale\": \"Why this chart surfaces a useful insight\",\n"
-        "      \"anomaly\": \"Any anomaly detected in this dimension or null\"\n"
-        "    }}\n"
-        "  ],\n"
-        "  \"summary\": \"One paragraph summary of the most important patterns "
-        "in this dataset\",\n"
-        "  \"top_anomaly\": \"The single most important anomaly or finding across "
-        "the whole dataset\"\n"
-        "}}\n"
-        f"Return exactly 3 chart recommendations. Seed: {seed_val}"
-    )
-
-
 # ── Natural language Q&A ────────────────────────────────────────────────────
 # Used by the Ask a question section of performance_insights.py.
 
