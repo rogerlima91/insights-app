@@ -11,6 +11,10 @@ import streamlit as st
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.design_system import PLOTLY_CONFIG
 from utils.file_loader import read_file
+from utils.prompts import (
+    SYSTEM_UBER_PARTNER_MANAGER, SYSTEM_UBER_SENIOR_PM,
+    uber_roi_business_case_prompt, uber_campaign_outcome_prompt,
+)
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
@@ -957,54 +961,14 @@ with tab_forecast:
                 cons = fc_res["Conservative"]
                 opti = fc_res["Optimistic"]
 
-                prompt = (
-                    f"You are a Partner Manager at Uber Advertising ANZ building a business case "
-                    f"for a {fc_inputs['category']} restaurant partner to invest in Uber Ads. "
-                    f"Here are the calculated projections:\n\n"
-                    f"PARTNER PROFILE\n"
-                    f"- Category: {fc_inputs['category']}\n"
-                    f"- Average order value: A${fc_inputs['avg_order_value']:.2f}\n"
-                    f"- Current monthly organic orders: {fc_inputs['organic_orders']:,}\n"
-                    f"- Number of Uber Eats locations: {fc_inputs['num_locations']}\n"
-                    f"- Uber Eats rating: {fc_inputs['rating']:.1f}\n\n"
-                    f"CAMPAIGN PARAMETERS\n"
-                    f"- Monthly ad budget: A${fc_inputs['monthly_budget']:,.0f}\n"
-                    f"- Campaign types: {', '.join(fc_inputs['campaign_types']) or 'None'}\n"
-                    f"- Objective: {fc_inputs['target_objective']}\n"
-                    f"- Duration: {fc_inputs['campaign_weeks']} weeks\n"
-                    f"- Daypart focus: {', '.join(fc_inputs['dayparts']) or 'All dayparts'}\n\n"
-                    f"PROJECTIONS\n"
-                    f"Conservative — {cons['orders']:,.0f} total orders, "
-                    f"{cons['incr_orders']:,.0f} incremental, "
-                    f"A${cons['revenue']:,.0f} revenue, {cons['roas']:.2f}x ROAS, "
-                    f"A${cons['cpo']:.2f} CPO\n"
-                    f"Base Case    — {base['orders']:,.0f} total orders, "
-                    f"{base['incr_orders']:,.0f} incremental, "
-                    f"A${base['revenue']:,.0f} revenue, {base['roas']:.2f}x ROAS, "
-                    f"A${base['cpo']:.2f} CPO\n"
-                    f"Optimistic   — {opti['orders']:,.0f} total orders, "
-                    f"{opti['incr_orders']:,.0f} incremental, "
-                    f"A${opti['revenue']:,.0f} revenue, {opti['roas']:.2f}x ROAS, "
-                    f"A${opti['cpo']:.2f} CPO\n\n"
-                    f"Write a compelling 3-paragraph business case that:\n"
-                    f"1. Opens with the revenue opportunity using base case numbers\n"
-                    f"2. Explains why incremental orders matter more than total orders\n"
-                    f"3. Closes with a clear recommended starting budget and expected return\n\n"
-                    f"Write in a consultative, commercially confident tone suitable for "
-                    f"presenting to a restaurant partner's marketing director. "
-                    f"All currency values are in AUD (A$ symbol)."
-                )
+                prompt = uber_roi_business_case_prompt(fc_inputs, cons, base, opti)
 
                 ai_client = anthropic.Anthropic(api_key=api_key)
                 with st.spinner("Generating business case…"):
                     msg = ai_client.messages.create(
                         model="claude-sonnet-4-6",
                         max_tokens=700,
-                        system=(
-                            "You are a Partner Manager at Uber Advertising ANZ. "
-                            "Write commercially confident, data-driven business cases. "
-                            "Be specific with numbers. Use Australian English."
-                        ),
+                        system=SYSTEM_UBER_PARTNER_MANAGER,
                         messages=[{"role": "user", "content": prompt}],
                     )
                 st.session_state["fc_ai_case"] = msg.content[0].text.strip()
@@ -1546,30 +1510,9 @@ with tab_outcome:
                 bench_ctr   = oc_b["avg_ctr"]
                 bench_incr  = oc_b["incr_rate"] * 100
 
-                oc_prompt = (
-                    f"You are a senior Uber Advertising ANZ Partner Manager reviewing a completed "
-                    f"campaign for a {oc_inp['category']} restaurant.\n\n"
-                    f"CAMPAIGN DETAILS\n"
-                    f"- Restaurant: {oc_inp.get('restaurant_name') or oc_inp['category']}\n"
-                    f"- Spend: A${oc_inp['spend']:,.0f}\n"
-                    f"- Duration: {oc_inp['start_date']} to {oc_inp['end_date']}\n\n"
-                    f"ACTUALS vs TARGETS\n"
-                    f"- ROAS: {oc_met['actual_roas']:.2f}x (target {oc_inp['target_roas']:.1f}x)\n"
-                    f"- Total Orders: {oc_inp['total_orders']:,} (target {oc_inp['target_orders']:,})\n"
-                    f"- Incremental Orders: {oc_inp['incr_orders']:,}\n"
-                    f"- CPO: A${oc_met['actual_cpo']:.2f}\n"
-                    f"- CTR: {oc_met['ctr']:.2f}%  |  Conv Rate: {oc_met['conv_rate']:.2f}%\n"
-                    f"- Incremental Rate: {oc_met['incr_rate']:.1f}%\n"
-                    f"- Campaign Health Score: {oc_h}/100\n\n"
-                    f"CATEGORY BENCHMARKS\n"
-                    f"- Benchmark ROAS: {bench_roas:.1f}x  |  Benchmark CPO: A${bench_cpo:.2f}\n"
-                    f"- Benchmark CTR: {bench_ctr:.1f}%  |  Benchmark Incremental Rate: {bench_incr:.0f}%\n\n"
-                    f"Write a 3-paragraph campaign analysis that:\n"
-                    f"1. Summarises overall campaign performance and health score in context\n"
-                    f"2. Identifies the 1-2 strongest and weakest metrics vs benchmark\n"
-                    f"3. Gives 3 specific, actionable recommendations for the next campaign\n\n"
-                    f"Write in a direct, commercially confident tone for a restaurant marketing director. "
-                    f"Use A$ for all currency. Be specific with numbers."
+                oc_prompt = uber_campaign_outcome_prompt(
+                    oc_inp, oc_met, oc_h,
+                    bench_roas, bench_cpo, bench_ctr, bench_incr,
                 )
 
                 ai_client_oc = anthropic.Anthropic(api_key=api_key_oc)
@@ -1577,11 +1520,7 @@ with tab_outcome:
                     oc_msg = ai_client_oc.messages.create(
                         model="claude-sonnet-4-6",
                         max_tokens=700,
-                        system=(
-                            "You are a senior Uber Advertising ANZ Partner Manager. "
-                            "Write direct, data-led campaign reviews with clear next steps. "
-                            "Use Australian English."
-                        ),
+                        system=SYSTEM_UBER_SENIOR_PM,
                         messages=[{"role": "user", "content": oc_prompt}],
                     )
                 st.session_state["oc_ai_text"] = oc_msg.content[0].text.strip()

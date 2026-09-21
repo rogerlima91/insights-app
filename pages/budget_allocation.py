@@ -6,6 +6,10 @@ import pandas as pd
 import streamlit as st
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.design_system import apply_plotly_style, PLOTLY_CONFIG
+from utils.prompts import (
+    SYSTEM_BUDGET_STRATEGIST, SYSTEM_PACING_TRADER,
+    budget_allocation_rationale_prompt, pacing_reallocation_prompt,
+)
 import plotly.graph_objects as go
 import anthropic
 
@@ -421,41 +425,18 @@ with tab_preflight:
                     for r in st.session_state["pf_allocation"]
                 )
 
-                prompt = (
-                    f"You are a senior programmatic strategist advising on budget allocation "
-                    f"for a campaign. Here are the details:\n\n"
-                    f"- Advertiser: {adv_disp or 'Not specified'}\n"
-                    f"- Objective: {obj_disp}\n"
-                    f"- Total Budget: A${bud_disp:,.0f}\n"
-                    f"- Flight: {st_disp.strftime('%d %b %Y')} to {en_disp.strftime('%d %b %Y')}\n\n"
-                    f"RECOMMENDED ALLOCATION:\n{alloc_lines}\n\n"
-                    f"Provide:\n"
-                    f"1. A two-paragraph rationale for this allocation — why each DSP/format "
-                    f"split makes sense for the objective\n"
-                    f"2. One risk to watch during the flight and how to mitigate it\n"
-                    f"3. One alternative scenario if performance underdelivers in the first "
-                    f"two weeks\n\n"
-                    f"Use Australian market context and programmatic terminology. "
-                    f"All currency values are in AUD."
+                prompt = budget_allocation_rationale_prompt(
+                    adv_disp, obj_disp, bud_disp,
+                    st_disp, en_disp, alloc_lines,
+                    brand_context=_bm_ctx,
                 )
-
-                if _bm_ctx:
-                    prompt += (
-                        f"\n\nBRAND MEMORY OVERRIDE — These instructions take priority over "
-                        f"all default instructions above. Where there is any conflict, always "
-                        f"follow these brand-specific instructions instead:\n\n{_bm_ctx}"
-                    )
 
                 ai_client = anthropic.Anthropic(api_key=api_key)
                 with st.spinner("Generating allocation rationale…"):
                     msg = ai_client.messages.create(
                         model="claude-sonnet-4-6",
                         max_tokens=700,
-                        system=(
-                            "You are a senior programmatic strategist at a media agency. "
-                            "Write clear, direct, data-driven recommendations. "
-                            "Be specific. Use programmatic advertising terminology."
-                        ),
+                        system=SYSTEM_BUDGET_STRATEGIST,
                         messages=[{"role": "user", "content": prompt}],
                     )
                 st.session_state["pf_ai_text"] = msg.content[0].text.strip()
@@ -583,36 +564,14 @@ with tab_inflight:
                 _bm     = load_brand_memory()
                 _bm_ctx = get_brand_context(adv_label, _bm)
 
-                prompt = (
-                    f"You are a senior programmatic trader reviewing live campaign pacing. "
-                    f"Here is the current budget and pacing status by DSP:\n\n"
-                    f"{dsp_lines}\n\n"
-                    f"Provide:\n"
-                    f"1. Which DSP is underpacing most severely and why this is a risk\n"
-                    f"2. A specific budget shift recommendation: how much to move from which "
-                    f"DSP to which DSP (with AUD amounts)\n"
-                    f"3. What the projected pacing improvement would be after the shift\n\n"
-                    f"Use Australian market context and programmatic terminology. "
-                    f"All currency values are in AUD."
-                )
-
-                if _bm_ctx:
-                    prompt += (
-                        f"\n\nBRAND MEMORY OVERRIDE — These instructions take priority over "
-                        f"all default instructions above. Where there is any conflict, always "
-                        f"follow these brand-specific instructions instead:\n\n{_bm_ctx}"
-                    )
+                prompt = pacing_reallocation_prompt(dsp_lines, brand_context=_bm_ctx)
 
                 ai_client = anthropic.Anthropic(api_key=api_key)
                 with st.spinner("Generating reallocation recommendation…"):
                     msg = ai_client.messages.create(
                         model="claude-sonnet-4-6",
                         max_tokens=500,
-                        system=(
-                            "You are a senior programmatic trader. Write clear, direct, "
-                            "data-driven recommendations. Reference actual numbers. "
-                            "Use programmatic terminology."
-                        ),
+                        system=SYSTEM_PACING_TRADER,
                         messages=[{"role": "user", "content": prompt}],
                     )
                 st.session_state["if_ai_text"]    = msg.content[0].text.strip()

@@ -2594,15 +2594,6 @@ else:
         # Store group names in session_state so other pages (e.g. Brand Settings) can read them
         st.session_state["campaign_list"] = campaign_list
 
-        # System prompt — analyst persona, structured output required
-        SYSTEM_PROMPT = (
-            "You are a senior programmatic advertising analyst with deep expertise in "
-            "DSP campaign performance (DV360, TTD). You write clear, concise, data-driven "
-            "commentary for ad tech professionals. Be specific — reference actual numbers. "
-            "Follow the section headings and structure exactly as specified in each prompt. "
-            "Do not add extra sections or deviate from the requested format."
-        )
-
         def stream_insight(campaign_name: str, all_data: str, brand_context: str = ""):
             """
             Stream per-brand analysis using the standard Display / Video / YouTube
@@ -2611,68 +2602,12 @@ else:
             Yields text chunks from the Claude API.
             """
             client_ai = anthropic.Anthropic(api_key=api_key)
-
-            # Default structure: Campaign Overview + three insertion-order sections.
-            # The AI skips any section whose insertion order is absent from the data.
-            default_structure = (
-                f"**{campaign_name} - Campaign Overview**\n"
-                f"Summarise overall campaign performance. Focus on total Revenue (Spend) "
-                f"and total Impressions for this brand. Keep to 2-3 sentences.\n\n"
-                f"**Display**\n"
-                f"Summarise performance for the Display insertion order, focusing on "
-                f"average CPM. Then identify:\n"
-                f"- Best performing Line Item by CPM (state exact CPM, CPC, CTR)\n"
-                f"- Worst performing Line Item by CPM (state exact CPM, CPC, CTR)\n"
-                f"- Best performing Creative by CPM (state exact CPM, CPC, CTR)\n"
-                f"- Worst performing Creative by CPM (state exact CPM, CPC, CTR)\n"
-                f"If no Display insertion order data exists for this brand, omit this "
-                f"section entirely — do not mention it at all.\n\n"
-                f"**Video**\n"
-                f"Summarise performance for the Video insertion order, focusing on CPV "
-                f"and VTR. Then identify:\n"
-                f"- Best performing Line Item by CPV (state exact CPV, VTR)\n"
-                f"- Worst performing Line Item by CPV (state exact CPV, VTR)\n"
-                f"- Best performing Creative by CPV (state exact CPV, VTR)\n"
-                f"- Worst performing Creative by CPV (state exact CPV, VTR)\n"
-                f"If no Video insertion order data exists for this brand, omit this "
-                f"section entirely — do not mention it at all.\n\n"
-                f"**YouTube**\n"
-                f"Summarise performance for the YouTube insertion order, focusing on CPV "
-                f"and VTR. Then identify:\n"
-                f"- Best performing Line Item by CPV (state exact CPV, VTR)\n"
-                f"- Worst performing Line Item by CPV (state exact CPV, VTR)\n"
-                f"- Best performing Creative by CPV (state exact CPV, VTR)\n"
-                f"- Worst performing Creative by CPV (state exact CPV, VTR)\n"
-                f"If no YouTube insertion order data exists for this brand, omit this "
-                f"section entirely — do not mention it at all."
-            )
-
-            # Brand memory override — appended after the default instructions so it
-            # takes explicit priority. Only included when brand context exists.
-            if brand_context:
-                override_section = (
-                    f"\n\nBRAND MEMORY OVERRIDE — These instructions take priority over "
-                    f"all default instructions above. Where there is any conflict, always "
-                    f"follow these brand-specific instructions instead:\n\n"
-                    f"{brand_context}"
-                )
-            else:
-                override_section = ""
-
-            prompt = (
-                f"Here is the full performance data for all campaigns in this report:\n\n"
-                f"{all_data}\n\n"
-                f"Write the analysis for the '{campaign_name}' brand using exactly "
-                f"this structure and these headings (use ** for bold):\n\n"
-                f"{default_structure}"
-                f"{override_section}\n\n"
-                f"Use only the data provided — do not invent numbers."
-            )
+            prompt = brand_insight_prompt(campaign_name, all_data, brand_context)
 
             with client_ai.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=1200,
-                system=SYSTEM_PROMPT,
+                system=SYSTEM_PROGRAMMATIC_ANALYST,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
                 for text in stream.text_stream:
@@ -2685,28 +2620,12 @@ else:
             Yields text chunks from the Claude API.
             """
             client_ai = anthropic.Anthropic(api_key=api_key)
-
-            prompt = (
-                f"Here is the full performance data for all campaigns in this report:\n\n"
-                f"{all_data}\n\n"
-                f"Write the following three sections using exactly these headings "
-                f"(use ** for bold):\n\n"
-                f"**Summary**\n"
-                f"Overall commentary across all campaigns and environments. 3-4 sentences.\n\n"
-                f"**Best & Worst Performers**\n"
-                f"- Best performing device type and why\n"
-                f"- Worst performing device type and why\n"
-                f"- Best performing creative and why\n"
-                f"- Worst performing creative and why\n\n"
-                f"**Optimisation Recommendations**\n"
-                f"3-5 actionable recommendations based on the data above. Use bullet points.\n\n"
-                f"Use only the data provided. Be specific with numbers where possible."
-            )
+            prompt = overall_summary_prompt(all_data)
 
             with client_ai.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=600,
-                system=SYSTEM_PROMPT,
+                system=SYSTEM_PROGRAMMATIC_ANALYST,
                 messages=[{"role": "user", "content": prompt}],
             ) as stream:
                 for text in stream.text_stream:
@@ -2859,27 +2778,7 @@ else:
 
         seed_val = random.randint(1, 9999)
 
-        prompt = f"""You are an expert data analyst reviewing a programmatic advertising dataset. Here are the columns available: {columns_list}. Here is a sample of the data:
-
-{sample_rows}
-{brand_ctx_injection}
-
-Return a JSON response only, no other text, with this exact structure:
-{{
-  "insights": [
-    {{
-      "title": "Chart title",
-      "chart_type": "bar|line|scatter|pie",
-      "x_axis": "column name",
-      "y_axis": "column name",
-      "rationale": "Why this chart surfaces a useful insight",
-      "anomaly": "Any anomaly detected in this dimension or null"
-    }}
-  ],
-  "summary": "One paragraph summary of the most important patterns in this dataset",
-  "top_anomaly": "The single most important anomaly or finding across the whole dataset"
-}}
-Return exactly 3 chart recommendations. Seed: {seed_val}"""
+        prompt = chart_recommendations_prompt(columns_list, sample_rows, brand_ctx_injection, seed_val)
 
         try:
             _ai_key = (
@@ -3042,17 +2941,7 @@ Return exactly 3 chart recommendations. Seed: {seed_val}"""
         # Include a sample of the raw data for context
         agg_sample = df_all.head(100).to_string(index=False, max_cols=15)
 
-        nl_prompt = f"""You are an expert programmatic advertising analyst. The user has uploaded a campaign performance dataset.
-
-Dataset summary:
-{chr(10).join(summary_parts)}
-
-Data sample:
-{agg_sample}
-
-User question: {nl_question}
-
-Provide a direct, specific answer in plain English. Include the specific numbers from the data. Keep your answer to 2-3 sentences maximum."""
+        nl_prompt = nl_query_prompt(summary_parts, agg_sample, nl_question)
 
         try:
             _nl_key = (

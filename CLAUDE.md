@@ -43,6 +43,7 @@ It processes that data to generate performance charts, AI-written insights, and 
 5. Column names from DSP exports vary — always check and normalise headers early in any script
 6. After every significant change or completed feature, automatically run `git add .`, `git commit` with a descriptive commit message, and `git push origin master` — do this without asking for confirmation
 7. **Section parity rule:** Any change to a page in the API Data section must be applied to the equivalent page in the Upload Report section, and vice versa, unless explicitly stated otherwise. The two sections differ only in data source (mock vs uploaded), never in logic, layout or features. If a change genuinely cannot apply to both, stop and ask before proceeding.
+8. **All prompts live in `utils/prompts.py`.** Never write prompt text inline in a page file. Import the builder function and call it. The module contains `SHARED_CONTEXT` (common framing), `SYSTEM_*` constants (API `system` parameter), and one builder function per feature.
 
 ## Design System (Pacebird Brand)
 - **Primary:** `#F5A623` warm orange — buttons, accents, active nav, card top borders

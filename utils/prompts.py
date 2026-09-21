@@ -1,15 +1,34 @@
 """
 utils/prompts.py — All Anthropic API prompt builders for the Insights App.
 
-Every prompt lives here as a builder function or constant. Call sites import
-the function or constant they need — no prompt text anywhere else in the codebase.
+Every prompt lives here. Page files must import and call these functions;
+no prompt text anywhere else in the codebase.
+
+Structure:
+    SHARED_CONTEXT      — common framing prepended to every user prompt
+    System constants    — SYSTEM_* strings passed as the `system` parameter
+    Builder functions   — one per feature; each prepends SHARED_CONTEXT
 
 Usage:
     from utils.prompts import brand_insight_prompt, SYSTEM_PROGRAMMATIC_ANALYST
     prompt = brand_insight_prompt(campaign_name, all_data, brand_context)
 """
 
-# ── System prompts ─────────────────────────────────────────────────────────
+# ── Shared context ──────────────────────────────────────────────────────────
+# Prepended to every user prompt so all calls share common framing.
+# Do NOT duplicate this framing inside individual builder functions.
+
+SHARED_CONTEXT = (
+    "Domain: programmatic advertising, Australian market. "
+    "Currency: AUD — always write as A$. "
+    "Tone: precise and data-driven; no marketing language. "
+    "Audience: media traders and publisher account managers."
+)
+
+
+# ── System prompts ──────────────────────────────────────────────────────────
+# Passed as the `system` parameter in messages.create / messages.stream.
+# Each establishes the AI persona for that call group.
 
 # Used by stream_insight() and stream_overall() in performance_insights.py
 SYSTEM_PROGRAMMATIC_ANALYST = (
@@ -57,9 +76,9 @@ SYSTEM_UBER_SENIOR_PM = (
 )
 
 
-# ── Brand memory override block ────────────────────────────────────────────
+# ── Brand memory override block ─────────────────────────────────────────────
 # CRITICAL: Preserve this wording exactly — the exact phrasing is intentional.
-# This block is appended to any prompt that supports brand memory context.
+# Appended to any prompt that supports brand memory context.
 
 def _brand_memory_block(brand_context: str) -> str:
     """Returns the brand memory override block for appending to prompts."""
@@ -71,12 +90,13 @@ def _brand_memory_block(brand_context: str) -> str:
     )
 
 
-# ── Performance Insights: streaming brand analysis ─────────────────────────
+# ── Performance Insights: streaming brand analysis ──────────────────────────
+# Used by stream_insight() in performance_insights.py.
 
 def brand_insight_prompt(campaign_name: str, all_data: str,
                          brand_context: str = "") -> str:
     """
-    Per-brand streaming insight prompt (stream_insight in performance_insights.py).
+    Per-brand streaming insight (stream_insight in performance_insights.py).
     Generates Display / Video / YouTube insertion-order breakdown.
     Brand memory override is appended when brand_context is provided.
     """
@@ -118,6 +138,7 @@ def brand_insight_prompt(campaign_name: str, all_data: str,
     override = _brand_memory_block(brand_context) if brand_context else ""
 
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Here is the full performance data for all campaigns in this report:\n\n"
         f"{all_data}\n\n"
         f"Write the analysis for the '{campaign_name}' brand using exactly "
@@ -128,12 +149,16 @@ def brand_insight_prompt(campaign_name: str, all_data: str,
     )
 
 
+# ── Performance Insights: cross-campaign summary ────────────────────────────
+# Used by stream_overall() in performance_insights.py.
+
 def overall_summary_prompt(all_data: str) -> str:
     """
-    Cross-campaign summary prompt (stream_overall in performance_insights.py).
+    Cross-campaign summary (stream_overall in performance_insights.py).
     Generates: Summary, Best & Worst Performers, Optimisation Recommendations.
     """
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Here is the full performance data for all campaigns in this report:\n\n"
         f"{all_data}\n\n"
         f"Write the following three sections using exactly these headings "
@@ -151,11 +176,13 @@ def overall_summary_prompt(all_data: str) -> str:
     )
 
 
-# ── PPTX slide prompts ─────────────────────────────────────────────────────
+# ── PPTX slide prompts ──────────────────────────────────────────────────────
+# All used by _ai_pptx() in performance_insights.py, called from build_pptx_report().
 
 def pptx_exec_summary_prompt(data_text: str) -> str:
     """Executive summary slide: best and worst performer insight paragraphs."""
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Campaign performance data:\n{data_text}\n\n"
         f"Write two short insight paragraphs for an executive summary slide:\n"
         f"1. Start \"Best performer: [Brand] —\" then 1-2 sentences on WHY, "
@@ -169,6 +196,7 @@ def pptx_exec_summary_prompt(data_text: str) -> str:
 def pptx_brand_breakdown_prompt(data_text: str, brand: str) -> str:
     """Per-brand performance breakdown slide (Display / Video / YouTube columns)."""
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Campaign performance data:\n{data_text}\n\n"
         f"Write a performance breakdown for brand: \"{brand}\"\n\n"
         f"Use EXACTLY this format — only include sections where data exists "
@@ -193,6 +221,7 @@ def pptx_brand_breakdown_prompt(data_text: str, brand: str) -> str:
 def pptx_brand_recommendations_prompt(data_text: str, brand: str) -> str:
     """Per-brand recommendations slide: exactly 5 action-verb bullets."""
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Campaign performance data:\n{data_text}\n\n"
         f"Write exactly 5 optimisation recommendations for brand: \"{brand}\"\n\n"
         f"Rules:\n"
@@ -207,13 +236,14 @@ def pptx_brand_recommendations_prompt(data_text: str, brand: str) -> str:
 def pptx_budget_shift_prompt(data_text: str) -> str:
     """Budget Shift Recommendations slide: pipe-separated Brand | IO | Recommendation."""
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Campaign performance data:\n{data_text}\n\n"
         f"For each brand, provide one budget reallocation recommendation.\n"
         f"Format EXACTLY as pipe-separated lines — one line per brand, no header row:\n"
         f"Brand Name | Best Performing IO | One-sentence recommendation starting "
         f"with an action verb\n\n"
         f"Example:\n"
-        f"Nike Summer 2024 | Display | Increase Display budget by 20% — lowest CPM at $3.20\n"
+        f"Nike Summer 2024 | Display | Increase Display budget by 20% — lowest CPM at A$3.20\n"
         f"Coke Q3 | YouTube | Shift 15% from Display to YouTube — VTR of 68% outperforms\n\n"
         f"Only include brands from the data. Cite actual numbers. No extra text."
     )
@@ -222,6 +252,7 @@ def pptx_budget_shift_prompt(data_text: str) -> str:
 def pptx_ai_driven_prompt(data_text: str) -> str:
     """AI-Driven Analysis slide: SUMMARY paragraph + TOP FINDING."""
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"Campaign performance data:\n{data_text}\n\n"
         f"Provide a brief AI analysis in two parts:\n"
         f"1. SUMMARY: One paragraph on the most important patterns in this dataset.\n"
@@ -232,22 +263,26 @@ def pptx_ai_driven_prompt(data_text: str) -> str:
     )
 
 
-# ── AI-Driven chart recommendations ───────────────────────────────────────
+# ── AI-Driven chart recommendations ────────────────────────────────────────
+# Used by the AI-Driven Analysis section of performance_insights.py.
+# Returns JSON — must have no markdown fences in output.
 
 def chart_recommendations_prompt(columns_list, sample_rows: str,
                                   brand_ctx_injection: str, seed_val: int) -> str:
     """
     JSON-returning prompt for AI-driven chart recommendations.
     Returns exactly 3 chart suggestions with title, chart_type, x/y axes,
-    rationale, and anomaly fields.
+    rationale, and anomaly fields. No markdown fences in output.
     """
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are an expert data analyst reviewing a programmatic advertising "
         f"dataset. Here are the columns available: {columns_list}. "
         f"Here is a sample of the data:\n\n"
         f"{sample_rows}"
         f"{brand_ctx_injection}\n\n"
-        f"Return a JSON response only, no other text, with this exact structure:\n"
+        f"Return only valid JSON — no markdown fences, no extra text — "
+        f"with this exact structure:\n"
         "{{\n"
         "  \"insights\": [\n"
         "    {{\n"
@@ -268,7 +303,8 @@ def chart_recommendations_prompt(columns_list, sample_rows: str,
     )
 
 
-# ── Natural language Q&A ───────────────────────────────────────────────────
+# ── Natural language Q&A ────────────────────────────────────────────────────
+# Used by the Ask a question section of performance_insights.py.
 
 def nl_query_prompt(summary_parts: list, agg_sample: str, nl_question: str) -> str:
     """
@@ -276,6 +312,7 @@ def nl_query_prompt(summary_parts: list, agg_sample: str, nl_question: str) -> s
     Returns a direct 2-3 sentence answer with specific numbers.
     """
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are an expert programmatic advertising analyst. The user has "
         f"uploaded a campaign performance dataset.\n\n"
         f"Dataset summary:\n"
@@ -288,12 +325,13 @@ def nl_query_prompt(summary_parts: list, agg_sample: str, nl_question: str) -> s
     )
 
 
-# ── Supply Brief: publisher commentary ────────────────────────────────────
+# ── Supply Brief: publisher commentary ─────────────────────────────────────
+# Used by _generate_commentary() in supply_brief.py.
 
 def supply_commentary_prompt(week_label: str, cur: dict,
                               yield_findings: list) -> str:
     """
-    Publisher-facing weekly supply performance commentary.
+    Publisher-facing weekly supply performance commentary (supply_brief.py).
     Generates 3 paragraphs: overall performance, key issues, recommended actions.
     Uses sell-side vocabulary (eCPM, fill rate, demand sources, inventory).
     """
@@ -302,6 +340,7 @@ def supply_commentary_prompt(week_label: str, cur: dict,
         for f in yield_findings[:5]
     )
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are writing a publisher-facing weekly supply "
         f"performance commentary for {week_label}.\n\n"
         f"Key metrics this week:\n"
@@ -319,7 +358,8 @@ def supply_commentary_prompt(week_label: str, cur: dict,
     )
 
 
-# ── Budget Allocation ──────────────────────────────────────────────────────
+# ── Budget Allocation ───────────────────────────────────────────────────────
+# Used by budget_allocation.py.
 
 def budget_allocation_rationale_prompt(adv_disp, obj_disp, bud_disp,
                                         st_disp, en_disp, alloc_lines: str,
@@ -330,6 +370,7 @@ def budget_allocation_rationale_prompt(adv_disp, obj_disp, bud_disp,
     Appends brand memory override when brand_context is provided.
     """
     prompt = (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are a senior programmatic strategist advising on budget allocation "
         f"for a campaign. Here are the details:\n\n"
         f"- Advertiser: {adv_disp or 'Not specified'}\n"
@@ -358,6 +399,7 @@ def pacing_reallocation_prompt(dsp_lines: str, brand_context: str = "") -> str:
     Appends brand memory override when brand_context is provided.
     """
     prompt = (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are a senior programmatic trader reviewing live campaign pacing. "
         f"Here is the current budget and pacing status by DSP:\n\n"
         f"{dsp_lines}\n\n"
@@ -374,17 +416,21 @@ def pacing_reallocation_prompt(dsp_lines: str, brand_context: str = "") -> str:
     return prompt
 
 
-# ── Uber ROI Calculator ────────────────────────────────────────────────────
+# ── Uber ROI Calculator ─────────────────────────────────────────────────────
+# Used by uber_roi_calculator.py.
 
 def uber_roi_business_case_prompt(fc_inputs: dict, cons: dict,
                                    base: dict, opti: dict) -> str:
     """
-    Pre-campaign ROI business case for a restaurant Uber Ads partner.
-    3 paragraphs: revenue opportunity, incremental orders rationale, recommended budget.
+    Pre-campaign ROI business case for a restaurant Uber Ads partner
+    (uber_roi_calculator.py).
+    3 paragraphs: revenue opportunity, incremental orders rationale,
+    recommended budget and expected return.
     """
     campaign_types = ', '.join(fc_inputs['campaign_types']) or 'None'
     dayparts = ', '.join(fc_inputs['dayparts']) or 'All dayparts'
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are a Partner Manager at Uber Advertising ANZ building a business case "
         f"for a {fc_inputs['category']} restaurant partner to invest in Uber Ads. "
         f"Here are the calculated projections:\n\n"
@@ -428,10 +474,12 @@ def uber_campaign_outcome_prompt(oc_inp: dict, oc_met: dict, oc_h: int,
                                   bench_ctr: float, bench_incr: float) -> str:
     """
     Post-campaign outcome analysis and recommendations (uber_roi_calculator.py).
-    3 paragraphs: overall performance, strongest/weakest vs benchmark, next-campaign recs.
+    3 paragraphs: overall performance vs benchmark, strongest/weakest metrics,
+    next-campaign recommendations.
     """
     restaurant = oc_inp.get('restaurant_name') or oc_inp['category']
     return (
+        f"{SHARED_CONTEXT}\n\n"
         f"You are a senior Uber Advertising ANZ Partner Manager reviewing a completed "
         f"campaign for a {oc_inp['category']} restaurant.\n\n"
         f"CAMPAIGN DETAILS\n"

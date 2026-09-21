@@ -34,6 +34,7 @@ from utils.design_system import (
     WARNING, DANGER, WHITE, TEXT_SEC, apply_plotly_style, metric_card,
     get_anthropic_api_key,
 )
+from utils.prompts import supply_commentary_prompt
 
 # STYLE LOCK: Pacebird design system — #F5A623 orange, #1B2A4A navy, Poppins.
 # Shared CSS applied globally by app.py. Do not override.
@@ -738,25 +739,7 @@ def _generate_commentary(api_key, week_label, cur, yield_findings):
     """
     import anthropic as _ant
 
-    prompt = (
-        f"You are writing a publisher-facing weekly supply "
-        f"performance commentary for {week_label}.\n\n"
-        f"Key metrics this week:\n"
-        f"  Revenue: A${cur.get('revenue_aud', 0):,.0f}\n"
-        f"  Fill Rate: {cur.get('fill_rate', 0):.1%}\n"
-        f"  eCPM: A${cur.get('ecpm', 0):.2f}\n"
-        f"  Completion Rate: {cur.get('completion_rate', 0):.1%}\n\n"
-        "Top findings:\n"
-        + "\n".join(
-            f"- {f['title']}: {f['detail']}"
-            for f in yield_findings[:5]
-        )
-        + "\n\nWrite 3 concise paragraphs: (1) overall performance "
-        "summary, (2) key issues and their context, "
-        "(3) recommended actions. Use sell-side vocabulary "
-        "(eCPM, fill rate, demand sources, inventory). "
-        "Be specific and data-driven."
-    )
+    prompt = supply_commentary_prompt(week_label, cur, yield_findings)
 
     client = _ant.Anthropic(api_key=api_key)
     resp = client.messages.create(
