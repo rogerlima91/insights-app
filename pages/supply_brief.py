@@ -36,6 +36,16 @@ from utils.design_system import (
 )
 from utils.prompts import supply_commentary_prompt
 
+# Publisher → properties mapping — used by data generation, commentary section,
+# and PPTX export. Adding a publisher here automatically includes it everywhere.
+PUBLISHER_PROPERTIES = {
+    "Seven West Media": ["7plus", "7NEWS.com.au", "Seven Network"],
+    "Paramount ANZ":    ["10 play", "Paramount+", "Network 10"],
+    "Nine":             ["9Now", "9News.com.au", "Nine Network"],
+    "Foxtel Media":     ["Binge", "Kayo Sports", "Flash"],
+    "TVNZ":             ["TVNZ+", "1News.co.nz"],
+}
+
 # STYLE LOCK: Pacebird design system — #F5A623 orange, #1B2A4A navy, Poppins.
 # Shared CSS applied globally by app.py. Do not override.
 
@@ -48,12 +58,22 @@ DATA_FILE = os.path.join(_APP_ROOT, "data", "supply_performance.json")
 def _generate_supply_data():
     """
     Generate 12 weeks of daily supply-side performance data.
-    Produces 1,260 rows (15 combos × 84 days).
+    Produces 1,512 rows (18 combos × 84 days).
     Uses a fixed seed (42) for reproducible results.
 
-    Two deliberate anomalies:
-      A1 — Week 10: Nine / 9Now / Pre-roll / CTV fill rate crashes from ~90% to ~52%
-      A2 — Week 11: Seven West Media / 7plus / Mid-roll / Mobile eCPM spikes from ~A$22 to ~A$29
+    Publishers and properties:
+      Seven West Media — 7plus, 7NEWS.com.au, Seven Network
+      Paramount ANZ    — 10 play, Paramount+, Network 10
+      Nine             — 9Now, 9News.com.au, Nine Network
+      Foxtel Media     — Binge, Kayo Sports, Flash
+      TVNZ             — TVNZ+, 1News.co.nz
+
+    Three deliberate anomalies:
+      A1 — Week 10 (week_num=9): Nine / 9Now / Pre-roll / CTV (idx=8)
+           fill rate crashes from ~90% to ~52% (demand partner withdrawal)
+      A2 — Week 11 (week_num=10): Seven West Media / 7plus / Mid-roll / Mobile (idx=1)
+           eCPM spikes from ~A$23 to ~A$30 (floor price increase)
+      Kayo — Kayo Sports CTV Pre-roll (idx=14): eCPM +35% and fill +5% on weekends
     """
     random.seed(42)
 
@@ -68,27 +88,47 @@ def _generate_supply_data():
     #              buyer, deal_id, base_daily_requests, base_fill_rate,
     #              base_ecpm_aud, base_completion_rate)
     combos = [
-        # ── Nine / 9Now ──────────────────────────────────────────────────────
-        ("Nine", "9Now", "9Now_PreRoll_CTV",   "Pre-roll",        "Connected TV", "Programmatic Guaranteed", "DV360",           "PG-NINE-001",  250_000, 0.90, 38.0, 0.94),
-        ("Nine", "9Now", "9Now_MidRoll_CTV",   "Mid-roll",        "Connected TV", "Open Auction",            "The Trade Desk",  "",             180_000, 0.82, 32.0, 0.88),
-        ("Nine", "9Now", "9Now_PreRoll_MOB",   "Pre-roll",        "Mobile",       "Preferred Deal",          "Amazon DSP",      "PD-NINE-002",  320_000, 0.78, 19.0, 0.72),
-        ("Nine", "9Now", "9Now_PauseAd_CTV",   "Pause Ad",        "Connected TV", "Direct IO",               "Direct",          "DIO-NINE-001", 100_000, 0.93, 28.0, 0.85),
-        # ── Seven West Media / 7plus ─────────────────────────────────────────
-        ("Seven West Media", "7plus", "7plus_PreRoll_CTV",  "Pre-roll", "Connected TV", "Programmatic Guaranteed", "DV360",          "PG-SWM-001", 200_000, 0.89, 36.0, 0.93),
-        ("Seven West Media", "7plus", "7plus_MidRoll_MOB",  "Mid-roll", "Mobile",       "Open Auction",            "The Trade Desk", "",           280_000, 0.71, 22.0, 0.68),
-        # ── Paramount ANZ / 10 play ──────────────────────────────────────────
-        ("Paramount ANZ", "10 play", "10play_PreRoll_DSK",  "Pre-roll",  "Desktop",      "Open Auction",  "Yahoo DSP",       "",             450_000, 0.63, 11.50, 0.65),
-        ("Paramount ANZ", "10 play", "10play_MidRoll_CTV",  "Mid-roll",  "Connected TV", "Preferred Deal","DV360",           "PD-PAR-001",   150_000, 0.86, 42.0, 0.91),
-        ("Paramount ANZ", "10 play", "10play_PostRoll_MOB", "Post-roll", "Mobile",       "Open Auction",  "The Trade Desk",  "",             200_000, 0.68,  9.50, 0.58),
-        # ── SBS / SBS On Demand ──────────────────────────────────────────────
-        ("SBS", "SBS On Demand", "SBS_PreRoll_CTV",    "Pre-roll",        "Connected TV", "Private Auction", "Amazon DSP", "PA-SBS-001", 120_000, 0.80, 24.0, 0.92),
-        ("SBS", "SBS On Demand", "SBS_Display_DSK",    "Display Companion","Desktop",     "Open Auction",    "Yahoo DSP",  "",           300_000, 0.61,  5.50, 0.00),
-        # ── Foxtel Media / Binge ─────────────────────────────────────────────
-        ("Foxtel Media", "Binge", "Binge_PreRoll_CTV",  "Pre-roll", "Connected TV", "Programmatic Guaranteed", "DV360",          "PG-FOX-001",  180_000, 0.91, 39.0, 0.95),
-        ("Foxtel Media", "Binge", "Binge_MidRoll_CTV",  "Mid-roll", "Connected TV", "Preferred Deal",          "The Trade Desk", "PD-FOX-001",  140_000, 0.87, 44.0, 0.89),
-        # ── TVNZ / TVNZ+ ─────────────────────────────────────────────────────
-        ("TVNZ", "TVNZ+", "TVNZ_PreRoll_CTV",  "Pre-roll", "Connected TV", "Programmatic Guaranteed", "DV360",    "PG-TVNZ-001", 160_000, 0.88, 35.0, 0.92),
-        ("TVNZ", "TVNZ+", "TVNZ_PreRoll_MOB",  "Pre-roll", "Mobile",       "Open Auction",            "Yahoo DSP","",            220_000, 0.70, 13.0, 0.71),
+        # ── Seven West Media / 7plus ──────────────────────────────────────────────
+        # idx=0
+        ("Seven West Media","7plus",       "7plus_PreRoll_CTV",    "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-SWM-001",  300_000, 0.91, 38.0, 0.94),
+        # idx=1  A2: Week 11 eCPM spike
+        ("Seven West Media","7plus",       "7plus_MidRoll_MOB",    "Mid-roll",         "Mobile",      "Open Auction",           "The Trade Desk", "",            380_000, 0.74, 23.0, 0.70),
+        # idx=2
+        ("Seven West Media","7NEWS.com.au","7news_PreRoll_DSK",    "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            600_000, 0.58, 10.5, 0.66),
+        # idx=3
+        ("Seven West Media","Seven Network","sevnet_Display_DSK",  "Display Companion","Desktop",     "Direct IO",              "Direct",         "DIO-SWM-001", 250_000, 0.72,  6.5, 0.00),
+        # ── Paramount ANZ / Paramount+ (CTV-heavy) ────────────────────────────────
+        # idx=4
+        ("Paramount ANZ",  "Paramount+",  "paramplus_PreRoll_CTV","Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-PAR-001",  160_000, 0.93, 44.0, 0.95),
+        # idx=5
+        ("Paramount ANZ",  "Paramount+",  "paramplus_MidRoll_CTV","Mid-roll",         "Connected TV","Preferred Deal",         "The Trade Desk", "PD-PAR-001",  120_000, 0.88, 40.0, 0.92),
+        # idx=6
+        ("Paramount ANZ",  "10 play",     "10play_PreRoll_DSK",   "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            420_000, 0.62, 11.0, 0.65),
+        # idx=7
+        ("Paramount ANZ",  "Network 10",  "net10_PreRoll_MOB",    "Pre-roll",         "Mobile",      "Open Auction",           "Amazon DSP",     "",            220_000, 0.69,  9.5, 0.63),
+        # ── Nine / 9Now ───────────────────────────────────────────────────────────
+        # idx=8  A1: Week 10 fill-rate crash
+        ("Nine",           "9Now",        "9now_PreRoll_CTV",     "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-NINE-001", 290_000, 0.90, 39.0, 0.94),
+        # idx=9
+        ("Nine",           "9Now",        "9now_MidRoll_MOB",     "Mid-roll",         "Mobile",      "Open Auction",           "The Trade Desk", "",            360_000, 0.80, 20.0, 0.76),
+        # idx=10
+        ("Nine",           "9News.com.au","9news_PreRoll_DSK",    "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            580_000, 0.60, 10.0, 0.65),
+        # idx=11
+        ("Nine",           "Nine Network","ninenet_PauseAd_CTV",  "Pause Ad",         "Connected TV","Direct IO",              "Direct",         "DIO-NINE-001",110_000, 0.92, 28.0, 0.87),
+        # ── Foxtel Media / Binge (CTV-heavy) / Kayo Sports (weekend spike) ────────
+        # idx=12
+        ("Foxtel Media",   "Binge",       "binge_PreRoll_CTV",    "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-FOX-001",  180_000, 0.92, 43.0, 0.96),
+        # idx=13
+        ("Foxtel Media",   "Binge",       "binge_MidRoll_CTV",    "Mid-roll",         "Connected TV","Preferred Deal",         "The Trade Desk", "PD-FOX-001",  140_000, 0.88, 46.0, 0.93),
+        # idx=14  weekend eCPM/fill spike
+        ("Foxtel Media",   "Kayo Sports", "kayo_PreRoll_CTV",     "Pre-roll",         "Connected TV","Open Auction",           "Amazon DSP",     "",            200_000, 0.85, 36.0, 0.91),
+        # idx=15
+        ("Foxtel Media",   "Flash",       "flash_PreRoll_MOB",    "Pre-roll",         "Mobile",      "Open Auction",           "Yahoo DSP",      "",            140_000, 0.70, 15.0, 0.72),
+        # ── TVNZ (smallest) ───────────────────────────────────────────────────────
+        # idx=16
+        ("TVNZ",           "TVNZ+",       "tvnz_PreRoll_CTV",     "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-TVNZ-001",  90_000, 0.87, 32.0, 0.92),
+        # idx=17
+        ("TVNZ",           "1News.co.nz", "1news_PreRoll_DSK",    "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            150_000, 0.62,  9.5, 0.63),
     ]
 
     rows = []
@@ -105,15 +145,20 @@ def _generate_supply_data():
             fill_rate    = base_fill + random.uniform(-0.04, 0.04)
             ecpm         = base_ecpm * (1.0 + random.uniform(-0.08, 0.08))
 
-            # ── Anomaly A1: Week 10 (week_num=9), Nine PreRoll CTV (combo_idx=0)
+            # ── Anomaly A1: Week 10 (week_num=9), Nine 9Now PreRoll CTV (idx=8)
             # Fill rate crashes from ~90% to ~52% — demand partner withdrawal
-            if combo_idx == 0 and week_num == 9:
+            if combo_idx == 8 and week_num == 9:
                 fill_rate = 0.52 + random.uniform(-0.04, 0.04)
 
-            # ── Anomaly A2: Week 11 (week_num=10), SWM MidRoll Mobile (combo_idx=5)
-            # eCPM spikes ~30%+ — Preferred Deal floor raised
-            if combo_idx == 5 and week_num == 10:
-                ecpm = 29.0 + random.uniform(-0.8, 1.5)
+            # ── Anomaly A2: Week 11 (week_num=10), SWM 7plus MidRoll Mobile (idx=1)
+            # eCPM spikes ~23 → ~30 — floor price increase
+            if combo_idx == 1 and week_num == 10:
+                ecpm = 30.0 + random.uniform(-0.8, 1.5)
+
+            # ── Kayo Sports weekend spike (idx=14): eCPM +35%, fill +5% on Sat/Sun
+            if combo_idx == 14 and d.weekday() in (5, 6):
+                ecpm      = ecpm * 1.35
+                fill_rate = min(0.99, fill_rate * 1.05)
 
             fill_rate = max(0.10, min(0.99, fill_rate))
 
@@ -168,8 +213,9 @@ def load_supply_data():
     if not stored.get("data"):
         rows = _generate_supply_data()
         stored["_disclaimer"] = (
-            "Fabricated data only — not real publisher inventory. "
-            "For demo and testing purposes."
+            "All performance figures are fabricated for demonstration purposes "
+            "and do not represent real FreeWheel or publisher data. "
+            "Not for distribution."
         )
         stored["data"] = rows
         os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
@@ -405,7 +451,7 @@ def build_donut(df, group_col, title, height=300):
 
 # ── PPTX builder ──────────────────────────────────────────────────────────────
 
-def build_supply_pptx(df_week, yield_findings, sections, sel_week_label, cur, ai_narrative=""):
+def build_supply_pptx(df_week, yield_findings, sections, sel_week_label, cur, ai_narratives=None):
     """
     Build the Weekly Supply Brief PowerPoint from scratch (no template file).
     Matches the Pacebird dark premium template used across the app.
@@ -513,17 +559,19 @@ def build_supply_pptx(df_week, yield_findings, sections, sel_week_label, cur, ai
 
         add_footer(slide, pg); pg += 1
 
-    # ── Slide 3 (optional): AI Commentary ────────────────────────────────────
-    if sections.get("ai_commentary", False) and ai_narrative:
-        slide = add_slide()
-        add_text(slide, "Publisher Commentary", 0.4, 0.2, 12.5, 0.55,
-                 size=22, bold=True, color=WHT_RGB)
-        add_text(slide, "AI-generated narrative — for internal review before sharing",
-                 0.4, 0.78, 12.5, 0.3, size=11, color=GREY_RGB)
-        # Truncate to fit on one slide (~2000 chars)
-        add_text(slide, ai_narrative[:1800], 0.4, 1.25, 12.5, 5.8,
-                 size=11, color=WHT_RGB)
-        add_footer(slide, pg); pg += 1
+    # ── Slide 3+ (optional): AI Commentary — one slide per publisher ──────────
+    if sections.get("ai_commentary", False) and ai_narratives:
+        for pub_name, narrative in ai_narratives.items():
+            if not narrative:
+                continue
+            slide = add_slide()
+            add_text(slide, f"Publisher Commentary — {pub_name}", 0.4, 0.2, 12.5, 0.55,
+                     size=20, bold=True, color=WHT_RGB)
+            add_text(slide, "AI-generated narrative — for internal review before sharing",
+                     0.4, 0.78, 12.5, 0.3, size=11, color=GREY_RGB)
+            add_text(slide, narrative[:1800], 0.4, 1.25, 12.5, 5.8,
+                     size=11, color=WHT_RGB)
+            add_footer(slide, pg); pg += 1
 
     buf = io.BytesIO()
     prs.save(buf)
@@ -726,20 +774,19 @@ def _compute_yield_findings(df_week, df_prior):
 
 # ── Shared commentary generator ───────────────────────────────────────────────
 
-def _generate_commentary(api_key, week_label, cur, yield_findings):
+def _generate_commentary(api_key, publisher, properties, week_label, cur, yield_findings):
     """
-    Call Claude to write a publisher-facing weekly supply commentary.
+    Call Claude to write a publisher-facing weekly supply commentary for
+    a single named publisher.
 
-    This is the single source of truth for the prompt — both the page's
-    Publisher Commentary section and the PPTX export dialog call this
-    function so they always produce identical text.
+    Both the page's Publisher Commentary section and the PPTX export
+    dialog call this function.
 
-    Returns the commentary string. Raises on API failure so callers can
-    handle the error appropriately.
+    Returns the commentary string. Raises on API failure.
     """
     import anthropic as _ant
 
-    prompt = supply_commentary_prompt(week_label, cur, yield_findings)
+    prompt = supply_commentary_prompt(publisher, properties, week_label, cur, yield_findings)
 
     client = _ant.Anthropic(api_key=api_key)
     resp = client.messages.create(
@@ -1063,15 +1110,11 @@ else:
 section_header("Publisher Commentary")
 
 # Fallback so the dialog (which closes over this variable) always finds it
-# even if the try block below raises before reaching the assignment.
 _current_ctx = f"week ending {sel_week_label}"
 
 try:
-    # Build a short label describing the active filter state.
-    # Shown alongside the commentary so it is obvious if filters have changed
-    # since the text was generated.
+    # Build context label for filter state tracking
     _ctx_parts = [p for p in [
-        sel_pub  if sel_pub  != "All" else None,
         sel_prop if sel_prop != "All" else None,
         sel_fmt  if sel_fmt  != "All" else None,
         sel_dev  if sel_dev  != "All" else None,
@@ -1080,18 +1123,44 @@ try:
     ] if p]
     _current_ctx = " · ".join(_ctx_parts)
 
-    _existing_text = st.session_state.get("supply_commentary", "")
-    _existing_ctx  = st.session_state.get("supply_commentary_context", "")
+    # Publisher selector — defaults to page-level publisher filter if set
+    _all_pubs = list(PUBLISHER_PROPERTIES.keys())
+    _comm_pub_default = sel_pub if sel_pub != "All" else _all_pubs[0]
+    _comm_pub_idx = _all_pubs.index(_comm_pub_default) if _comm_pub_default in _all_pubs else 0
+
+    st.caption("AI-written narrative for the weekly publisher brief. Scoped to one publisher at a time.")
+
+    _comm_pub = st.selectbox(
+        "Publisher",
+        _all_pubs,
+        index=_comm_pub_idx,
+        key="commentary_pub_select",
+    )
+    _comm_props = PUBLISHER_PROPERTIES[_comm_pub]
+
+    # Per-publisher data and metrics
+    _comm_df = df_week[df_week["publisher"] == _comm_pub]
+    _comm_cur = week_totals(_comm_df) if not _comm_df.empty else {}
+
+    # Per-publisher yield findings — filter yield_findings to this publisher
+    _comm_yield = [f for f in yield_findings if _comm_pub.lower() in f.get("detail", "").lower()
+                   or _comm_pub.lower() in f.get("title", "").lower()]
+    if not _comm_yield:
+        _comm_yield = yield_findings  # fallback: use all findings if none tagged to publisher
+
+    # Session-state key for this publisher's commentary
+    _comm_ss_key  = f"supply_commentary_{_comm_pub}"
+    _comm_ctx_key = f"supply_commentary_ctx_{_comm_pub}"
+
+    _existing_text = st.session_state.get(_comm_ss_key, "")
+    _existing_ctx  = st.session_state.get(_comm_ctx_key, "")
+    _full_ctx = f"{_comm_pub} · {_current_ctx}"
 
     with st.container():
-        st.caption("AI-written narrative for the weekly publisher brief.")
-
         if _existing_text:
-            # Show which filter state the text was generated under.
-            # A mismatch with _current_ctx signals the user that a refresh
-            # may be needed — but we do not auto-regenerate.
+            # Show which publisher + filter state the text was generated under
             if _existing_ctx:
-                _ctx_color = TEXT_SEC if _existing_ctx == _current_ctx else "#F59E0B"
+                _ctx_color = TEXT_SEC if _existing_ctx == _full_ctx else "#F59E0B"
                 st.markdown(
                     f'<p style="font-family:Poppins,system-ui,sans-serif;'
                     f'font-size:11px;color:{_ctx_color};margin:0 0 12px 0;">'
@@ -1117,12 +1186,10 @@ try:
                 unsafe_allow_html=True,
             )
 
-            # Regenerate button — clears session state and reruns so the
-            # placeholder + generate button appear again.
             st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
             if st.button("🔄 Regenerate", key="commentary_regen_btn"):
-                st.session_state.pop("supply_commentary", None)
-                st.session_state.pop("supply_commentary_context", None)
+                st.session_state.pop(_comm_ss_key, None)
+                st.session_state.pop(_comm_ctx_key, None)
                 st.rerun()
 
         else:
@@ -1133,7 +1200,7 @@ try:
                 f'<p style="font-family:Poppins,system-ui,sans-serif;font-size:14px;'
                 f'color:{TEXT_SEC};font-style:italic;margin:0;">'
                 f'Click "Generate commentary" to produce an AI-written narrative '
-                f'based on the current week\'s metrics and yield findings.</p>'
+                f'for {_comm_pub} based on this week\'s metrics and yield findings.</p>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -1141,21 +1208,80 @@ try:
             st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
 
             if _ai_avail:
-                _gcol1, _gcol2 = st.columns([2, 5])
+                _gcol1, _gcol2 = st.columns([2, 3])
                 with _gcol1:
-                    if st.button("Generate commentary", key="commentary_gen_btn",
-                                 type="primary"):
-                        with st.spinner("Writing commentary…"):
+                    if st.button("Generate commentary", key="commentary_gen_btn", type="primary"):
+                        with st.spinner(f"Writing commentary for {_comm_pub}…"):
                             _text = _generate_commentary(
-                                _brief_api_key, sel_week_label, cur, yield_findings
+                                _brief_api_key, _comm_pub, _comm_props,
+                                sel_week_label, _comm_cur, _comm_yield,
                             )
-                            st.session_state["supply_commentary"] = _text
-                            st.session_state["supply_commentary_context"] = _current_ctx
+                            st.session_state[_comm_ss_key]  = _text
+                            st.session_state[_comm_ctx_key] = _full_ctx
                         st.rerun()
                 with _gcol2:
                     st.caption("Uses AI credits.")
+
+                st.markdown('<div style="margin-top:6px;"></div>', unsafe_allow_html=True)
+                st.info(
+                    f"'Generate for all publishers' will make {len(_all_pubs)} API calls "
+                    f"(one per publisher).",
+                )
+                if st.button("Generate for all publishers", key="commentary_all_btn"):
+                    for _pname in _all_pubs:
+                        _sk  = f"supply_commentary_{_pname}"
+                        _ck  = f"supply_commentary_ctx_{_pname}"
+                        if not st.session_state.get(_sk):
+                            _pdf = df_week[df_week["publisher"] == _pname]
+                            _pcu = week_totals(_pdf) if not _pdf.empty else {}
+                            _pyd = [f for f in yield_findings
+                                    if _pname.lower() in f.get("detail","").lower()
+                                    or _pname.lower() in f.get("title","").lower()] or yield_findings
+                            with st.spinner(f"Writing commentary for {_pname}…"):
+                                try:
+                                    _pt = _generate_commentary(
+                                        _brief_api_key, _pname,
+                                        PUBLISHER_PROPERTIES[_pname],
+                                        sel_week_label, _pcu, _pyd,
+                                    )
+                                    st.session_state[_sk] = _pt
+                                    st.session_state[_ck] = f"{_pname} · {_current_ctx}"
+                                except Exception as _pae:
+                                    st.warning(f"Could not generate commentary for {_pname}: {_pae}")
+                    st.rerun()
             else:
                 st.caption("⚠ Requires ANTHROPIC_API_KEY in Streamlit secrets to generate commentary.")
+
+    # If all-publishers commentary exists (2+ publishers), display in expanders
+    _generated_pubs = [p for p in _all_pubs if st.session_state.get(f"supply_commentary_{p}")]
+    if len(_generated_pubs) > 1:
+        section_header("All Publisher Commentaries")
+        for _pname in _generated_pubs:
+            _sk = f"supply_commentary_{_pname}"
+            _ck = f"supply_commentary_ctx_{_pname}"
+            with st.expander(f"**{_pname}**", expanded=(_pname == _comm_pub)):
+                _ctx_val = st.session_state.get(_ck, "")
+                if _ctx_val:
+                    st.markdown(
+                        f'<p style="font-family:Poppins,system-ui,sans-serif;'
+                        f'font-size:11px;color:{TEXT_SEC};margin:0 0 12px 0;">'
+                        f'Generated for: {_html.escape(_ctx_val)}</p>',
+                        unsafe_allow_html=True,
+                    )
+                _psafe = (
+                    _html.escape(st.session_state.get(_sk, ""))
+                    .replace("\n\n", "</p><p style='margin:10px 0;'>")
+                    .replace("\n", "<br>")
+                )
+                st.markdown(
+                    f'<div style="background:{WHITE};border:0.5px solid rgba(27,42,74,0.12);'
+                    f'border-radius:16px;padding:22px 26px;">'
+                    f'<div style="font-family:Poppins,system-ui,sans-serif;font-size:14px;'
+                    f'color:#374151;line-height:1.75;">'
+                    f'<p style="margin:0 0 10px 0;">{_psafe}</p>'
+                    f'</div></div>',
+                    unsafe_allow_html=True,
+                )
 
 except Exception as _comm_err:
     st.error(f"Publisher Commentary section error: {_comm_err}")
@@ -1476,6 +1602,13 @@ else:
 # (after load_supply_data) — no re-definition needed here.
 section_header("Generate Weekly Brief")
 
+# Check how many publishers already have commentary cached — used to enable the
+# "AI Commentary (all publishers)" checkbox in the dialog.
+_all_pubs_for_dialog = list(PUBLISHER_PROPERTIES.keys())
+_any_generated_pubs_all = sum(
+    1 for p in _all_pubs_for_dialog if st.session_state.get(f"supply_commentary_{p}")
+) >= 2
+
 
 @st.dialog("Generate Weekly Brief")
 def _show_brief_dialog():
@@ -1484,9 +1617,10 @@ def _show_brief_dialog():
 
     # Restore previous section defaults from session state
     _b_defs = st.session_state.get("_brief_section_defs", {
-        "headline_summary":   True,
-        "yield_opportunities":True,
-        "ai_commentary":      False,   # unchecked by default — uses AI credits
+        "headline_summary":    True,
+        "yield_opportunities": True,
+        "ai_commentary":       False,   # unchecked by default — uses AI credits
+        "ai_commentary_all":   False,
     })
 
     _bc = st.columns(2)
@@ -1514,12 +1648,24 @@ def _show_brief_dialog():
         help=None if yield_findings else "No findings for the current filters / week.",
     )
     s_ai = st.checkbox(
-        "AI Commentary  *(Uses AI credits)*",
+        "AI Commentary (selected publisher)  *(Uses AI credits)*",
         value=_b_defs.get("ai_commentary", False),
         key="brief_cb_ai",
         disabled=not _ai_avail,
         help=(
-            "Writes a short publisher-facing narrative using Claude AI."
+            "Includes AI narrative for the publisher selected in the commentary section."
+            if _ai_avail
+            else "Requires ANTHROPIC_API_KEY in Streamlit secrets."
+        ),
+    )
+    s_ai_all = st.checkbox(
+        "AI Commentary (all publishers)  *(Uses AI credits)*",
+        value=_b_defs.get("ai_commentary_all", False),
+        key="brief_cb_ai_all",
+        disabled=(not _ai_avail or not _any_generated_pubs_all),
+        help=(
+            "Includes AI narrative for all publishers — one slide each. "
+            "Generate commentary for at least 2 publishers first."
             if _ai_avail
             else "Requires ANTHROPIC_API_KEY in Streamlit secrets."
         ),
@@ -1527,6 +1673,8 @@ def _show_brief_dialog():
 
     if not _ai_avail:
         st.caption("⚠ AI Commentary requires ANTHROPIC_API_KEY in Streamlit secrets.")
+    elif not _any_generated_pubs_all:
+        st.caption("Generate commentary for 2+ publishers to enable 'all publishers' export.")
 
     st.markdown("")
 
@@ -1535,9 +1683,10 @@ def _show_brief_dialog():
         if st.button("Generate PowerPoint", type="primary", key="brief_gen_btn"):
             # Persist section choices for next dialog open
             st.session_state["_brief_section_defs"] = {
-                "headline_summary":   s_headline,
-                "yield_opportunities":s_yield,
-                "ai_commentary":      s_ai,
+                "headline_summary":    s_headline,
+                "yield_opportunities": s_yield,
+                "ai_commentary":       s_ai,
+                "ai_commentary_all":   s_ai_all,
             }
             sections = st.session_state["_brief_section_defs"]
 
@@ -1545,32 +1694,45 @@ def _show_brief_dialog():
                 st.warning("Select at least one section.")
                 return
 
-            # Optional AI commentary — reuse page-section text if already
-            # generated; only calls the API when nothing is cached.
-            ai_narrative = ""
+            # Build ai_narratives dict for the PPTX
+            ai_narratives = {}
             if s_ai and _ai_avail:
-                cached = st.session_state.get("supply_commentary", "")
+                # Single publisher — selected in commentary section
+                _sp = st.session_state.get("commentary_pub_select", _all_pubs_for_dialog[0])
+                cached = st.session_state.get(f"supply_commentary_{_sp}", "")
                 if cached:
-                    # Reuse existing text — no additional API call needed
-                    ai_narrative = cached
+                    ai_narratives[_sp] = cached
                 else:
-                    with st.spinner("Generating AI commentary…"):
+                    with st.spinner(f"Generating AI commentary for {_sp}…"):
                         try:
-                            ai_narrative = _generate_commentary(
-                                _brief_api_key, sel_week_label, cur, yield_findings
+                            _pdf = df_week[df_week["publisher"] == _sp]
+                            _pcu = week_totals(_pdf) if not _pdf.empty else {}
+                            _pyd = [f for f in yield_findings
+                                    if _sp.lower() in f.get("detail","").lower()
+                                    or _sp.lower() in f.get("title","").lower()] or yield_findings
+                            _pt = _generate_commentary(
+                                _brief_api_key, _sp, PUBLISHER_PROPERTIES[_sp],
+                                sel_week_label, _pcu, _pyd,
                             )
-                            # Store so the page section can display the same text
-                            st.session_state["supply_commentary"] = ai_narrative
-                            st.session_state["supply_commentary_context"] = _current_ctx
+                            ai_narratives[_sp] = _pt
+                            st.session_state[f"supply_commentary_{_sp}"] = _pt
+                            st.session_state[f"supply_commentary_ctx_{_sp}"] = f"{_sp} · {_current_ctx}"
                         except Exception as _ae:
                             st.warning(f"AI commentary could not be generated: {_ae}")
+
+            if s_ai_all and _ai_avail:
+                # All publishers — use cached commentaries
+                for _pname in PUBLISHER_PROPERTIES:
+                    cached_p = st.session_state.get(f"supply_commentary_{_pname}", "")
+                    if cached_p:
+                        ai_narratives[_pname] = cached_p
 
             # Build the PPTX
             with st.spinner("Building PowerPoint…"):
                 try:
                     pptx_buf = build_supply_pptx(
                         df_week, yield_findings, sections,
-                        sel_week_label, cur, ai_narrative,
+                        sel_week_label, cur, ai_narratives,
                     )
                     st.session_state["supply_pptx"] = pptx_buf
                 except Exception as _pe:

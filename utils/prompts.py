@@ -274,33 +274,35 @@ def nl_query_prompt(summary_parts: list, agg_sample: str, nl_question: str) -> s
 # ── Supply Brief: publisher commentary ─────────────────────────────────────
 # Used by _generate_commentary() in supply_brief.py.
 
-def supply_commentary_prompt(week_label: str, cur: dict,
-                              yield_findings: list) -> str:
+def supply_commentary_prompt(publisher: str, properties: list, week_label: str,
+                              cur: dict, yield_findings: list) -> str:
     """
     Publisher-facing weekly supply performance commentary (supply_brief.py).
+    Scoped to a single publisher — references their specific properties.
     Generates 3 paragraphs: overall performance, key issues, recommended actions.
     Uses sell-side vocabulary (eCPM, fill rate, demand sources, inventory).
     """
+    properties_str = ", ".join(properties)
     findings_text = "\n".join(
         f"- {f['title']}: {f['detail']}"
         for f in yield_findings[:5]
-    )
+    ) or "No significant issues detected this week."
     return (
         f"{SHARED_CONTEXT}\n\n"
-        f"You are writing a publisher-facing weekly supply "
-        f"performance commentary for {week_label}.\n\n"
+        f"You are writing a publisher-facing weekly supply performance commentary "
+        f"for {publisher} (properties: {properties_str}), week ending {week_label}.\n\n"
         f"Key metrics this week:\n"
         f"  Revenue: A${cur.get('revenue_aud', 0):,.0f}\n"
         f"  Fill Rate: {cur.get('fill_rate', 0):.1%}\n"
         f"  eCPM: A${cur.get('ecpm', 0):.2f}\n"
         f"  Completion Rate: {cur.get('completion_rate', 0):.1%}\n\n"
-        f"Top findings:\n"
+        f"Top findings for {publisher}:\n"
         f"{findings_text}\n\n"
         f"Write 3 concise paragraphs: (1) overall performance "
-        f"summary, (2) key issues and their context, "
+        f"summary for {publisher}, (2) key issues and their context, "
         f"(3) recommended actions. Use sell-side vocabulary "
         f"(eCPM, fill rate, demand sources, inventory). "
-        f"Be specific and data-driven."
+        f"Be specific and data-driven. Address {publisher} directly."
     )
 
 
