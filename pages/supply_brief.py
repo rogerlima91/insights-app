@@ -39,11 +39,9 @@ from utils.prompts import supply_commentary_prompt
 # Publisher → properties mapping — used by data generation, commentary section,
 # and PPTX export. Adding a publisher here automatically includes it everywhere.
 PUBLISHER_PROPERTIES = {
-    "Seven West Media": ["7plus", "7NEWS.com.au", "Seven Network"],
-    "Paramount ANZ":    ["10 play", "Paramount+", "Network 10"],
-    "Nine":             ["9Now", "9News.com.au", "Nine Network"],
-    "Foxtel Media":     ["Binge", "Kayo Sports", "Flash"],
-    "TVNZ":             ["TVNZ+", "1News.co.nz"],
+    "Paramount":              ["Paramount+", "Pluto TV", "10 play"],
+    "Warner Bros. Discovery": ["HBO Max", "Discovery+", "CNN International"],
+    "Vevo":                   ["Vevo CTV", "Vevo FAST", "Vevo Mobile"],
 }
 
 # STYLE LOCK: Pacebird design system — #F5A623 orange, #1B2A4A navy, Poppins.
@@ -62,18 +60,17 @@ def _generate_supply_data():
     Uses a fixed seed (42) for reproducible results.
 
     Publishers and properties:
-      Seven West Media — 7plus, 7NEWS.com.au, Seven Network
-      Paramount ANZ    — 10 play, Paramount+, Network 10
-      Nine             — 9Now, 9News.com.au, Nine Network
-      Foxtel Media     — Binge, Kayo Sports, Flash
-      TVNZ             — TVNZ+, 1News.co.nz
+      Paramount              — Paramount+, Pluto TV, 10 play
+      Warner Bros. Discovery — HBO Max, Discovery+, CNN International
+      Vevo                   — Vevo CTV, Vevo FAST, Vevo Mobile
+                               (Vevo skews heavily to Connected TV and music-video inventory)
 
-    Three deliberate anomalies:
-      A1 — Week 10 (week_num=9): Nine / 9Now / Pre-roll / CTV (idx=8)
-           fill rate crashes from ~90% to ~52% (demand partner withdrawal)
-      A2 — Week 11 (week_num=10): Seven West Media / 7plus / Mid-roll / Mobile (idx=1)
-           eCPM spikes from ~A$23 to ~A$30 (floor price increase)
-      Kayo — Kayo Sports CTV Pre-roll (idx=14): eCPM +35% and fill +5% on weekends
+    Two deliberate anomalies (in different accounts):
+      A1 — Week 10 (week_num=9): Warner Bros. Discovery / Discovery+ / Pre-roll / CTV (idx=8)
+           fill rate crashes from ~88% to ~52% (demand partner withdrawal)
+      A2 — Week 11 (week_num=10): Vevo / Vevo CTV / Pre-roll / CTV (idx=12)
+           eCPM spikes from ~A$48 to ~A$62 (floor price increase)
+      Weekend — Vevo FAST CTV Pre-roll (idx=14): eCPM +35% and fill +5% on Sat/Sun
     """
     random.seed(42)
 
@@ -88,47 +85,51 @@ def _generate_supply_data():
     #              buyer, deal_id, base_daily_requests, base_fill_rate,
     #              base_ecpm_aud, base_completion_rate)
     combos = [
-        # ── Seven West Media / 7plus ──────────────────────────────────────────────
+        # ── Paramount / Paramount+ (CTV-heavy premium) ────────────────────────────
         # idx=0
-        ("Seven West Media","7plus",       "7plus_PreRoll_CTV",    "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-SWM-001",  300_000, 0.91, 38.0, 0.94),
-        # idx=1  A2: Week 11 eCPM spike
-        ("Seven West Media","7plus",       "7plus_MidRoll_MOB",    "Mid-roll",         "Mobile",      "Open Auction",           "The Trade Desk", "",            380_000, 0.74, 23.0, 0.70),
+        ("Paramount","Paramount+",  "pplus_PreRoll_CTV",   "Pre-roll",          "Connected TV","Programmatic Guaranteed","DV360",          "PG-PAR-001", 180_000, 0.93, 46.0, 0.95),
+        # idx=1
+        ("Paramount","Paramount+",  "pplus_MidRoll_CTV",   "Mid-roll",          "Connected TV","Preferred Deal",         "The Trade Desk", "PD-PAR-001", 130_000, 0.89, 42.0, 0.93),
+        # ── Paramount / Pluto TV ──────────────────────────────────────────────────
         # idx=2
-        ("Seven West Media","7NEWS.com.au","7news_PreRoll_DSK",    "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            600_000, 0.58, 10.5, 0.66),
+        ("Paramount","Pluto TV",    "pluto_PreRoll_CTV",   "Pre-roll",          "Connected TV","Open Auction",           "Amazon DSP",     "",           210_000, 0.78, 28.0, 0.88),
         # idx=3
-        ("Seven West Media","Seven Network","sevnet_Display_DSK",  "Display Companion","Desktop",     "Direct IO",              "Direct",         "DIO-SWM-001", 250_000, 0.72,  6.5, 0.00),
-        # ── Paramount ANZ / Paramount+ (CTV-heavy) ────────────────────────────────
+        ("Paramount","Pluto TV",    "pluto_PreRoll_MOB",   "Pre-roll",          "Mobile",      "Open Auction",           "Yahoo DSP",      "",           350_000, 0.65, 12.0, 0.68),
+        # ── Paramount / 10 play ───────────────────────────────────────────────────
         # idx=4
-        ("Paramount ANZ",  "Paramount+",  "paramplus_PreRoll_CTV","Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-PAR-001",  160_000, 0.93, 44.0, 0.95),
+        ("Paramount","10 play",     "10play_PreRoll_DSK",  "Pre-roll",          "Desktop",     "Open Auction",           "Yahoo DSP",      "",           420_000, 0.61, 10.5, 0.64),
         # idx=5
-        ("Paramount ANZ",  "Paramount+",  "paramplus_MidRoll_CTV","Mid-roll",         "Connected TV","Preferred Deal",         "The Trade Desk", "PD-PAR-001",  120_000, 0.88, 40.0, 0.92),
+        ("Paramount","10 play",     "10play_PreRoll_MOB",  "Pre-roll",          "Mobile",      "Open Auction",           "The Trade Desk", "",           280_000, 0.72, 11.5, 0.70),
+        # ── Warner Bros. Discovery / HBO Max (premium CTV) ────────────────────────
         # idx=6
-        ("Paramount ANZ",  "10 play",     "10play_PreRoll_DSK",   "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            420_000, 0.62, 11.0, 0.65),
+        ("Warner Bros. Discovery","HBO Max",          "hbomax_PreRoll_CTV",  "Pre-roll",  "Connected TV","Programmatic Guaranteed","DV360",          "PG-WBD-001", 160_000, 0.92, 44.0, 0.94),
         # idx=7
-        ("Paramount ANZ",  "Network 10",  "net10_PreRoll_MOB",    "Pre-roll",         "Mobile",      "Open Auction",           "Amazon DSP",     "",            220_000, 0.69,  9.5, 0.63),
-        # ── Nine / 9Now ───────────────────────────────────────────────────────────
+        ("Warner Bros. Discovery","HBO Max",          "hbomax_MidRoll_CTV",  "Mid-roll",  "Connected TV","Preferred Deal",         "The Trade Desk", "PD-WBD-001", 110_000, 0.87, 40.0, 0.91),
+        # ── Warner Bros. Discovery / Discovery+ ───────────────────────────────────
         # idx=8  A1: Week 10 fill-rate crash
-        ("Nine",           "9Now",        "9now_PreRoll_CTV",     "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-NINE-001", 290_000, 0.90, 39.0, 0.94),
+        ("Warner Bros. Discovery","Discovery+",       "disc_PreRoll_CTV",    "Pre-roll",  "Connected TV","Open Auction",           "Amazon DSP",     "",           190_000, 0.88, 35.0, 0.90),
         # idx=9
-        ("Nine",           "9Now",        "9now_MidRoll_MOB",     "Mid-roll",         "Mobile",      "Open Auction",           "The Trade Desk", "",            360_000, 0.80, 20.0, 0.76),
+        ("Warner Bros. Discovery","Discovery+",       "disc_MidRoll_MOB",    "Mid-roll",  "Mobile",      "Open Auction",           "The Trade Desk", "",           300_000, 0.76, 18.0, 0.73),
+        # ── Warner Bros. Discovery / CNN International ────────────────────────────
         # idx=10
-        ("Nine",           "9News.com.au","9news_PreRoll_DSK",    "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            580_000, 0.60, 10.0, 0.65),
+        ("Warner Bros. Discovery","CNN International","cnn_PreRoll_DSK",     "Pre-roll",  "Desktop",     "Open Auction",           "Yahoo DSP",      "",           520_000, 0.58,  9.5, 0.62),
         # idx=11
-        ("Nine",           "Nine Network","ninenet_PauseAd_CTV",  "Pause Ad",         "Connected TV","Direct IO",              "Direct",         "DIO-NINE-001",110_000, 0.92, 28.0, 0.87),
-        # ── Foxtel Media / Binge (CTV-heavy) / Kayo Sports (weekend spike) ────────
-        # idx=12
-        ("Foxtel Media",   "Binge",       "binge_PreRoll_CTV",    "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-FOX-001",  180_000, 0.92, 43.0, 0.96),
+        ("Warner Bros. Discovery","CNN International","cnn_Display_DSK",     "Display Companion","Desktop","Direct IO",            "Direct",         "DIO-WBD-001",180_000, 0.70,  6.0, 0.00),
+        # ── Vevo / Vevo CTV (music-video, heavily CTV) ────────────────────────────
+        # idx=12  A2: Week 11 eCPM spike
+        ("Vevo","Vevo CTV",  "vevo_ctv_PreRoll_CTV",  "Pre-roll", "Connected TV","Programmatic Guaranteed","DV360",          "PG-VEV-001", 250_000, 0.91, 48.0, 0.96),
         # idx=13
-        ("Foxtel Media",   "Binge",       "binge_MidRoll_CTV",    "Mid-roll",         "Connected TV","Preferred Deal",         "The Trade Desk", "PD-FOX-001",  140_000, 0.88, 46.0, 0.93),
+        ("Vevo","Vevo CTV",  "vevo_ctv_MidRoll_CTV",  "Mid-roll", "Connected TV","Preferred Deal",         "The Trade Desk", "PD-VEV-001", 200_000, 0.87, 44.0, 0.94),
+        # ── Vevo / Vevo FAST (weekend CTV spike) ──────────────────────────────────
         # idx=14  weekend eCPM/fill spike
-        ("Foxtel Media",   "Kayo Sports", "kayo_PreRoll_CTV",     "Pre-roll",         "Connected TV","Open Auction",           "Amazon DSP",     "",            200_000, 0.85, 36.0, 0.91),
+        ("Vevo","Vevo FAST", "vevo_fast_PreRoll_CTV", "Pre-roll", "Connected TV","Open Auction",           "Amazon DSP",     "",           280_000, 0.82, 32.0, 0.92),
         # idx=15
-        ("Foxtel Media",   "Flash",       "flash_PreRoll_MOB",    "Pre-roll",         "Mobile",      "Open Auction",           "Yahoo DSP",      "",            140_000, 0.70, 15.0, 0.72),
-        # ── TVNZ (smallest) ───────────────────────────────────────────────────────
+        ("Vevo","Vevo FAST", "vevo_fast_MidRoll_CTV", "Mid-roll", "Connected TV","Open Auction",           "The Trade Desk", "",           220_000, 0.79, 30.0, 0.90),
+        # ── Vevo / Vevo Mobile ────────────────────────────────────────────────────
         # idx=16
-        ("TVNZ",           "TVNZ+",       "tvnz_PreRoll_CTV",     "Pre-roll",         "Connected TV","Programmatic Guaranteed","DV360",          "PG-TVNZ-001",  90_000, 0.87, 32.0, 0.92),
+        ("Vevo","Vevo Mobile","vevo_mob_PreRoll_MOB",  "Pre-roll", "Mobile",      "Open Auction",           "Yahoo DSP",      "",           320_000, 0.68, 14.0, 0.71),
         # idx=17
-        ("TVNZ",           "1News.co.nz", "1news_PreRoll_DSK",    "Pre-roll",         "Desktop",     "Open Auction",           "Yahoo DSP",      "",            150_000, 0.62,  9.5, 0.63),
+        ("Vevo","Vevo Mobile","vevo_mob_MidRoll_MOB",  "Mid-roll", "Mobile",      "Open Auction",           "The Trade Desk", "",           260_000, 0.65, 13.0, 0.68),
     ]
 
     rows = []
@@ -145,26 +146,26 @@ def _generate_supply_data():
             fill_rate    = base_fill + random.uniform(-0.04, 0.04)
             ecpm         = base_ecpm * (1.0 + random.uniform(-0.08, 0.08))
 
-            # ── Anomaly A1: Week 10 (week_num=9), Nine 9Now PreRoll CTV (idx=8)
-            # Fill rate crashes from ~90% to ~52% — demand partner withdrawal
+            # ── Anomaly A1: Week 10 (week_num=9), WBD Discovery+ PreRoll CTV (idx=8)
+            # Fill rate crashes from ~88% to ~52% — demand partner withdrawal
             if combo_idx == 8 and week_num == 9:
                 fill_rate = 0.52 + random.uniform(-0.04, 0.04)
 
-            # ── Anomaly A2: Week 11 (week_num=10), SWM 7plus MidRoll Mobile (idx=1)
-            # eCPM spikes ~23 → ~30 — floor price increase
-            if combo_idx == 1 and week_num == 10:
-                ecpm = 30.0 + random.uniform(-0.8, 1.5)
+            # ── Anomaly A2: Week 11 (week_num=10), Vevo CTV PreRoll CTV (idx=12)
+            # eCPM spikes ~A$48 → ~A$62 — floor price increase
+            if combo_idx == 12 and week_num == 10:
+                ecpm = 62.0 + random.uniform(-1.5, 2.5)
 
-            # ── Kayo Sports weekend spike (idx=14): eCPM +35%, fill +5% on Sat/Sun
+            # ── Vevo FAST weekend spike (idx=14): eCPM +35%, fill +5% on Sat/Sun
             if combo_idx == 14 and d.weekday() in (5, 6):
                 ecpm      = ecpm * 1.35
                 fill_rate = min(0.99, fill_rate * 1.05)
 
             fill_rate = max(0.10, min(0.99, fill_rate))
 
-            ad_impressions      = int(ad_requests * fill_rate)
+            ad_impressions       = int(ad_requests * fill_rate)
             unfilled_impressions = ad_requests - ad_impressions
-            revenue_aud         = round(ad_impressions / 1_000.0 * ecpm, 2)
+            revenue_aud          = round(ad_impressions / 1_000.0 * ecpm, 2)
 
             # Completed views: 0 for Display Companion (no video completion)
             if fmt == "Display Companion":
@@ -213,8 +214,8 @@ def load_supply_data():
     if not stored.get("data"):
         rows = _generate_supply_data()
         stored["_disclaimer"] = (
-            "All performance figures are fabricated for demonstration purposes "
-            "and do not represent real FreeWheel or publisher data. "
+            "All performance figures are fabricated and do not represent "
+            "real client data. For demonstration purposes only. "
             "Not for distribution."
         )
         stored["data"] = rows
@@ -798,21 +799,249 @@ def _generate_commentary(api_key, publisher, properties, week_label, cur, yield_
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# UPLOAD HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Column mapping is saved here (local only — not committed to git).
+_MAPPING_FILE = os.path.join(_APP_ROOT, "data", ".supply_column_mapping.json")
+
+# Internal field names that the page understands.
+_INTERNAL_FIELDS = [
+    "date", "publisher", "property", "ad_unit", "format", "device",
+    "demand_source", "buyer", "ad_requests", "ad_impressions",
+    "unfilled_impressions", "revenue_aud", "completed_views",
+    "timeout_count", "error_count",
+]
+
+# Rate fields — never imported from uploaded files; always recalculated from counts.
+_RATE_FIELDS = {"fill_rate", "ecpm", "completion_rate", "timeout_rate"}
+
+
+def _load_saved_mapping():
+    """Load previously saved column mapping from disk. Returns {} if none found."""
+    try:
+        with open(_MAPPING_FILE, "r", encoding="utf-8") as _mf:
+            return json.load(_mf)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_mapping(mapping: dict):
+    """Persist column mapping to disk so the next upload maps automatically."""
+    try:
+        os.makedirs(os.path.dirname(_MAPPING_FILE), exist_ok=True)
+        with open(_MAPPING_FILE, "w", encoding="utf-8") as _mf:
+            json.dump(mapping, _mf, indent=2)
+    except Exception:
+        pass  # Non-fatal — mapping simply won't persist
+
+
+def _apply_mapping(df: pd.DataFrame, mapping: dict) -> pd.DataFrame:
+    """
+    Rename columns per mapping (skip entries marked '(Skip)'), then add
+    placeholder columns for any internal field that was not mapped.
+    Rate metrics are intentionally excluded — calc_rates() derives them
+    from summed raw counts.
+    """
+    rename = {src: tgt for src, tgt in mapping.items()
+              if tgt and tgt != "(Skip)" and src in df.columns}
+    df = df.rename(columns=rename)
+
+    # Drop any columns that are rate metrics — never import averaged rates.
+    for _rf in _RATE_FIELDS:
+        if _rf in df.columns:
+            df = df.drop(columns=[_rf])
+
+    # Fill in any unmapped internal fields with safe defaults.
+    for field in _INTERNAL_FIELDS:
+        if field not in df.columns:
+            if field == "date":
+                df[field] = pd.NaT
+            elif field in ("ad_requests", "ad_impressions", "unfilled_impressions",
+                           "completed_views", "timeout_count", "error_count"):
+                df[field] = 0
+            elif field == "revenue_aud":
+                df[field] = 0.0
+            else:
+                df[field] = "Unknown"
+
+    # Coerce numeric columns so downstream sums work correctly.
+    for _nc in ("ad_requests", "ad_impressions", "unfilled_impressions",
+                "revenue_aud", "completed_views", "timeout_count", "error_count"):
+        df[_nc] = pd.to_numeric(df[_nc], errors="coerce").fillna(0)
+
+    # Parse date column.
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    return df
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PAGE RENDER
 # ══════════════════════════════════════════════════════════════════════════════
 
 st.title("Weekly Supply Brief")
-st.caption("Demo using fabricated data. Not real publisher inventory.")
+
+# ── Config — read allow_ai_on_uploaded_data setting ───────────────────────────
+def _load_page_config():
+    try:
+        with open(os.path.join(_APP_ROOT, "config.json"), "r", encoding="utf-8") as _cf:
+            return json.load(_cf)
+    except Exception:
+        return {}
+
+_page_cfg = _load_page_config()
+_allow_ai_on_upload = _page_cfg.get("allow_ai_on_uploaded_data", False)
+
+# ── Upload control ────────────────────────────────────────────────────────────
+# A unique counter in session state lets us reset the file_uploader widget
+# (changing its key forces Streamlit to create a fresh widget).
+_uploader_key = f"supply_uploader_{st.session_state.get('_supply_uploader_reset', 0)}"
+
+_upl = st.file_uploader(
+    "Upload a supply report (CSV, XLSX or TSV) — or leave empty to use demo data",
+    type=["csv", "xlsx", "tsv"],
+    key=_uploader_key,
+)
+
+_using_uploaded_data = False   # default: demo data
+
+if _upl is not None:
+    # If this is a different file than what's already processed, reset state.
+    if st.session_state.get("_supply_upload_file_id") != _upl.name:
+        from utils.file_loader import read_file as _read_file
+        _raw_df, _read_err = _read_file(_upl)
+        if _read_err:
+            st.error(f"Could not read file: {_read_err}")
+            st.stop()
+        st.session_state["_supply_upload_file_id"]   = _upl.name
+        st.session_state["_supply_upload_raw_df"]    = _raw_df
+        # Clear any previously confirmed mapping when a new file is loaded.
+        st.session_state.pop("_supply_upload_confirmed_df", None)
+
+    if "_supply_upload_raw_df" in st.session_state:
+        _raw_df = st.session_state["_supply_upload_raw_df"]
+
+        if "_supply_upload_confirmed_df" not in st.session_state:
+            # ── Column mapping step ───────────────────────────────────────────
+            st.markdown("---")
+            st.markdown("**Map columns to supply fields**")
+            st.caption(
+                "Match each detected column to a supply field. "
+                "Any field left as '(Skip)' will default to 0 or 'Unknown'. "
+                "Rate metrics (fill rate, eCPM, etc.) are always recalculated — "
+                "leave those unmapped."
+            )
+
+            with st.expander("Preview uploaded data (first 3 rows)", expanded=False):
+                st.dataframe(_raw_df.head(3), use_container_width=True)
+
+            _saved_map = _load_saved_mapping()
+            _detected_cols = list(_raw_df.columns)
+            _map_opts = ["(Skip)"] + _INTERNAL_FIELDS
+
+            _mc_left, _mc_right = st.columns(2)
+            _new_mapping = {}
+            for _ci, _col in enumerate(_detected_cols):
+                _default = _saved_map.get(_col, "(Skip)")
+                _def_idx = _map_opts.index(_default) if _default in _map_opts else 0
+                _target_col = _mc_left if _ci % 2 == 0 else _mc_right
+                with _target_col:
+                    _new_mapping[_col] = st.selectbox(
+                        f"`{_col}`",
+                        _map_opts,
+                        index=_def_idx,
+                        key=f"supply_map_{_ci}_{_col}",
+                    )
+
+            st.markdown("")
+            _apply_col, _cancel_col, _ = st.columns([1, 1, 4])
+            with _apply_col:
+                if st.button("Apply mapping", type="primary", key="supply_apply_mapping"):
+                    _save_mapping(_new_mapping)
+                    _confirmed = _apply_mapping(_raw_df.copy(), _new_mapping)
+                    st.session_state["_supply_upload_confirmed_df"] = _confirmed
+                    st.session_state["_supply_upload_filename"]     = _upl.name
+                    st.rerun()
+            with _cancel_col:
+                if st.button("Cancel", key="supply_cancel_upload"):
+                    st.session_state["_supply_uploader_reset"] = (
+                        st.session_state.get("_supply_uploader_reset", 0) + 1
+                    )
+                    for _k in ["_supply_upload_file_id", "_supply_upload_raw_df",
+                                "_supply_upload_confirmed_df", "_supply_upload_filename"]:
+                        st.session_state.pop(_k, None)
+                    st.rerun()
+
+            # Stop rendering the rest of the page until mapping is confirmed.
+            st.stop()
+
+        else:
+            # ── Mapping confirmed — show data source label + clear button ─────
+            _using_uploaded_data = True
+            _upload_filename = st.session_state.get("_supply_upload_filename", _upl.name)
+
+            _src_c1, _src_c2, _src_c3 = st.columns([3, 1, 4])
+            with _src_c1:
+                st.markdown(
+                    f'<div style="font-family:Poppins,system-ui,sans-serif;'
+                    f'font-size:13px;font-weight:600;color:{SUCCESS};padding:6px 0;">'
+                    f'Showing: {_html.escape(_upload_filename)}</div>',
+                    unsafe_allow_html=True,
+                )
+            with _src_c2:
+                if st.button("Clear upload", key="supply_clear_upload"):
+                    st.session_state["_supply_uploader_reset"] = (
+                        st.session_state.get("_supply_uploader_reset", 0) + 1
+                    )
+                    for _k in ["_supply_upload_file_id", "_supply_upload_raw_df",
+                                "_supply_upload_confirmed_df", "_supply_upload_filename"]:
+                        st.session_state.pop(_k, None)
+                    st.rerun()
+            with _src_c3:
+                if st.button("Edit column mapping", key="supply_edit_mapping"):
+                    st.session_state.pop("_supply_upload_confirmed_df", None)
+                    st.rerun()
+
+else:
+    # No file in uploader — clear any stale upload state.
+    for _k in ["_supply_upload_file_id", "_supply_upload_raw_df",
+                "_supply_upload_confirmed_df", "_supply_upload_filename"]:
+        st.session_state.pop(_k, None)
+    st.markdown(
+        f'<div style="font-family:Poppins,system-ui,sans-serif;'
+        f'font-size:13px;color:{TEXT_SEC};padding:6px 0;">'
+        f'Showing: demo data</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── API key — resolved once, used by commentary section and Generate Brief ────
 _brief_api_key = get_anthropic_api_key()
-_ai_avail      = bool(_brief_api_key)
+# AI is disabled when using uploaded data unless explicitly enabled in config.
+if _using_uploaded_data and not _allow_ai_on_upload:
+    _ai_avail = False
+else:
+    _ai_avail = bool(_brief_api_key)
+
+# Show AI safety notice when AI is off due to uploaded data.
+if _using_uploaded_data and not _allow_ai_on_upload:
+    st.info(
+        "AI features are off while client data is loaded. "
+        "To enable them, set \"allow_ai_on_uploaded_data\": true in config.json."
+    )
 
 # ── Load data ─────────────────────────────────────────────────────────────────
-df_all = load_supply_data()
+if _using_uploaded_data:
+    df_all = st.session_state["_supply_upload_confirmed_df"].copy()
+    # Ensure date is datetime and drop un-parseable rows.
+    df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
+    df_all = df_all.dropna(subset=["date"])
+else:
+    df_all = load_supply_data()
+    st.caption("Demo using fabricated data. Not real publisher inventory.")
 
 if df_all.empty:
-    st.error("Supply data could not be loaded. Check data/supply_performance.json.")
+    st.error("No data available for the current source. Check your upload or supply data file.")
     st.stop()
 
 # ── 1. FILTERS ────────────────────────────────────────────────────────────────
@@ -1250,7 +1479,10 @@ try:
                                     st.warning(f"Could not generate commentary for {_pname}: {_pae}")
                     st.rerun()
             else:
-                st.caption("⚠ Requires ANTHROPIC_API_KEY in Streamlit secrets to generate commentary.")
+                if _using_uploaded_data and not _allow_ai_on_upload:
+                    st.caption("⚠ AI features are off while client data is loaded.")
+                else:
+                    st.caption("⚠ Requires ANTHROPIC_API_KEY in Streamlit secrets to generate commentary.")
 
     # If all-publishers commentary exists (2+ publishers), display in expanders
     _generated_pubs = [p for p in _all_pubs if st.session_state.get(f"supply_commentary_{p}")]
@@ -1655,7 +1887,11 @@ def _show_brief_dialog():
         help=(
             "Includes AI narrative for the publisher selected in the commentary section."
             if _ai_avail
-            else "Requires ANTHROPIC_API_KEY in Streamlit secrets."
+            else (
+                "AI features are off while client data is loaded."
+                if (_using_uploaded_data and not _allow_ai_on_upload)
+                else "Requires ANTHROPIC_API_KEY in Streamlit secrets."
+            )
         ),
     )
     s_ai_all = st.checkbox(
@@ -1667,12 +1903,19 @@ def _show_brief_dialog():
             "Includes AI narrative for all publishers — one slide each. "
             "Generate commentary for at least 2 publishers first."
             if _ai_avail
-            else "Requires ANTHROPIC_API_KEY in Streamlit secrets."
+            else (
+                "AI features are off while client data is loaded."
+                if (_using_uploaded_data and not _allow_ai_on_upload)
+                else "Requires ANTHROPIC_API_KEY in Streamlit secrets."
+            )
         ),
     )
 
     if not _ai_avail:
-        st.caption("⚠ AI Commentary requires ANTHROPIC_API_KEY in Streamlit secrets.")
+        if _using_uploaded_data and not _allow_ai_on_upload:
+            st.caption("⚠ AI features are off while client data is loaded.")
+        else:
+            st.caption("⚠ AI Commentary requires ANTHROPIC_API_KEY in Streamlit secrets.")
     elif not _any_generated_pubs_all:
         st.caption("Generate commentary for 2+ publishers to enable 'all publishers' export.")
 

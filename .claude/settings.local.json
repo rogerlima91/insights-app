@@ -28,7 +28,9 @@
       "Bash(git mv:*)",
       "Bash(make --version)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(find C:/projects/insights-app -name *.pptx)"
+      "Bash(find C:/projects/insights-app -name *.pptx)",
+      "Bash(\"C:\\\\projects\\\\insights-app\\\\data\\\\supply_performance.json\")",
+      "Bash(git:*)"
     ]
   }
 }

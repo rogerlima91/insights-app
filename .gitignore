@@ -17,6 +17,9 @@ brand_memory.json
 *.pem
 *.key
 
+# Supply upload — local column mapping and any uploaded files (never commit)
+data/.supply_column_mapping.json
+
 # Python
 __pycache__/
 *.pyc

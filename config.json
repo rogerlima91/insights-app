@@ -6,14 +6,12 @@
       ],
       "hidden": [
         "Upload Report",
-        "Supply",
-        "Audience"
+        "Supply"
       ]
     },
     "upload_only": {
       "visible": [
-        "Upload Report",
-        "Audience"
+        "Upload Report"
       ],
       "hidden": [
         "API Data",
@@ -24,8 +22,7 @@
       "visible": [
         "API Data",
         "Upload Report",
-        "Supply",
-        "Audience"
+        "Supply"
       ],
       "hidden": []
     },
@@ -35,10 +32,10 @@
       ],
       "hidden": [
         "API Data",
-        "Upload Report",
-        "Audience"
+        "Upload Report"
       ]
     }
   },
-  "current_tier": "full_access"
+  "current_tier": "full_access",
+  "allow_ai_on_uploaded_data": false
 }
